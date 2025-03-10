@@ -1,3 +1,5 @@
+import argparse
+import json
 import os
 from pathlib import Path
 
@@ -8,18 +10,39 @@ import torch
 
 
 _OPTIMAL_ANGLE =  np.pi / 3
+_TARGET_AREA = 20.0
+
+_AREAS_LOSS_WEIGHT = 10.0
 _ANGLES_LOSS_WEIGHT = 0.1
-_TARGET_AREA = 2.0
 _AREA_VARIANCE_LOSS_WEIGHT = 1e5
+
 _NUM_POLYGONS = 100
 _MAX_VERTICES = 15
 
 
-def _get_device():
-    if torch.cuda.is_available():
-        device = torch.device('cuda')
-    elif torch.backends.mps.is_available():
-        device = torch.device('mps')
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-g',
+                        dest='use_gpu',
+                        action='store_true',
+                        help=('Use GPU for computations.'))
+    parser.add_argument('-m',
+                        dest='mesh',
+                        action='store_true',
+                        help=('Use mesh as initial configuration.'))
+
+    return parser.parse_args()
+
+
+def _get_device(args):
+    if args.use_gpu:
+        if torch.cuda.is_available():
+            device = torch.device('cuda')
+        elif torch.backends.mps.is_available():
+            device = torch.device('mps')
+        else:
+            print('No GPU available. Using CPU.')
+            device = torch.device('cpu')
     else:
         device = torch.device('cpu')
     return device
@@ -46,12 +69,12 @@ def _set_seeds():
     torch.manual_seed(0)
 
 
-class _Polygons:
+class _VoronoiPolygons:
     def __init__(self):
         self._all_polygon_vertex_inds, self._vertices = (
             self._make_init_polygons()
         )
-        self._polygon_inds = self._make_polygon_inds()
+        self._polygon_inds = self._finalize_polygon_inds()
         self._mask = (self._polygon_inds != -1)
 
     def _is_finite(self, region):
@@ -96,7 +119,7 @@ class _Polygons:
 
         return all_polygon_vertex_inds, allowed_vertices
 
-    def _make_polygon_inds(self):
+    def _finalize_polygon_inds(self):
         all_polygon_inds = []
         for vertex_inds in self._all_polygon_vertex_inds:
             n_padding_values = _MAX_VERTICES - len(vertex_inds)
@@ -121,30 +144,85 @@ class _Polygons:
         return self._vertices
 
 
-# def _calc_area(vertices):
-#     xs = vertices[1:-1, 0]
-#     y_plus_ones = vertices[2:, 1]
-#     y_minus_ones = vertices[:-2, 1]
-#     first_term = torch.dot(xs, y_plus_ones)
-#     second_term = torch.dot(xs, y_minus_ones)
-#     # Abs. because vertex orientation can be
-#     # both clockwise and counter-clockwise
-#     area = 0.5 * torch.abs(first_term - second_term)
-#     return area
+class _MeshPolygons:
+    def __init__(self):
+        self._input_cells = self._read_input_cells()
+        self._all_polygon_vertex_inds, self._vertices = (
+            self._make_init_polygons()
+        )
+        self._mask = (self._all_polygon_vertex_inds != -1)
+
+    def _read_input_cells(self):
+        input_path = Path('input_cells.json')
+        with input_path.open() as data:
+            input_cells = json.load(data)
+
+        return input_cells
+
+    def _make_init_polygons(self):
+        all_vertices = np.zeros((0, 2))
+        all_indices = []
+        index = 0
+        for polygon in self._input_cells:
+            if polygon['is_boundary']:
+                continue
+            indices = []
+            vertices = polygon['edges']
+            for vertex in vertices:
+                are_equal = np.isclose(np.array(vertex) - all_vertices, 0.0)
+                possible_inds = np.where(np.all(are_equal, axis=1))[0]
+
+                # Add new index
+                if len(possible_inds) == 0:
+                    all_vertices = np.vstack([all_vertices, vertex])
+                    indices.append(index)
+                    index += 1
+                # Use existing index
+                elif len(possible_inds) == 1:
+                    indices.append(possible_inds[0])
+                else:
+                    raise ValueError('Multiple indices found')
+
+            # For efficiency
+            first_idx = indices[1]
+            indices.append(first_idx)
+            # Pad
+            indices += [-1] * (_MAX_VERTICES - len(indices))
+            indices.extend([-1] * (_MAX_VERTICES - len(indices)))
+            all_indices.append(indices)
+
+        all_indices = np.array(all_indices)
+
+        return all_indices, all_vertices
+
+    def get_polygon_inds(self):
+        return self._all_polygon_vertex_inds
+
+    def get_mask(self):
+        return self._mask
+
+    def get_vertices(self):
+        return self._vertices
 
 
-# def _calc_edges(vertices):
-#     return vertices[1:] - vertices[:-1]
+def _get_polygons(args):
+    if args.mesh:
+        polygons = _MeshPolygons()
+    else:
+        polygons = _VoronoiPolygons()
+    return polygons
 
 
-# def _calc_angles_loss(vertices):
-#     edges = _calc_edges(vertices)
-#     dot_products = torch.sum(edges[:-1] * edges[1:], dim=1)
-#     norms = torch.norm(edges, dim=1)
-#     cosines = torch.clip(dot_products / (norms[:-1] * norms[1:]), -1.0, 1.0)
-#     angles = torch.acos(cosines)
-#     angles_loss = torch.sum((angles - _OPTIMAL_ANGLE)**2)
-#     return angles_loss
+def _get_tensors(polygons, args):
+    device = _get_device(args)
+
+    vertices = torch.tensor(
+        polygons.get_vertices(), device=device, requires_grad=True,
+        dtype=torch.float64
+    )
+    indices = torch.tensor(polygons.get_polygon_inds(), device=device)
+    mask = torch.tensor(polygons.get_mask(), device=device)
+    return vertices, indices, mask
 
 
 def _calc_all_areas(all_cells, mask):
@@ -182,59 +260,65 @@ def _calc_all_angles_loss(all_cells, mask):
 
 def _calc_loss(vertices, indices, mask):
     all_cells = vertices[indices]
-
     areas = _calc_all_areas(all_cells, mask)
 
-    areas_loss = torch.sum((_TARGET_AREA - areas)**2)
+    areas_loss = _AREAS_LOSS_WEIGHT * torch.sum(
+        (_TARGET_AREA - areas)**2
+    )
     angles_loss = _ANGLES_LOSS_WEIGHT * _calc_all_angles_loss(all_cells, mask)
     area_variance_loss = _AREA_VARIANCE_LOSS_WEIGHT * torch.var(areas)
+
+    print(f'Areas loss: {areas_loss.item()}')
+    print(f'Angles loss: {angles_loss.item()}')
+    print(f'Area variance loss: {area_variance_loss.item()}')
+    print('')
 
     loss = areas_loss + angles_loss + area_variance_loss
 
     return loss
 
 
-def _make_figure(vertices, indices, mask):
-    fig, ax = plt.subplots()
-    range_ = np.array([-2, 2]) + 0.5
-    ax.set_xlim(range_)
-    ax.set_ylim(range_)
+def _get_ax_lims(vertices):
+    minvals = vertices.cpu().detach().numpy().min(axis=0)
+    maxvals = vertices.cpu().detach().numpy().max(axis=0)
+    center = (minvals + maxvals) / 2
+    dims = maxvals - minvals
+    xlim = center + np.array([-1.0, 1.0]) * dims[0]
+    ylim = center + np.array([-1.0, 1.0]) * dims[1]
+    return xlim, ylim
 
+
+def _format(ax, xlim, ylim):
+    ax.clear()
+
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.set_aspect('equal')
+
+
+def _plot(ax, vertices, indices, mask):
     for i in range(indices.shape[0]):
         vertex_inds = indices[i][mask[i]]
         polygon = vertices[vertex_inds].cpu().detach().numpy()
-        ax.scatter(polygon[:, 0], polygon[:, 1], color='green', zorder=1)
-        ax.plot(polygon[:, 0], polygon[:, 1], color='black', zorder=2)
+        ax.scatter(polygon[:, 0], polygon[:, 1], s=2.0, color='green', zorder=1)
+        ax.plot(polygon[:, 0], polygon[:, 1], lw=0.7, color='black', zorder=2)
     
-    return fig
-
 
 def _save_figure(fig, step):
     output_dir = _get_output_dir()
-    fig_path = output_dir / f'step_{step}.pdf'
+    fig_path = output_dir / f'step_{step}.png'
     
-    fig.savefig(fig_path)
-    plt.close()
+    fig.savefig(fig_path, dpi=100)
 
 
-def _main():
-    _set_seeds()
-    _make_output_dir()
-    device = _get_device()
-
-    polygons = _Polygons()
-    vertices = torch.tensor(
-        polygons.get_vertices(), device=device, requires_grad=True,
-        dtype=torch.float32
-    )
-    indices = torch.tensor(polygons.get_polygon_inds(), device=device)
-    mask = torch.tensor(polygons.get_mask(), device=device)
-
-    optimizer = torch.optim.Adam([vertices], lr=0.0005)
+def _iterate(vertices, indices, mask, optimizer):
+    fig, ax = plt.subplots(figsize=(10, 10))
+    xlim, ylim = _get_ax_lims(vertices)
 
     n_steps = 10000
     for step in range(n_steps):
         optimizer.zero_grad()
+
         loss = _calc_loss(vertices, indices, mask)
         loss.backward()
         optimizer.step()
@@ -242,8 +326,23 @@ def _main():
         if step % int(n_steps / 100) == 0:
             print(f'Step {step}, Loss: {loss.item()}')
         
-            fig = _make_figure(vertices, indices, mask)
+            _format(ax, xlim, ylim)
+            _plot(ax, vertices, indices, mask)
             _save_figure(fig, step)
+
+
+def _main():
+    _set_seeds()
+    _make_output_dir()
+
+    args = parse_args()
+
+    polygons = _get_polygons(args)
+
+    vertices, indices, mask = _get_tensors(polygons, args)
+    optimizer = torch.optim.Adam([vertices], lr=0.001)
+
+    _iterate(vertices, indices, mask, optimizer)
 
 
 if __name__ == "__main__":
