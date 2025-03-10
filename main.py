@@ -9,7 +9,6 @@ from scipy.spatial import Voronoi
 import torch
 
 
-_OPTIMAL_ANGLE =  np.pi / 3
 _TARGET_AREA = 20.0
 
 _AREAS_LOSS_WEIGHT = 10.0
@@ -225,6 +224,14 @@ def _get_tensors(polygons, args):
     return vertices, indices, mask
 
 
+def _calc_optimal_angles(mask):
+    n_vertices = mask.sum(axis=1) - 2
+    interior_angles = (n_vertices - 2) * np.pi / n_vertices
+    optimal_angles = np.pi - interior_angles
+    optimal_angles = optimal_angles[:, None]
+    return optimal_angles
+
+
 def _calc_all_areas(all_cells, mask):
     xs = all_cells[:, 1:-1, 0]
     y_plus_ones = all_cells[:, 2:, 1]
@@ -244,7 +251,7 @@ def _calc_all_areas(all_cells, mask):
     return areas
 
 
-def _calc_all_angles_loss(all_cells, mask):
+def _calc_all_angles_loss(all_cells, mask, optimal_angles):
     valid = mask[:, 1:] & mask[:, :-1]
     valid = valid[:, 1:] & valid[:, :-1]
 
@@ -253,19 +260,21 @@ def _calc_all_angles_loss(all_cells, mask):
     norms = torch.norm(edges, dim=2)
     cosines = dot_products / (1e-7 + norms[:, :-1] * norms[:, 1:])
     angles = torch.acos(cosines)
-    angles_loss = torch.sum((angles - _OPTIMAL_ANGLE)**2 * valid)
+    angles_loss = torch.sum((angles - optimal_angles)**2 * valid)
 
     return angles_loss
 
 
-def _calc_loss(vertices, indices, mask):
+def _calc_loss(vertices, indices, mask, optimal_angles):
     all_cells = vertices[indices]
     areas = _calc_all_areas(all_cells, mask)
 
     areas_loss = _AREAS_LOSS_WEIGHT * torch.sum(
         (_TARGET_AREA - areas)**2
     )
-    angles_loss = _ANGLES_LOSS_WEIGHT * _calc_all_angles_loss(all_cells, mask)
+    angles_loss = _ANGLES_LOSS_WEIGHT * _calc_all_angles_loss(
+        all_cells, mask, optimal_angles
+    )
     area_variance_loss = _AREA_VARIANCE_LOSS_WEIGHT * torch.var(areas)
 
     print(f'Areas loss: {areas_loss.item()}')
@@ -316,10 +325,12 @@ def _iterate(vertices, indices, mask, optimizer):
     xlim, ylim = _get_ax_lims(vertices)
 
     n_steps = 10000
+    optimal_angles = _calc_optimal_angles(mask)
+
     for step in range(n_steps):
         optimizer.zero_grad()
 
-        loss = _calc_loss(vertices, indices, mask)
+        loss = _calc_loss(vertices, indices, mask, optimal_angles)
         loss.backward()
         optimizer.step()
 
