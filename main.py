@@ -9,14 +9,15 @@ from scipy.spatial import Voronoi
 import torch
 
 
+_N_STEPS = 10000
 _TARGET_AREA = 20.0
 
 _AREAS_LOSS_WEIGHT = 10.0
-_ANGLES_LOSS_WEIGHT = 0.1
-_AREA_VARIANCE_LOSS_WEIGHT = 1e5
+_ANGLES_LOSS_WEIGHT = 1000.0
+_AREA_VARIANCE_LOSS_WEIGHT = 1e4
 
 _NUM_POLYGONS = 100
-_MAX_VERTICES = 15
+_MAX_VERTICES = 130
 
 
 def parse_args():
@@ -75,6 +76,7 @@ class _VoronoiPolygons:
         )
         self._polygon_inds = self._finalize_polygon_inds()
         self._mask = (self._polygon_inds != -1)
+        self._fixed_inds = np.array([], dtype=np.int64)
 
     def _is_finite(self, region):
         return (-1 not in region) and (len(region) > 0)
@@ -142,14 +144,21 @@ class _VoronoiPolygons:
     def get_vertices(self):
         return self._vertices
 
+    def get_fixed_inds(self):
+        return self._fixed_inds
+
 
 class _MeshPolygons:
     def __init__(self):
         self._input_cells = self._read_input_cells()
-        self._all_polygon_vertex_inds, self._vertices = (
+        self._all_polygon_vertex_inds, self._vertices, self._fixed_inds = (
             self._make_init_polygons()
         )
         self._mask = (self._all_polygon_vertex_inds != -1)
+        self._fixed_inds = np.array([
+            3, 0, 15, 16, 27, 37, 47, 66, 97, 103, 110, 145, 128, 123, 107, 78,
+            52, 35, 18, 10, 11, 6, 7
+        ])
 
     def _read_input_cells(self):
         input_path = Path('input_cells.json')
@@ -161,6 +170,7 @@ class _MeshPolygons:
     def _make_init_polygons(self):
         all_vertices = np.zeros((0, 2))
         all_indices = []
+        fixed_indices = []
         index = 0
         for polygon in self._input_cells:
             if polygon['is_boundary']:
@@ -168,7 +178,9 @@ class _MeshPolygons:
             indices = []
             vertices = polygon['edges']
             for vertex in vertices:
-                are_equal = np.isclose(np.array(vertex) - all_vertices, 0.0)
+                are_equal = np.isclose(
+                    np.array(vertex) - all_vertices, 0.0, atol=0.5
+                )
                 possible_inds = np.where(np.all(are_equal, axis=1))[0]
 
                 # Add new index
@@ -189,10 +201,13 @@ class _MeshPolygons:
             indices += [-1] * (_MAX_VERTICES - len(indices))
             indices.extend([-1] * (_MAX_VERTICES - len(indices)))
             all_indices.append(indices)
+            if polygon['is_boundary']:
+                fixed_indices.append(indices)
 
         all_indices = np.array(all_indices)
+        fixed_indices = np.array(fixed_indices)
 
-        return all_indices, all_vertices
+        return all_indices, all_vertices, fixed_indices
 
     def get_polygon_inds(self):
         return self._all_polygon_vertex_inds
@@ -202,6 +217,9 @@ class _MeshPolygons:
 
     def get_vertices(self):
         return self._vertices
+
+    def get_fixed_inds(self):
+        return self._fixed_inds
 
 
 def _get_polygons(args):
@@ -221,7 +239,8 @@ def _get_tensors(polygons, args):
     )
     indices = torch.tensor(polygons.get_polygon_inds(), device=device)
     mask = torch.tensor(polygons.get_mask(), device=device)
-    return vertices, indices, mask
+    fixed_inds = torch.tensor(polygons.get_fixed_inds(), device=device)
+    return vertices, indices, mask, fixed_inds
 
 
 def _calc_optimal_angles(mask):
@@ -311,6 +330,10 @@ def _plot(ax, vertices, indices, mask):
         polygon = vertices[vertex_inds].cpu().detach().numpy()
         ax.scatter(polygon[:, 0], polygon[:, 1], s=2.0, color='green', zorder=1)
         ax.plot(polygon[:, 0], polygon[:, 1], lw=0.7, color='black', zorder=2)
+
+    base_y = 18.635
+    ax.plot([-20, 10], [base_y, base_y], 'k', lw=0.7)
+    ax.plot([70, 100], [base_y, base_y], 'k', lw=0.7)
     
 
 def _save_figure(fig, step):
@@ -320,21 +343,27 @@ def _save_figure(fig, step):
     fig.savefig(fig_path, dpi=100)
 
 
-def _iterate(vertices, indices, mask, optimizer):
+def _iterate(vertices, indices, mask, fixed_inds, optimizer):
     fig, ax = plt.subplots(figsize=(10, 10))
     xlim, ylim = _get_ax_lims(vertices)
 
-    n_steps = 10000
     optimal_angles = _calc_optimal_angles(mask)
 
-    for step in range(n_steps):
+    fixed_vertices = vertices[fixed_inds].detach().clone()
+
+    for step in range(_N_STEPS):
         optimizer.zero_grad()
 
         loss = _calc_loss(vertices, indices, mask, optimal_angles)
         loss.backward()
+
+        # Restore fixed vertices before optimizer step
+        with torch.no_grad():
+            vertices[fixed_inds] = fixed_vertices
+
         optimizer.step()
 
-        if step % int(n_steps / 100) == 0:
+        if step % int(_N_STEPS / 100) == 0:
             print(f'Step {step}, Loss: {loss.item()}')
         
             _format(ax, xlim, ylim)
@@ -350,10 +379,10 @@ def _main():
 
     polygons = _get_polygons(args)
 
-    vertices, indices, mask = _get_tensors(polygons, args)
+    vertices, indices, mask, fixed_inds = _get_tensors(polygons, args)
     optimizer = torch.optim.Adam([vertices], lr=0.001)
 
-    _iterate(vertices, indices, mask, optimizer)
+    _iterate(vertices, indices, mask, fixed_inds, optimizer)
 
 
 if __name__ == "__main__":
