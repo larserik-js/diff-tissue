@@ -126,7 +126,9 @@ class _VoronoiPolygons:
         for vertex_inds in self._all_polygon_vertex_inds:
             n_padding_values = _MAX_VERTICES - len(vertex_inds)
             padding_array = np.full((n_padding_values,), -1, dtype=np.long)
-            polygon_inds = np.cat([np.tensor(vertex_inds), padding_array])
+            polygon_inds = np.concatenate(
+                [np.array(vertex_inds), padding_array]
+            )
             all_polygon_inds.append(polygon_inds)
     
         all_polygon_inds = np.stack(all_polygon_inds)
