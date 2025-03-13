@@ -10,6 +10,7 @@ import torch
 
 
 _N_STEPS = 10000
+_LEARNING_RATE = 0.00001
 _TARGET_AREA = 20.0
 
 _AREAS_LOSS_WEIGHT = 10.0
@@ -343,25 +344,22 @@ def _save_figure(fig, step):
     fig.savefig(fig_path, dpi=100)
 
 
-def _iterate(vertices, indices, mask, fixed_inds, optimizer):
+def _iterate(vertices, indices, mask, fixed_inds):
     fig, ax = plt.subplots(figsize=(10, 10))
     xlim, ylim = _get_ax_lims(vertices)
 
     optimal_angles = _calc_optimal_angles(mask)
 
-    fixed_vertices = vertices[fixed_inds].detach().clone()
-
     for step in range(_N_STEPS):
-        optimizer.zero_grad()
+        if vertices.grad is not None:
+            vertices.grad.zero_()
 
         loss = _calc_loss(vertices, indices, mask, optimal_angles)
         loss.backward()
 
-        # Restore fixed vertices before optimizer step
+        vertices.grad[fixed_inds] = 0.0
         with torch.no_grad():
-            vertices[fixed_inds] = fixed_vertices
-
-        optimizer.step()
+            vertices -= _LEARNING_RATE * vertices.grad
 
         if step % int(_N_STEPS / 100) == 0:
             print(f'Step {step}, Loss: {loss.item()}')
@@ -380,9 +378,8 @@ def _main():
     polygons = _get_polygons(args)
 
     vertices, indices, mask, fixed_inds = _get_tensors(polygons, args)
-    optimizer = torch.optim.Adam([vertices], lr=0.001)
 
-    _iterate(vertices, indices, mask, fixed_inds, optimizer)
+    _iterate(vertices, indices, mask, fixed_inds)
 
 
 if __name__ == "__main__":
