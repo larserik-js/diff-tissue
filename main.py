@@ -125,15 +125,13 @@ class _VoronoiPolygons:
         all_polygon_inds = []
         for vertex_inds in self._all_polygon_vertex_inds:
             n_padding_values = _MAX_VERTICES - len(vertex_inds)
-            padding_tensor = torch.full(
-                (n_padding_values,), -1, dtype=torch.long
-            )
-            polygon_inds = torch.cat(
-                [torch.tensor(vertex_inds), padding_tensor]
+            padding_array = np.full((n_padding_values,), -1, dtype=np.long)
+            polygon_inds = np.concatenate(
+                [np.array(vertex_inds), padding_array]
             )
             all_polygon_inds.append(polygon_inds)
     
-        all_polygon_inds = torch.stack(all_polygon_inds)
+        all_polygon_inds = np.stack(all_polygon_inds)
         return all_polygon_inds
 
     def get_polygon_inds(self):
