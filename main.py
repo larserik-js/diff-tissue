@@ -226,7 +226,13 @@ def _get_jax_arrays(polygons):
 
 
 def _update_target_areas(target_areas):
-    areas_scales = 0.00005 * jnp.ones_like(target_areas)
+    areas_scales = 0.00001 * jnp.ones_like(target_areas)
+    # Crude assumption that inner cells have vertices in the first half
+    # of the vertex array
+    inner_cells_scale = 2.0
+    areas_scales = areas_scales.at[:int(0.5 * target_areas.shape[0])].mul(
+        inner_cells_scale
+    )
     target_areas += areas_scales * target_areas
     return target_areas
 
