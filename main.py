@@ -1,4 +1,6 @@
 import argparse
+import jax
+import jax.numpy as jnp
 import json
 import os
 from pathlib import Path
@@ -6,11 +8,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial import Voronoi
-import torch
 
 
 _N_STEPS = 10000
-_LEARNING_RATE = 0.00001
+_LEARNING_RATE = 1e-5
 _TARGET_AREA = 20.0
 
 _AREAS_LOSS_WEIGHT = 10.0
@@ -23,10 +24,6 @@ _MAX_VERTICES = 130
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-g',
-                        dest='use_gpu',
-                        action='store_true',
-                        help=('Use GPU for computations.'))
     parser.add_argument('-m',
                         dest='mesh',
                         action='store_true',
@@ -35,18 +32,8 @@ def parse_args():
     return parser.parse_args()
 
 
-def _get_device(args):
-    if args.use_gpu:
-        if torch.cuda.is_available():
-            device = torch.device('cuda')
-        elif torch.backends.mps.is_available():
-            device = torch.device('mps')
-        else:
-            print('No GPU available. Using CPU.')
-            device = torch.device('cpu')
-    else:
-        device = torch.device('cpu')
-    return device
+def _get_device():
+    return jax.devices('cpu')[0]
 
 
 def _get_project_dir():
@@ -63,11 +50,6 @@ def _get_output_dir():
 def _make_output_dir():
     output_dir = _get_output_dir()
     output_dir.mkdir(exist_ok=True, parents=True)
-
-
-def _set_seeds():
-    np.random.seed(0)
-    torch.manual_seed(0)
 
 
 class _VoronoiPolygons:
@@ -229,23 +211,26 @@ def _get_polygons(args):
     return polygons
 
 
-def _get_tensors(polygons, args):
-    device = _get_device(args)
+def _send_to_device(jax_arrays):
+    return jax.device_put(jax_arrays, device=_get_device())
 
-    vertices = torch.tensor(
-        polygons.get_vertices(), device=device, requires_grad=True,
-        dtype=torch.float64
-    )
-    indices = torch.tensor(polygons.get_polygon_inds(), device=device)
-    mask = torch.tensor(polygons.get_mask(), device=device)
-    fixed_inds = torch.tensor(polygons.get_fixed_inds(), device=device)
-    return vertices, indices, mask, fixed_inds
+
+def _get_jax_arrays(polygons):
+    vertices = jnp.array(polygons.get_vertices())
+    indices = jnp.array(polygons.get_polygon_inds())
+    mask = jnp.array(polygons.get_mask())
+    fixed_inds = jnp.array(polygons.get_fixed_inds())
+
+    jax_arrays = (vertices, indices, mask, fixed_inds)
+    jax_arrays = _send_to_device(jax_arrays)
+
+    return jax_arrays
 
 
 def _calc_optimal_angles(mask):
     n_vertices = mask.sum(axis=1) - 2
-    interior_angles = (n_vertices - 2) * np.pi / n_vertices
-    optimal_angles = np.pi - interior_angles
+    interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
+    optimal_angles = jnp.pi - interior_angles
     optimal_angles = optimal_angles[:, None]
     return optimal_angles
 
@@ -258,27 +243,30 @@ def _calc_all_areas(all_cells, mask):
     valid = mask[:, 1:-1] & mask[:, 2:] & mask[:, :-2]
 
     first_term = xs * y_plus_ones
-    first_term = torch.sum(first_term * valid, dim=1)
+    first_term = jnp.sum(first_term * valid, axis=1)
     second_term = xs * y_minus_ones
-    second_term = torch.sum(second_term * valid, dim=1)
+    second_term = jnp.sum(second_term * valid, axis=1)
 
     # Abs. because vertex orientation can be
     # both clockwise and counter-clockwise
-    areas = 0.5 * torch.abs(first_term - second_term)
+    areas = 0.5 * jnp.abs(first_term - second_term)
 
     return areas
 
 
 def _calc_all_angles_loss(all_cells, mask, optimal_angles):
+    epsilon = 1e-7
+    edges = all_cells[:, 1:] - all_cells[:, :-1]
+    dot_products = jnp.sum(edges[:, :-1] * edges[:, 1:], axis=2)
+    norms = jnp.linalg.norm(edges + epsilon, axis=2)
+    cosines = dot_products / (epsilon + norms[:, :-1] * norms[:, 1:])
+    clip_value = 1.0 - epsilon
+    cosines = jnp.clip(cosines, -clip_value, clip_value)
+    angles = jnp.arccos(cosines)
+
     valid = mask[:, 1:] & mask[:, :-1]
     valid = valid[:, 1:] & valid[:, :-1]
-
-    edges = all_cells[:, 1:] - all_cells[:, :-1]
-    dot_products = torch.sum(edges[:, :-1] * edges[:, 1:], dim=2)
-    norms = torch.norm(edges, dim=2)
-    cosines = dot_products / (1e-7 + norms[:, :-1] * norms[:, 1:])
-    angles = torch.acos(cosines)
-    angles_loss = torch.sum((angles - optimal_angles)**2 * valid)
+    angles_loss = jnp.sum((angles - optimal_angles)**2 * valid)
 
     return angles_loss
 
@@ -286,19 +274,16 @@ def _calc_all_angles_loss(all_cells, mask, optimal_angles):
 def _calc_loss(vertices, indices, mask, optimal_angles):
     all_cells = vertices[indices]
     areas = _calc_all_areas(all_cells, mask)
-
-    areas_loss = _AREAS_LOSS_WEIGHT * torch.sum(
-        (_TARGET_AREA - areas)**2
-    )
+    areas_loss = _AREAS_LOSS_WEIGHT * jnp.sum((_TARGET_AREA - areas)**2)
     angles_loss = _ANGLES_LOSS_WEIGHT * _calc_all_angles_loss(
         all_cells, mask, optimal_angles
     )
-    area_variance_loss = _AREA_VARIANCE_LOSS_WEIGHT * torch.var(areas)
+    area_variance_loss = _AREA_VARIANCE_LOSS_WEIGHT * jnp.var(areas)
 
-    print(f'Areas loss: {areas_loss.item()}')
-    print(f'Angles loss: {angles_loss.item()}')
-    print(f'Area variance loss: {area_variance_loss.item()}')
-    print('')
+    jax.debug.print('Areas loss: {}', areas_loss)
+    jax.debug.print('Angles loss: {}', angles_loss)
+    jax.debug.print('Area variance loss: {}', area_variance_loss)
+    jax.debug.print('')
 
     loss = areas_loss + angles_loss + area_variance_loss
 
@@ -306,12 +291,12 @@ def _calc_loss(vertices, indices, mask, optimal_angles):
 
 
 def _get_ax_lims(vertices):
-    minvals = vertices.cpu().detach().numpy().min(axis=0)
-    maxvals = vertices.cpu().detach().numpy().max(axis=0)
+    minvals = vertices.min(axis=0)
+    maxvals = vertices.max(axis=0)
     center = (minvals + maxvals) / 2
     dims = maxvals - minvals
-    xlim = center + np.array([-1.0, 1.0]) * dims[0]
-    ylim = center + np.array([-1.0, 1.0]) * dims[1]
+    xlim = center + jnp.array([-1.0, 1.0]) * dims[0]
+    ylim = center + jnp.array([-1.0, 1.0]) * dims[1]
     return xlim, ylim
 
 
@@ -326,7 +311,7 @@ def _format(ax, xlim, ylim):
 def _plot(ax, vertices, indices, mask):
     for i in range(indices.shape[0]):
         vertex_inds = indices[i][mask[i]]
-        polygon = vertices[vertex_inds].cpu().detach().numpy()
+        polygon = vertices[vertex_inds]
         ax.scatter(polygon[:, 0], polygon[:, 1], s=2.0, color='green', zorder=1)
         ax.plot(polygon[:, 0], polygon[:, 1], lw=0.7, color='black', zorder=2)
 
@@ -348,19 +333,18 @@ def _iterate(vertices, indices, mask, fixed_inds):
 
     optimal_angles = _calc_optimal_angles(mask)
 
+    _calc_value_and_grad = jax.value_and_grad(_calc_loss)
+    _calc_value_and_grad = jax.jit(_calc_value_and_grad)
+
     for step in range(_N_STEPS):
-        if vertices.grad is not None:
-            vertices.grad.zero_()
-
-        loss = _calc_loss(vertices, indices, mask, optimal_angles)
-        loss.backward()
-
-        vertices.grad[fixed_inds] = 0.0
-        with torch.no_grad():
-            vertices -= _LEARNING_RATE * vertices.grad
+        loss, grads = _calc_value_and_grad(
+            vertices, indices, mask, optimal_angles
+        )
+        grads = grads.at[fixed_inds].set(0.0)
+        vertices -= _LEARNING_RATE * grads
 
         if step % int(_N_STEPS / 100) == 0:
-            print(f'Step {step}, Loss: {loss.item()}')
+            print(f'Step {step}, Loss: {loss}')
         
             _format(ax, xlim, ylim)
             _plot(ax, vertices, indices, mask)
@@ -368,14 +352,16 @@ def _iterate(vertices, indices, mask, fixed_inds):
 
 
 def _main():
-    _set_seeds()
+    np.random.seed(0)
+    jax.config.update('jax_enable_x64', True)
+
     _make_output_dir()
 
     args = parse_args()
 
     polygons = _get_polygons(args)
 
-    vertices, indices, mask, fixed_inds = _get_tensors(polygons, args)
+    vertices, indices, mask, fixed_inds = _get_jax_arrays(polygons)
 
     _iterate(vertices, indices, mask, fixed_inds)
 
