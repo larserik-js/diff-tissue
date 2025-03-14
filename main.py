@@ -10,13 +10,11 @@ import numpy as np
 from scipy.spatial import Voronoi
 
 
-_N_STEPS = 10000
-_LEARNING_RATE = 1e-5
-_TARGET_AREA = 20.0
+_N_TIMESTEPS = 20000
+_LEARNING_RATE = 6e-5
 
 _AREAS_LOSS_WEIGHT = 10.0
-_ANGLES_LOSS_WEIGHT = 1000.0
-_AREA_VARIANCE_LOSS_WEIGHT = 1e4
+_ANGLES_LOSS_WEIGHT = 100.0
 
 _NUM_POLYGONS = 100
 _MAX_VERTICES = 130
@@ -227,6 +225,12 @@ def _get_jax_arrays(polygons):
     return jax_arrays
 
 
+def _update_target_areas(target_areas):
+    areas_scales = 0.00005 * jnp.ones_like(target_areas)
+    target_areas += areas_scales * target_areas
+    return target_areas
+
+
 def _calc_optimal_angles(mask):
     n_vertices = mask.sum(axis=1) - 2
     interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
@@ -271,21 +275,19 @@ def _calc_all_angles_loss(all_cells, mask, optimal_angles):
     return angles_loss
 
 
-def _calc_loss(vertices, indices, mask, optimal_angles):
+def _calc_loss(vertices, indices, mask, target_areas, optimal_angles):
     all_cells = vertices[indices]
     areas = _calc_all_areas(all_cells, mask)
-    areas_loss = _AREAS_LOSS_WEIGHT * jnp.sum((_TARGET_AREA - areas)**2)
+    areas_loss = _AREAS_LOSS_WEIGHT * jnp.sum((target_areas - areas)**2)
     angles_loss = _ANGLES_LOSS_WEIGHT * _calc_all_angles_loss(
         all_cells, mask, optimal_angles
     )
-    area_variance_loss = _AREA_VARIANCE_LOSS_WEIGHT * jnp.var(areas)
 
     jax.debug.print('Areas loss: {}', areas_loss)
     jax.debug.print('Angles loss: {}', angles_loss)
-    jax.debug.print('Area variance loss: {}', area_variance_loss)
     jax.debug.print('')
 
-    loss = areas_loss + angles_loss + area_variance_loss
+    loss = areas_loss + angles_loss
 
     return loss
 
@@ -302,7 +304,6 @@ def _get_ax_lims(vertices):
 
 def _format(ax, xlim, ylim):
     ax.clear()
-
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     ax.set_aspect('equal')
@@ -331,24 +332,27 @@ def _iterate(vertices, indices, mask, fixed_inds):
     fig, ax = plt.subplots(figsize=(10, 10))
     xlim, ylim = _get_ax_lims(vertices)
 
+    all_cells = vertices[indices]
+    target_areas = _calc_all_areas(all_cells, mask)
     optimal_angles = _calc_optimal_angles(mask)
 
-    _calc_value_and_grad = jax.value_and_grad(_calc_loss)
-    _calc_value_and_grad = jax.jit(_calc_value_and_grad)
+    _calc_loss_and_grads = jax.value_and_grad(_calc_loss)
+    _calc_loss_and_grads = jax.jit(_calc_loss_and_grads)
 
-    for step in range(_N_STEPS):
-        loss, grads = _calc_value_and_grad(
-            vertices, indices, mask, optimal_angles
+    for t in range(_N_TIMESTEPS):
+        target_areas = _update_target_areas(target_areas)
+        loss, grads = _calc_loss_and_grads(
+            vertices, indices, mask, target_areas, optimal_angles
         )
         grads = grads.at[fixed_inds].set(0.0)
         vertices -= _LEARNING_RATE * grads
 
-        if step % int(_N_STEPS / 100) == 0:
-            print(f'Step {step}, Loss: {loss}')
+        if t % int(_N_TIMESTEPS / 100) == 0:
+            print(f'Step {t}, Loss: {loss}')
         
             _format(ax, xlim, ylim)
             _plot(ax, vertices, indices, mask)
-            _save_figure(fig, step)
+            _save_figure(fig, t)
 
 
 def _main():
