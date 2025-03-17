@@ -17,7 +17,6 @@ _AREAS_LOSS_WEIGHT = 10.0
 _ANGLES_LOSS_WEIGHT = 100.0
 
 _NUM_POLYGONS = 100
-_MAX_VERTICES = 130
 
 
 def parse_args():
@@ -55,6 +54,7 @@ class _VoronoiPolygons:
         self._all_polygon_vertex_inds, self._vertices = (
             self._make_init_polygons()
         )
+        self._max_vertices = self._find_max_vertices()
         self._polygon_inds = self._finalize_polygon_inds()
         self._mask = (self._polygon_inds != -1)
         self._fixed_inds = np.array([], dtype=np.int64)
@@ -101,10 +101,16 @@ class _VoronoiPolygons:
 
         return all_polygon_vertex_inds, allowed_vertices
 
+    def _find_max_vertices(self):
+        max_vertices = 0
+        for vertex_inds in self._all_polygon_vertex_inds:
+            max_vertices = max(max_vertices, len(vertex_inds))
+        return max_vertices
+
     def _finalize_polygon_inds(self):
         all_polygon_inds = []
         for vertex_inds in self._all_polygon_vertex_inds:
-            n_padding_values = _MAX_VERTICES - len(vertex_inds)
+            n_padding_values = self._max_vertices - len(vertex_inds)
             padding_array = np.full((n_padding_values,), -1, dtype=np.long)
             polygon_inds = np.concatenate(
                 [np.array(vertex_inds), padding_array]
@@ -130,6 +136,7 @@ class _VoronoiPolygons:
 class _MeshPolygons:
     def __init__(self):
         self._input_cells = self._read_input_cells()
+        self._max_vertices = self._find_max_vertices()
         self._all_polygon_vertex_inds, self._vertices, self._fixed_inds = (
             self._make_init_polygons()
         )
@@ -145,6 +152,15 @@ class _MeshPolygons:
             input_cells = json.load(data)
 
         return input_cells
+
+    def _find_max_vertices(self):
+        max_vertices = 0
+        for polygon in self._input_cells:
+            if not polygon['is_boundary']:
+                max_vertices = max(max_vertices, len(polygon['edges']))
+        # Compensates for extra vertex added for efficiency
+        max_vertices += 1
+        return max_vertices
 
     def _make_init_polygons(self):
         all_vertices = np.zeros((0, 2))
@@ -177,8 +193,8 @@ class _MeshPolygons:
             first_idx = indices[1]
             indices.append(first_idx)
             # Pad
-            indices += [-1] * (_MAX_VERTICES - len(indices))
-            indices.extend([-1] * (_MAX_VERTICES - len(indices)))
+            indices += [-1] * (self._max_vertices - len(indices))
+            indices.extend([-1] * (self._max_vertices - len(indices)))
             all_indices.append(indices)
             if polygon['is_boundary']:
                 fixed_indices.append(indices)
