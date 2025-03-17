@@ -10,11 +10,12 @@ import numpy as np
 from scipy.spatial import Voronoi
 
 
-_N_TIMESTEPS = 20000
-_LEARNING_RATE = 6e-5
+_N_TIMESTEPS = 100_000
+_LEARNING_RATE = 1e-4
 
-_AREAS_LOSS_WEIGHT = 10.0
+_AREAS_LOSS_WEIGHT = 100.0
 _ANGLES_LOSS_WEIGHT = 100.0
+_ASPECT_RATIO_LOSS_WEIGHT = 100.0
 
 _NUM_POLYGONS = 100
 
@@ -245,7 +246,7 @@ def _update_target_areas(target_areas):
     areas_scales = 0.00001 * jnp.ones_like(target_areas)
     # Crude assumption that inner cells have vertices in the first half
     # of the vertex array
-    inner_cells_scale = 2.0
+    inner_cells_scale = 1.0
     areas_scales = areas_scales.at[:int(0.5 * target_areas.shape[0])].mul(
         inner_cells_scale
     )
@@ -297,19 +298,47 @@ def _calc_all_angles_loss(all_cells, mask, optimal_angles):
     return angles_loss
 
 
+def _masked_min(values, mask):
+    masked_values = jnp.where(mask, values, jnp.inf)
+    return jnp.min(masked_values, axis=1)
+
+
+def _masked_max(values, mask):
+    masked_values = jnp.where(mask, values, -jnp.inf)
+    return jnp.max(masked_values, axis=1)
+
+
+def _calc_aspect_ratios(all_cells, mask):
+    min_xys = _masked_min(all_cells, mask[:, :, None])
+    max_xys = _masked_max(all_cells, mask[:, :, None])
+
+    widths = max_xys[:,0] - min_xys[:,0]
+    heights = max_xys[:,1] - min_xys[:,1]
+
+    aspect_ratios = widths / (heights + 1e-7)
+
+    return aspect_ratios
+
+
 def _calc_loss(vertices, indices, mask, target_areas, optimal_angles):
     all_cells = vertices[indices]
     areas = _calc_all_areas(all_cells, mask)
+    aspect_ratios = _calc_aspect_ratios(all_cells, mask)
+
     areas_loss = _AREAS_LOSS_WEIGHT * jnp.sum((target_areas - areas)**2)
     angles_loss = _ANGLES_LOSS_WEIGHT * _calc_all_angles_loss(
         all_cells, mask, optimal_angles
     )
+    aspect_ratios_loss = _ASPECT_RATIO_LOSS_WEIGHT * jnp.sum(
+        (aspect_ratios - 0.33)**2
+    )
 
     jax.debug.print('Areas loss: {}', areas_loss)
     jax.debug.print('Angles loss: {}', angles_loss)
+    jax.debug.print('Aspect ratio loss: {}', aspect_ratios_loss)
     jax.debug.print('')
 
-    loss = areas_loss + angles_loss
+    loss = areas_loss + angles_loss + aspect_ratios_loss
 
     return loss
 
@@ -369,7 +398,7 @@ def _iterate(vertices, indices, mask, fixed_inds):
         grads = grads.at[fixed_inds].set(0.0)
         vertices -= _LEARNING_RATE * grads
 
-        if t % int(_N_TIMESTEPS / 100) == 0:
+        if t % int(1000) == 0:
             print(f'Step {t}, Loss: {loss}')
         
             _format(ax, xlim, ylim)
