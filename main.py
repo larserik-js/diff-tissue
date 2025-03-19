@@ -13,9 +13,10 @@ from scipy.spatial import Voronoi
 _N_TIMESTEPS = 100_000
 _LEARNING_RATE = 1e-4
 
-_AREAS_LOSS_WEIGHT = 100.0
-_ANGLES_LOSS_WEIGHT = 100.0
+_AREAS_LOSS_WEIGHT = 10.0
+_ANGLES_LOSS_WEIGHT = 50.0
 _ASPECT_RATIO_LOSS_WEIGHT = 100.0
+_OPTIMAL_ASPECT_RATIO = 1/8
 
 _NUM_POLYGONS = 100
 
@@ -59,6 +60,7 @@ class _VoronoiPolygons:
         self._polygon_inds = self._finalize_polygon_inds()
         self._mask = (self._polygon_inds != -1)
         self._fixed_inds = np.array([], dtype=np.int64)
+        self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
 
     def _is_finite(self, region):
         return (-1 not in region) and (len(region) > 0)
@@ -133,12 +135,15 @@ class _VoronoiPolygons:
     def get_fixed_inds(self):
         return self._fixed_inds
 
+    def get_basal_mask(self):
+        return self._basal_mask
+
 
 class _MeshPolygons:
     def __init__(self):
         self._input_cells = self._read_input_cells()
         self._max_vertices = self._find_max_vertices()
-        self._all_polygon_vertex_inds, self._vertices = (
+        self._all_polygon_vertex_inds, self._vertices, self._basal_mask = (
             self._make_init_polygons()
         )
         self._mask = (self._all_polygon_vertex_inds != -1)
@@ -163,15 +168,22 @@ class _MeshPolygons:
         max_vertices += 1
         return max_vertices
 
+    def _is_basal(self, vertex):
+        pseudo_origin = np.array([40.0, 0.0])
+        dist_from_pseudo_origin = np.linalg.norm(vertex - pseudo_origin)
+        return dist_from_pseudo_origin < 50.0
+
     def _make_init_polygons(self):
         all_vertices = np.zeros((0, 2))
         all_indices = []
+        basal_mask = []
         index = 0
         for polygon in self._input_cells:
             if polygon['is_boundary']:
                 continue
             indices = []
             vertices = polygon['edges']
+            is_basal = True
             for vertex in vertices:
                 are_equal = np.isclose(
                     np.array(vertex) - all_vertices, 0.0, atol=0.5
@@ -189,17 +201,23 @@ class _MeshPolygons:
                 else:
                     raise ValueError('Multiple indices found')
 
+                # True if all vertices are basal
+                is_basal *= self._is_basal(vertex)
+
             # For efficiency
             first_idx = indices[1]
             indices.append(first_idx)
             # Pad
             indices += [-1] * (self._max_vertices - len(indices))
             indices.extend([-1] * (self._max_vertices - len(indices)))
+
             all_indices.append(indices)
+            basal_mask.append(is_basal)
 
         all_indices = np.array(all_indices)
+        basal_mask = np.array(basal_mask)
 
-        return all_indices, all_vertices
+        return all_indices, all_vertices, basal_mask
 
     def get_polygon_inds(self):
         return self._all_polygon_vertex_inds
@@ -212,6 +230,9 @@ class _MeshPolygons:
 
     def get_fixed_inds(self):
         return self._fixed_inds
+
+    def get_basal_mask(self):
+        return self._basal_mask
 
 
 def _get_polygons(args):
@@ -231,8 +252,9 @@ def _get_jax_arrays(polygons):
     indices = jnp.array(polygons.get_polygon_inds())
     mask = jnp.array(polygons.get_mask())
     fixed_inds = jnp.array(polygons.get_fixed_inds())
+    basal_mask = jnp.array(polygons.get_basal_mask())
 
-    jax_arrays = (vertices, indices, mask, fixed_inds)
+    jax_arrays = (vertices, indices, mask, fixed_inds, basal_mask)
     jax_arrays = _send_to_device(jax_arrays)
 
     return jax_arrays
@@ -316,7 +338,16 @@ def _calc_aspect_ratios(all_cells, mask):
     return aspect_ratios
 
 
-def _calc_loss(vertices, indices, mask, target_areas, optimal_angles):
+def _calc_aspect_ratios_loss(aspect_ratios, basal_mask):
+    aspect_ratio_diffs = aspect_ratios - _OPTIMAL_ASPECT_RATIO
+    aspect_ratios_loss = _ASPECT_RATIO_LOSS_WEIGHT * jnp.sum(
+        jnp.square(basal_mask * aspect_ratio_diffs)
+    )
+    return aspect_ratios_loss
+
+
+def _calc_loss(vertices, indices, mask, target_areas, optimal_angles,
+               basal_mask):
     all_cells = vertices[indices]
     areas = _calc_all_areas(all_cells, mask)
     aspect_ratios = _calc_aspect_ratios(all_cells, mask)
@@ -325,9 +356,7 @@ def _calc_loss(vertices, indices, mask, target_areas, optimal_angles):
     angles_loss = _ANGLES_LOSS_WEIGHT * _calc_all_angles_loss(
         all_cells, mask, optimal_angles
     )
-    aspect_ratios_loss = _ASPECT_RATIO_LOSS_WEIGHT * jnp.sum(
-        (aspect_ratios - 0.33)**2
-    )
+    aspect_ratios_loss = _calc_aspect_ratios_loss(aspect_ratios, basal_mask)
 
     jax.debug.print('Areas loss: {}', areas_loss)
     jax.debug.print('Angles loss: {}', angles_loss)
@@ -375,7 +404,7 @@ def _save_figure(fig, step):
     fig.savefig(fig_path, dpi=100)
 
 
-def _iterate(vertices, indices, mask, fixed_inds):
+def _iterate(vertices, indices, mask, fixed_inds, basal_mask):
     fig, ax = plt.subplots(figsize=(10, 10))
     xlim, ylim = _get_ax_lims(vertices)
 
@@ -389,7 +418,7 @@ def _iterate(vertices, indices, mask, fixed_inds):
     for t in range(_N_TIMESTEPS):
         target_areas = _update_target_areas(target_areas)
         loss, grads = _calc_loss_and_grads(
-            vertices, indices, mask, target_areas, optimal_angles
+            vertices, indices, mask, target_areas, optimal_angles, basal_mask
         )
         grads = grads.at[fixed_inds].set(0.0)
         vertices -= _LEARNING_RATE * grads
@@ -412,9 +441,9 @@ def _main():
 
     polygons = _get_polygons(args)
 
-    vertices, indices, mask, fixed_inds = _get_jax_arrays(polygons)
+    vertices, indices, mask, fixed_inds, basal_mask = _get_jax_arrays(polygons)
 
-    _iterate(vertices, indices, mask, fixed_inds)
+    _iterate(vertices, indices, mask, fixed_inds, basal_mask)
 
 
 if __name__ == "__main__":
