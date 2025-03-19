@@ -21,11 +21,14 @@ _OPTIMAL_ASPECT_RATIO = 1/8
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-m',
-                        dest='mesh',
-                        action='store_true',
-                        help=('Use mesh as initial configuration.'))
 
+    parser.add_argument(
+        '--init_system',
+        type=str,
+        choices=['full', 'voronoi'],
+        default='full',
+        help='Initial polygon configuration.'
+    )
     return parser.parse_args()
 
 

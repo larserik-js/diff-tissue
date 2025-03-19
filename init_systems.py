@@ -191,8 +191,11 @@ class _MeshPolygons:
 
 
 def get_polygons(args):
-    if args.mesh:
-        polygons = _MeshPolygons()
-    else:
-        polygons = _VoronoiPolygons()
+    match args.init_system:
+        case 'full':
+            polygons = _MeshPolygons()
+        case 'voronoi':
+            polygons = _VoronoiPolygons()
+        case _:
+            raise ValueError('Invalid initial configuration')
     return polygons
