@@ -138,7 +138,7 @@ class _MeshPolygons:
     def __init__(self):
         self._input_cells = self._read_input_cells()
         self._max_vertices = self._find_max_vertices()
-        self._all_polygon_vertex_inds, self._vertices, self._fixed_inds = (
+        self._all_polygon_vertex_inds, self._vertices = (
             self._make_init_polygons()
         )
         self._mask = (self._all_polygon_vertex_inds != -1)
@@ -166,7 +166,6 @@ class _MeshPolygons:
     def _make_init_polygons(self):
         all_vertices = np.zeros((0, 2))
         all_indices = []
-        fixed_indices = []
         index = 0
         for polygon in self._input_cells:
             if polygon['is_boundary']:
@@ -197,13 +196,10 @@ class _MeshPolygons:
             indices += [-1] * (self._max_vertices - len(indices))
             indices.extend([-1] * (self._max_vertices - len(indices)))
             all_indices.append(indices)
-            if polygon['is_boundary']:
-                fixed_indices.append(indices)
 
         all_indices = np.array(all_indices)
-        fixed_indices = np.array(fixed_indices)
 
-        return all_indices, all_vertices, fixed_indices
+        return all_indices, all_vertices
 
     def get_polygon_inds(self):
         return self._all_polygon_vertex_inds
