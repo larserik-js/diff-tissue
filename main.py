@@ -19,7 +19,7 @@ _ASPECT_RATIO_LOSS_WEIGHT = 100.0
 _OPTIMAL_ASPECT_RATIO = 1/8
 
 
-def parse_args():
+def _parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -168,11 +168,6 @@ def _calc_loss(vertices, indices, valid_mask, target_areas, optimal_angles,
     )
     aspect_ratios_loss = _calc_aspect_ratios_loss(aspect_ratios, basal_mask)
 
-    jax.debug.print('Areas loss: {}', areas_loss)
-    jax.debug.print('Angles loss: {}', angles_loss)
-    jax.debug.print('Aspect ratio loss: {}', aspect_ratios_loss)
-    jax.debug.print('')
-
     loss = areas_loss + angles_loss + aspect_ratios_loss
 
     return loss
@@ -207,9 +202,9 @@ def _plot(ax, vertices, indices, valid_mask):
     ax.plot([70, 100], [base_y, base_y], 'k', lw=0.7)
 
 
-def _save_figure(fig, step):
+def _save_figure(fig, state):
     output_dir = _get_output_dir()
-    fig_path = output_dir / f'step_{step}.png'
+    fig_path = output_dir / f'{state}.png'
     
     fig.savefig(fig_path, dpi=100)
 
@@ -225,20 +220,31 @@ def _iterate(vertices, indices, valid_mask, fixed_mask, basal_mask):
     _calc_loss_and_grads = jax.value_and_grad(_calc_loss)
     _calc_loss_and_grads = jax.jit(_calc_loss_and_grads)
 
-    for t in range(_N_TIMESTEPS):
+    _format(ax, xlim, ylim)
+    _plot(ax, vertices, indices, valid_mask)
+    _save_figure(fig, 'before')
+
+    def update_step(carry, t):
+        vertices, target_areas = carry
+
         target_areas = _update_target_areas(target_areas)
-        loss, grads = _calc_loss_and_grads(
+        _, grads = _calc_loss_and_grads(
             vertices, indices, valid_mask, target_areas, optimal_angles,
             basal_mask
         )
         vertices -= _LEARNING_RATE * grads * fixed_mask
 
-        if t % int(1000) == 0:
-            print(f'Step {t}, Loss: {loss}')
+        return (vertices, target_areas), vertices
+
+    init_carry = (vertices, target_areas)
+    final_carry, _ = jax.lax.scan(
+        update_step, init_carry, jnp.arange(_N_TIMESTEPS)
+    )
+    final_vertices, target_areas = final_carry
         
-            _format(ax, xlim, ylim)
-            _plot(ax, vertices, indices, valid_mask)
-            _save_figure(fig, t)
+    _format(ax, xlim, ylim)
+    _plot(ax, final_vertices, indices, valid_mask)
+    _save_figure(fig, 'after')
 
 
 def _main():
@@ -247,7 +253,7 @@ def _main():
 
     _make_output_dir()
 
-    args = parse_args()
+    args = _parse_args()
 
     polygons = init_systems.get_polygons(args)
 
