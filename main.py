@@ -25,8 +25,8 @@ def parse_args():
     parser.add_argument(
         '--init_system',
         type=str,
-        choices=['full', 'voronoi'],
-        default='full',
+        choices=['full', 'simple', 'voronoi'],
+        default='simple',
         help='Initial polygon configuration.'
     )
     return parser.parse_args()
