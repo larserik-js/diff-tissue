@@ -13,8 +13,8 @@ class _VoronoiPolygons:
         )
         self._max_vertices = self._find_max_vertices()
         self._polygon_inds = self._finalize_polygon_inds()
-        self._mask = (self._polygon_inds != -1)
-        self._fixed_inds = np.array([], dtype=np.int64)
+        self._valid_mask = (self._polygon_inds != -1)
+        self._fixed_mask = np.ones_like(self._vertices)
         self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
 
     def _is_finite(self, region):
@@ -81,14 +81,14 @@ class _VoronoiPolygons:
     def get_polygon_inds(self):
         return self._polygon_inds
     
-    def get_mask(self):
-        return self._mask
+    def get_valid_mask(self):
+        return self._valid_mask
     
     def get_vertices(self):
         return self._vertices
 
-    def get_fixed_inds(self):
-        return self._fixed_inds
+    def get_fixed_mask(self):
+        return self._fixed_mask
 
     def get_basal_mask(self):
         return self._basal_mask
@@ -101,11 +101,8 @@ class _MeshPolygons:
         self._all_polygon_vertex_inds, self._vertices, self._basal_mask = (
             self._make_init_polygons()
         )
-        self._mask = (self._all_polygon_vertex_inds != -1)
-        self._fixed_inds = np.array([
-            3, 0, 15, 16, 27, 37, 47, 66, 97, 103, 110, 145, 128, 123, 107, 78,
-            52, 35, 18, 10, 11, 6, 7
-        ])
+        self._valid_mask = (self._all_polygon_vertex_inds != -1)
+        self._fixed_mask = self._get_fixed_mask()
 
     def _read_input_cells(self):
         input_path = Path('input_cells.json')
@@ -174,17 +171,26 @@ class _MeshPolygons:
 
         return all_indices, all_vertices, basal_mask
 
+    def _get_fixed_mask(self):
+        fixed_inds = [
+            3, 0, 15, 16, 27, 37, 47, 66, 97, 103, 110, 145, 128, 123, 107, 78,
+            52, 35, 18, 10, 11, 6, 7
+        ]
+        fixed_mask = np.ones_like(self._vertices)
+        fixed_mask[fixed_inds] = 0.0
+        return fixed_mask
+
     def get_polygon_inds(self):
         return self._all_polygon_vertex_inds
 
-    def get_mask(self):
-        return self._mask
+    def get_valid_mask(self):
+        return self._valid_mask
 
     def get_vertices(self):
         return self._vertices
 
-    def get_fixed_inds(self):
-        return self._fixed_inds
+    def get_fixed_mask(self):
+        return self._fixed_mask
 
     def get_basal_mask(self):
         return self._basal_mask

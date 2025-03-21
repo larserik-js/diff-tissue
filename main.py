@@ -59,16 +59,17 @@ def _send_to_device(jax_arrays):
 def _get_jax_arrays(polygons):
     vertices = jnp.array(polygons.get_vertices())
     indices = jnp.array(polygons.get_polygon_inds())
-    mask = jnp.array(polygons.get_mask())
-    fixed_inds = jnp.array(polygons.get_fixed_inds())
+    valid_mask = jnp.array(polygons.get_valid_mask())
+    fixed_mask = jnp.array(polygons.get_fixed_mask())
     basal_mask = jnp.array(polygons.get_basal_mask())
 
-    jax_arrays = (vertices, indices, mask, fixed_inds, basal_mask)
+    jax_arrays = (vertices, indices, valid_mask, fixed_mask, basal_mask)
     jax_arrays = _send_to_device(jax_arrays)
 
     return jax_arrays
 
 
+@jax.jit
 def _update_target_areas(target_areas):
     areas_scales = 0.00001 * jnp.ones_like(target_areas)
     # Crude assumption that inner cells have vertices in the first half
@@ -89,12 +90,12 @@ def _calc_optimal_angles(mask):
     return optimal_angles
 
 
-def _calc_all_areas(all_cells, mask):
+def _calc_all_areas(all_cells, valid_mask):
     xs = all_cells[:, 1:-1, 0]
     y_plus_ones = all_cells[:, 2:, 1]
     y_minus_ones = all_cells[:, :-2, 1]
 
-    valid = mask[:, 1:-1] & mask[:, 2:] & mask[:, :-2]
+    valid = valid_mask[:, 1:-1] & valid_mask[:, 2:] & valid_mask[:, :-2]
 
     first_term = xs * y_plus_ones
     first_term = jnp.sum(first_term * valid, axis=1)
@@ -108,7 +109,7 @@ def _calc_all_areas(all_cells, mask):
     return areas
 
 
-def _calc_all_angles_loss(all_cells, mask, optimal_angles):
+def _calc_all_angles_loss(all_cells, valid_mask, optimal_angles):
     epsilon = 1e-7
     edges = all_cells[:, 1:] - all_cells[:, :-1]
     dot_products = jnp.sum(edges[:, :-1] * edges[:, 1:], axis=2)
@@ -118,7 +119,7 @@ def _calc_all_angles_loss(all_cells, mask, optimal_angles):
     cosines = jnp.clip(cosines, -clip_value, clip_value)
     angles = jnp.arccos(cosines)
 
-    valid = mask[:, 1:] & mask[:, :-1]
+    valid = valid_mask[:, 1:] & valid_mask[:, :-1]
     valid = valid[:, 1:] & valid[:, :-1]
     angles_loss = jnp.sum((angles - optimal_angles)**2 * valid)
 
@@ -135,9 +136,9 @@ def _masked_max(values, mask):
     return jnp.max(masked_values, axis=1)
 
 
-def _calc_aspect_ratios(all_cells, mask):
-    min_xys = _masked_min(all_cells, mask[:, :, None])
-    max_xys = _masked_max(all_cells, mask[:, :, None])
+def _calc_aspect_ratios(all_cells, valid_mask):
+    min_xys = _masked_min(all_cells, valid_mask[:, :, None])
+    max_xys = _masked_max(all_cells, valid_mask[:, :, None])
 
     widths = max_xys[:,0] - min_xys[:,0]
     heights = max_xys[:,1] - min_xys[:,1]
@@ -155,15 +156,15 @@ def _calc_aspect_ratios_loss(aspect_ratios, basal_mask):
     return aspect_ratios_loss
 
 
-def _calc_loss(vertices, indices, mask, target_areas, optimal_angles,
+def _calc_loss(vertices, indices, valid_mask, target_areas, optimal_angles,
                basal_mask):
     all_cells = vertices[indices]
-    areas = _calc_all_areas(all_cells, mask)
-    aspect_ratios = _calc_aspect_ratios(all_cells, mask)
+    areas = _calc_all_areas(all_cells, valid_mask)
+    aspect_ratios = _calc_aspect_ratios(all_cells, valid_mask)
 
     areas_loss = _AREAS_LOSS_WEIGHT * jnp.sum((target_areas - areas)**2)
     angles_loss = _ANGLES_LOSS_WEIGHT * _calc_all_angles_loss(
-        all_cells, mask, optimal_angles
+        all_cells, valid_mask, optimal_angles
     )
     aspect_ratios_loss = _calc_aspect_ratios_loss(aspect_ratios, basal_mask)
 
@@ -194,9 +195,9 @@ def _format(ax, xlim, ylim):
     ax.set_aspect('equal')
 
 
-def _plot(ax, vertices, indices, mask):
+def _plot(ax, vertices, indices, valid_mask):
     for i in range(indices.shape[0]):
-        vertex_inds = indices[i][mask[i]]
+        vertex_inds = indices[i][valid_mask[i]]
         polygon = vertices[vertex_inds]
         ax.scatter(polygon[:, 0], polygon[:, 1], s=2.0, color='green', zorder=1)
         ax.plot(polygon[:, 0], polygon[:, 1], lw=0.7, color='black', zorder=2)
@@ -204,7 +205,7 @@ def _plot(ax, vertices, indices, mask):
     base_y = 18.635
     ax.plot([-20, 10], [base_y, base_y], 'k', lw=0.7)
     ax.plot([70, 100], [base_y, base_y], 'k', lw=0.7)
-    
+
 
 def _save_figure(fig, step):
     output_dir = _get_output_dir()
@@ -213,13 +214,13 @@ def _save_figure(fig, step):
     fig.savefig(fig_path, dpi=100)
 
 
-def _iterate(vertices, indices, mask, fixed_inds, basal_mask):
+def _iterate(vertices, indices, valid_mask, fixed_mask, basal_mask):
     fig, ax = plt.subplots(figsize=(10, 10))
     xlim, ylim = _get_ax_lims(vertices)
 
     all_cells = vertices[indices]
-    target_areas = _calc_all_areas(all_cells, mask)
-    optimal_angles = _calc_optimal_angles(mask)
+    target_areas = _calc_all_areas(all_cells, valid_mask)
+    optimal_angles = _calc_optimal_angles(valid_mask)
 
     _calc_loss_and_grads = jax.value_and_grad(_calc_loss)
     _calc_loss_and_grads = jax.jit(_calc_loss_and_grads)
@@ -227,16 +228,16 @@ def _iterate(vertices, indices, mask, fixed_inds, basal_mask):
     for t in range(_N_TIMESTEPS):
         target_areas = _update_target_areas(target_areas)
         loss, grads = _calc_loss_and_grads(
-            vertices, indices, mask, target_areas, optimal_angles, basal_mask
+            vertices, indices, valid_mask, target_areas, optimal_angles,
+            basal_mask
         )
-        grads = grads.at[fixed_inds].set(0.0)
-        vertices -= _LEARNING_RATE * grads
+        vertices -= _LEARNING_RATE * grads * fixed_mask
 
         if t % int(1000) == 0:
             print(f'Step {t}, Loss: {loss}')
         
             _format(ax, xlim, ylim)
-            _plot(ax, vertices, indices, mask)
+            _plot(ax, vertices, indices, valid_mask)
             _save_figure(fig, t)
 
 
@@ -250,9 +251,11 @@ def _main():
 
     polygons = init_systems.get_polygons(args)
 
-    vertices, indices, mask, fixed_inds, basal_mask = _get_jax_arrays(polygons)
+    vertices, indices, valid_mask, fixed_mask, basal_mask = _get_jax_arrays(
+        polygons
+    )
 
-    _iterate(vertices, indices, mask, fixed_inds, basal_mask)
+    _iterate(vertices, indices, valid_mask, fixed_mask, basal_mask)
 
 
 if __name__ == "__main__":
