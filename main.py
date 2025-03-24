@@ -183,14 +183,14 @@ def _get_ax_lims(vertices):
     return xlim, ylim
 
 
-def _format(ax, xlim, ylim):
+def _format(ax, ax_lims):
     ax.clear()
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
+    ax.set_xlim(ax_lims[0])
+    ax.set_ylim(ax_lims[1])
     ax.set_aspect('equal')
 
 
-def _plot(ax, vertices, indices, valid_mask):
+def _add_artists(ax, vertices, indices, valid_mask):
     for i in range(indices.shape[0]):
         vertex_inds = indices[i][valid_mask[i]]
         polygon = vertices[vertex_inds]
@@ -209,20 +209,19 @@ def _save_figure(fig, state):
     fig.savefig(fig_path, dpi=100)
 
 
-def _iterate(vertices, indices, valid_mask, fixed_mask, basal_mask):
-    fig, ax = plt.subplots(figsize=(10, 10))
-    xlim, ylim = _get_ax_lims(vertices)
+def _plot(fig, ax, ax_lims, vertices, indices, valid_mask, state):
+    _format(ax, ax_lims)
+    _add_artists(ax, vertices, indices, valid_mask)
+    _save_figure(fig, state)
 
+
+def _iterate_over_growth(vertices, indices, valid_mask, fixed_mask, basal_mask):
     all_cells = vertices[indices]
     target_areas = _calc_all_areas(all_cells, valid_mask)
     optimal_angles = _calc_optimal_angles(valid_mask)
 
     _calc_loss_and_grads = jax.value_and_grad(_calc_loss)
     _calc_loss_and_grads = jax.jit(_calc_loss_and_grads)
-
-    _format(ax, xlim, ylim)
-    _plot(ax, vertices, indices, valid_mask)
-    _save_figure(fig, 'before')
 
     def update_step(carry, t):
         vertices, target_areas = carry
@@ -241,10 +240,21 @@ def _iterate(vertices, indices, valid_mask, fixed_mask, basal_mask):
         update_step, init_carry, jnp.arange(_N_TIMESTEPS)
     )
     final_vertices, target_areas = final_carry
+
+    return final_vertices
+
+
+def _iterate(vertices, indices, valid_mask, fixed_mask, basal_mask):
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax_lims = _get_ax_lims(vertices)
+
+    _plot(fig, ax, ax_lims, vertices, indices, valid_mask, 'before')
+
+    final_vertices = _iterate_over_growth(
+        vertices, indices, valid_mask, fixed_mask, basal_mask
+    )
         
-    _format(ax, xlim, ylim)
-    _plot(ax, final_vertices, indices, valid_mask)
-    _save_figure(fig, 'after')
+    _plot(fig, ax, ax_lims, final_vertices, indices, valid_mask, 'after')
 
 
 def _main():
