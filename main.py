@@ -63,8 +63,11 @@ def _get_jax_arrays(polygons):
     valid_mask = jnp.array(polygons.get_valid_mask())
     fixed_mask = jnp.array(polygons.get_fixed_mask())
     basal_mask = jnp.array(polygons.get_basal_mask())
+    boundary_vertices = jnp.array(polygons.get_boundary_mask())
 
-    jax_arrays = (vertices, indices, valid_mask, fixed_mask, basal_mask)
+    jax_arrays = (
+        vertices, indices, valid_mask, fixed_mask, basal_mask, boundary_vertices
+    )
     jax_arrays = _send_to_device(jax_arrays)
 
     return jax_arrays
@@ -185,7 +188,7 @@ def _format(ax, ax_lims):
     ax.set_aspect('equal')
 
 
-def _add_artists(ax, vertices, indices, valid_mask):
+def _add_artists(ax, vertices, indices, valid_mask, boundary_mask):
     for i in range(indices.shape[0]):
         vertex_inds = indices[i][valid_mask[i]]
         polygon = vertices[vertex_inds]
@@ -196,6 +199,18 @@ def _add_artists(ax, vertices, indices, valid_mask):
     ax.plot([-20, 10], [base_y, base_y], 'k', lw=0.7)
     ax.plot([70, 100], [base_y, base_y], 'k', lw=0.7)
 
+    boundary_vertices = vertices[boundary_mask[:,0]]
+    ax.scatter(
+        boundary_vertices[:, 0], boundary_vertices[:, 1], s=20.0, color='g',
+        marker='s', zorder=3
+    )
+
+    circle = _make_circle()
+    ax.plot(
+        circle[:, 0], circle[:, 1], 'ro-', markersize=3,
+        label='Circle Approximation'
+    )
+
 
 def _save_figure(fig, shape_step, state):
     output_dir = _get_output_dir()
@@ -204,9 +219,10 @@ def _save_figure(fig, shape_step, state):
     fig.savefig(fig_path, dpi=100)
 
 
-def _plot(fig, ax, ax_lims, vertices, indices, valid_mask, shape_step, state):
+def _plot(fig, ax, ax_lims, vertices, indices, valid_mask, boundary_mask,
+          shape_step, state):
     _format(ax, ax_lims)
-    _add_artists(ax, vertices, indices, valid_mask)
+    _add_artists(ax, vertices, indices, valid_mask, boundary_mask)
     _save_figure(fig, shape_step, state)
 
 
@@ -244,8 +260,15 @@ def _sigmoid(variations):
     return 1 + 2 * jax.nn.sigmoid(variations)
 
 
+def _make_circle(num_points=100, radius=20.0, center=(40.0, 40.0)):
+    angles = jnp.linspace(0, 2 * jnp.pi, num_points, endpoint=True)
+    x = center[0] + radius * jnp.cos(angles)
+    y = center[1] + radius * jnp.sin(angles)
+    return jnp.stack([x, y], axis=1)
+
+
 def _iterate_towards_shape(init_vertices, indices, valid_mask, fixed_mask,
-                           basal_mask):
+                           basal_mask, boundary_mask):
     fig, ax = plt.subplots(figsize=(10, 10))
     ax_lims = _get_ax_lims(init_vertices)
 
@@ -266,8 +289,8 @@ def _iterate_towards_shape(init_vertices, indices, valid_mask, fixed_mask,
     variations = jnp.zeros_like(init_areas) - 2.0
 
     _plot(
-        fig, ax, ax_lims, init_vertices, indices, valid_mask, shape_step='init',
-        state='before'
+        fig, ax, ax_lims, init_vertices, indices, valid_mask, boundary_mask,
+        shape_step='init', state='before'
     )
     for shape_step in range(_N_SHAPE_STEPS):
         print(variations)
@@ -275,8 +298,8 @@ def _iterate_towards_shape(init_vertices, indices, valid_mask, fixed_mask,
         variations -= 0.5 * grad
 
         _plot(
-            fig, ax, ax_lims, final_vertices, indices, valid_mask, shape_step,
-              'after'
+            fig, ax, ax_lims, final_vertices, indices, valid_mask,
+            boundary_mask, shape_step, state='after'
         )
 
 
@@ -290,12 +313,13 @@ def _main():
 
     polygons = init_systems.get_polygons(args)
 
-    vertices, indices, valid_mask, fixed_mask, basal_mask = _get_jax_arrays(
+    (vertices, indices, valid_mask, fixed_mask, basal_mask,
+     boundary_mask) = _get_jax_arrays(
         polygons
     )
 
     _iterate_towards_shape(
-        vertices, indices, valid_mask, fixed_mask, basal_mask
+        vertices, indices, valid_mask, fixed_mask, basal_mask, boundary_mask
     )
 
 

@@ -6,6 +6,31 @@ from scipy.spatial import Voronoi
 
 
 class _Polygons:
+    def _find_boundary_mask(self):
+        all_edges = set()
+        interior_edges = set()
+        for extended_polygon in self._polygon_inds:
+            unpadded_polygon = extended_polygon[extended_polygon != -1]
+            # Removes the last vertex, which was an extension for efficiency
+            polygon = unpadded_polygon[:-1]
+
+            for i in range(len(polygon) - 1):
+                edge = polygon[i:i+2]
+                sorted_edge = tuple(np.sort(edge))
+                if sorted_edge in all_edges:
+                    interior_edges.add(sorted_edge)
+                    print(f'Interior edge: {sorted_edge}')
+
+                all_edges.add(sorted_edge)
+
+        boundary_edges = all_edges - interior_edges
+        boundary_inds = np.array(list(boundary_edges)).flatten()
+        boundary_inds = np.unique(boundary_inds)
+        boundary_mask = np.zeros_like(self._vertices, dtype=bool)
+        boundary_mask[boundary_inds] = True
+
+        return boundary_mask
+
     def get_polygon_inds(self):
         return self._polygon_inds
 
@@ -21,6 +46,9 @@ class _Polygons:
     def get_basal_mask(self):
         return self._basal_mask
 
+    def get_boundary_mask(self):
+        return self._boundary_mask
+
 
 class _MeshPolygons(_Polygons):
     def __init__(self):
@@ -31,6 +59,7 @@ class _MeshPolygons(_Polygons):
         )
         self._valid_mask = (self._polygon_inds != -1)
         self._fixed_mask = self._get_fixed_mask()
+        self._boundary_mask = self._find_boundary_mask()
 
     def _read_input_cells(self):
         input_path = Path('input_cells.json')
@@ -187,6 +216,7 @@ class _VoronoiPolygons(_Polygons):
         self._valid_mask = (self._polygon_inds != -1)
         self._fixed_mask = np.ones_like(self._vertices)
         self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
+        self._boundary_mask = self._find_boundary_mask()
 
     def _is_finite(self, region):
         return (-1 not in region) and (len(region) > 0)
