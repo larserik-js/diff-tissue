@@ -10,7 +10,8 @@ import numpy as np
 import init_systems
 
 
-_N_TIMESTEPS = 100_000
+_N_SHAPE_STEPS = 100
+_N_GROWTH_STEPS = 1000
 _LEARNING_RATE = 1e-4
 
 _AREAS_LOSS_WEIGHT = 10.0
@@ -70,15 +71,9 @@ def _get_jax_arrays(polygons):
 
 
 @jax.jit
-def _update_target_areas(target_areas):
-    areas_scales = 0.00001 * jnp.ones_like(target_areas)
-    # Crude assumption that inner cells have vertices in the first half
-    # of the vertex array
-    inner_cells_scale = 1.0
-    areas_scales = areas_scales.at[:int(0.5 * target_areas.shape[0])].mul(
-        inner_cells_scale
-    )
-    target_areas += areas_scales * target_areas
+def _update_target_areas(target_areas, t, goal_areas):
+    w = t / _N_GROWTH_STEPS
+    target_areas = (1 - w) * target_areas + w * goal_areas
     return target_areas
 
 
@@ -202,20 +197,21 @@ def _add_artists(ax, vertices, indices, valid_mask):
     ax.plot([70, 100], [base_y, base_y], 'k', lw=0.7)
 
 
-def _save_figure(fig, state):
+def _save_figure(fig, shape_step, state):
     output_dir = _get_output_dir()
-    fig_path = output_dir / f'{state}.png'
+    fig_path = output_dir / f'shape_step={shape_step}_{state}.png'
     
     fig.savefig(fig_path, dpi=100)
 
 
-def _plot(fig, ax, ax_lims, vertices, indices, valid_mask, state):
+def _plot(fig, ax, ax_lims, vertices, indices, valid_mask, shape_step, state):
     _format(ax, ax_lims)
     _add_artists(ax, vertices, indices, valid_mask)
-    _save_figure(fig, state)
+    _save_figure(fig, shape_step, state)
 
 
-def _iterate_over_growth(vertices, indices, valid_mask, fixed_mask, basal_mask):
+def _iterate_over_growth(goal_areas, vertices, indices, valid_mask, fixed_mask,
+                         basal_mask):
     all_cells = vertices[indices]
     target_areas = _calc_all_areas(all_cells, valid_mask)
     optimal_angles = _calc_optimal_angles(valid_mask)
@@ -226,35 +222,62 @@ def _iterate_over_growth(vertices, indices, valid_mask, fixed_mask, basal_mask):
     def update_step(carry, t):
         vertices, target_areas = carry
 
-        target_areas = _update_target_areas(target_areas)
+        target_areas = _update_target_areas(target_areas, t, goal_areas)
         _, grads = _calc_loss_and_grads(
             vertices, indices, valid_mask, target_areas, optimal_angles,
             basal_mask
         )
         vertices -= _LEARNING_RATE * grads * fixed_mask
 
-        return (vertices, target_areas), vertices
+        return (vertices, target_areas), None
 
     init_carry = (vertices, target_areas)
     final_carry, _ = jax.lax.scan(
-        update_step, init_carry, jnp.arange(_N_TIMESTEPS)
+        update_step, init_carry, jnp.arange(_N_GROWTH_STEPS)
     )
     final_vertices, target_areas = final_carry
 
     return final_vertices
 
 
-def _iterate(vertices, indices, valid_mask, fixed_mask, basal_mask):
+def _sigmoid(variations):
+    return 1 + 2 * jax.nn.sigmoid(variations)
+
+
+def _iterate_towards_shape(init_vertices, indices, valid_mask, fixed_mask,
+                           basal_mask):
     fig, ax = plt.subplots(figsize=(10, 10))
-    ax_lims = _get_ax_lims(vertices)
+    ax_lims = _get_ax_lims(init_vertices)
 
-    _plot(fig, ax, ax_lims, vertices, indices, valid_mask, 'before')
+    all_cells = init_vertices[indices]
+    init_areas = _calc_all_areas(all_cells, valid_mask)
 
-    final_vertices = _iterate_over_growth(
-        vertices, indices, valid_mask, fixed_mask, basal_mask
+    def shape_loss_func(variations):
+        goal_areas = init_areas * _sigmoid(variations)
+        final_vertices = _iterate_over_growth(
+            goal_areas, init_vertices, indices, valid_mask, fixed_mask,
+            basal_mask
+        )
+        shape_loss = ((final_vertices - 40)**2).mean()
+        return shape_loss, final_vertices
+
+    val_grad_loss = jax.jit(jax.value_and_grad(shape_loss_func, has_aux=True))
+
+    variations = jnp.zeros_like(init_areas) - 2.0
+
+    _plot(
+        fig, ax, ax_lims, init_vertices, indices, valid_mask, shape_step='init',
+        state='before'
     )
-        
-    _plot(fig, ax, ax_lims, final_vertices, indices, valid_mask, 'after')
+    for shape_step in range(_N_SHAPE_STEPS):
+        print(variations)
+        (_, final_vertices), grad = val_grad_loss(variations)
+        variations -= 0.5 * grad
+
+        _plot(
+            fig, ax, ax_lims, final_vertices, indices, valid_mask, shape_step,
+              'after'
+        )
 
 
 def _main():
@@ -271,7 +294,9 @@ def _main():
         polygons
     )
 
-    _iterate(vertices, indices, valid_mask, fixed_mask, basal_mask)
+    _iterate_towards_shape(
+        vertices, indices, valid_mask, fixed_mask, basal_mask
+    )
 
 
 if __name__ == "__main__":
