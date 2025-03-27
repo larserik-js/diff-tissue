@@ -19,14 +19,13 @@ class _Polygons:
                 sorted_edge = tuple(np.sort(edge))
                 if sorted_edge in all_edges:
                     interior_edges.add(sorted_edge)
-                    print(f'Interior edge: {sorted_edge}')
 
                 all_edges.add(sorted_edge)
 
         boundary_edges = all_edges - interior_edges
         boundary_inds = np.array(list(boundary_edges)).flatten()
         boundary_inds = np.unique(boundary_inds)
-        boundary_mask = np.zeros_like(self._vertices, dtype=bool)
+        boundary_mask = np.zeros(self._vertices.shape[0], dtype=bool)
         boundary_mask[boundary_inds] = True
 
         return boundary_mask
@@ -201,7 +200,8 @@ class _SimpleMeshPolygons(_MeshPolygons):
         return all_indices, all_vertices, basal_mask
 
     def _get_fixed_inds(self):
-        fixed_inds =  [3, 4, 9, 10]
+        # fixed_inds =  [3, 4, 9, 10]
+        fixed_inds = []
         return fixed_inds
 
 

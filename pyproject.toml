@@ -9,6 +9,7 @@ dependencies = [
     "jaxlib>=0.5.1",
     "matplotlib>=3.10.1",
     "numpy>=2.2.3",
+    "optax>=0.2.4",
     "scipy>=1.15.2",
     "torch>=2.6.0",
 ]

@@ -6,16 +6,17 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import optax
 
 import init_systems
 
 
-_N_SHAPE_STEPS = 100
-_N_GROWTH_STEPS = 1000
+_N_SHAPE_STEPS = 300
+_N_GROWTH_STEPS = 200
 _LEARNING_RATE = 1e-4
 
 _AREAS_LOSS_WEIGHT = 10.0
-_ANGLES_LOSS_WEIGHT = 50.0
+_ANGLES_LOSS_WEIGHT = 5.0
 _ASPECT_RATIO_LOSS_WEIGHT = 100.0
 _OPTIMAL_ASPECT_RATIO = 1/8
 
@@ -42,15 +43,17 @@ def _get_project_dir():
     return project_dir
 
 
-def _get_output_dir():
+def _get_output_dirs():
     project_dir = _get_project_dir()
-    output_dir = project_dir / 'output'
-    return output_dir
+    output_dirs = {'final_tissues': project_dir / 'final_tissues',
+                   'best_growth': project_dir / 'best_growth'}
+    return output_dirs
 
 
-def _make_output_dir():
-    output_dir = _get_output_dir()
-    output_dir.mkdir(exist_ok=True, parents=True)
+def _make_output_dirs():
+    output_dirs = _get_output_dirs()
+    for output_dir in output_dirs.values():
+        output_dir.mkdir(exist_ok=True)
 
 
 def _send_to_device(jax_arrays):
@@ -152,20 +155,21 @@ def _calc_aspect_ratios_loss(aspect_ratios, basal_mask):
     return aspect_ratios_loss
 
 
-def _calc_loss(vertices, target_areas, optimal_angles, jax_arrays):
+def _calc_growth_loss(vertices, target_areas, optimal_angles, jax_arrays):
     all_cells = vertices[jax_arrays['indices']]
     areas = _calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    aspect_ratios = _calc_aspect_ratios(all_cells, jax_arrays['valid_mask'])
+    # aspect_ratios = _calc_aspect_ratios(all_cells, jax_arrays['valid_mask'])
 
     areas_loss = _AREAS_LOSS_WEIGHT * jnp.sum((target_areas - areas)**2)
     angles_loss = _ANGLES_LOSS_WEIGHT * _calc_all_angles_loss(
         all_cells, jax_arrays['valid_mask'], optimal_angles
     )
-    aspect_ratios_loss = _calc_aspect_ratios_loss(
-        aspect_ratios, jax_arrays['basal_mask']
-    )
+    # aspect_ratios_loss = _calc_aspect_ratios_loss(
+    #     aspect_ratios, jax_arrays['basal_mask']
+    # )
 
-    loss = areas_loss + angles_loss + aspect_ratios_loss
+    # loss = areas_loss + angles_loss + aspect_ratios_loss
+    loss = areas_loss + angles_loss
 
     return loss
 
@@ -187,7 +191,7 @@ def _format(ax, ax_lims):
     ax.set_aspect('equal')
 
 
-def _add_artists(ax, vertices, jax_arrays):
+def _add_artists(ax, vertices, jax_arrays, outer_shape):
     indices = jax_arrays['indices']
     for i in range(indices.shape[0]):
         vertex_inds = indices[i][jax_arrays['valid_mask'][i]]
@@ -199,30 +203,28 @@ def _add_artists(ax, vertices, jax_arrays):
     ax.plot([-20, 10], [base_y, base_y], 'k', lw=0.7)
     ax.plot([70, 100], [base_y, base_y], 'k', lw=0.7)
 
-    boundary_vertices = vertices[jax_arrays['boundary_mask'][:,0]]
+    boundary_vertices = vertices[jax_arrays['boundary_mask']]
     ax.scatter(
         boundary_vertices[:, 0], boundary_vertices[:, 1], s=20.0, color='g',
         marker='s', zorder=3
     )
 
-    circle = _make_circle()
     ax.plot(
-        circle[:, 0], circle[:, 1], 'ro-', markersize=3,
-        label='Circle Approximation'
+        outer_shape[:, 0], outer_shape[:, 1], 'ro-', markersize=3,
+        label='Outer shape'
     )
 
 
-def _save_figure(fig, shape_step, state):
-    output_dir = _get_output_dir()
-    fig_path = output_dir / f'shape_step={shape_step}_{state}.png'
-    
+def _save_figure(fig, output_dir, step):
+    fig_path = output_dir / f'step={step}.png'
     fig.savefig(fig_path, dpi=100)
 
 
-def _plot(fig, ax, ax_lims, vertices, jax_arrays, shape_step, state):
+def _plot(fig, ax, ax_lims, output_dir, vertices, jax_arrays, outer_shape,
+          step):
     _format(ax, ax_lims)
-    _add_artists(ax, vertices, jax_arrays)
-    _save_figure(fig, shape_step, state)
+    _add_artists(ax, vertices, jax_arrays, outer_shape)
+    _save_figure(fig, output_dir, step)
 
 
 def _iterate_over_growth(goal_areas, jax_arrays):
@@ -230,7 +232,7 @@ def _iterate_over_growth(goal_areas, jax_arrays):
     target_areas = _calc_all_areas(all_cells, jax_arrays['valid_mask'])
     optimal_angles = _calc_optimal_angles(jax_arrays['valid_mask'])
 
-    _calc_loss_and_grads = jax.value_and_grad(_calc_loss)
+    _calc_loss_and_grads = jax.value_and_grad(_calc_growth_loss)
     _calc_loss_and_grads = jax.jit(_calc_loss_and_grads)
 
     def update_step(carry, t):
@@ -254,14 +256,52 @@ def _iterate_over_growth(goal_areas, jax_arrays):
 
 
 def _sigmoid(variations):
-    return 1 + 2 * jax.nn.sigmoid(variations)
+    return 1 + 2.0 * jax.nn.sigmoid(variations)
 
 
-def _make_circle(num_points=100, radius=20.0, center=(40.0, 40.0)):
+def _make_ellipse(num_points=50, a=10.0, b=15.0, center=(40.0, 40.0)):
     angles = jnp.linspace(0, 2 * jnp.pi, num_points, endpoint=True)
-    x = center[0] + radius * jnp.cos(angles)
-    y = center[1] + radius * jnp.sin(angles)
+    x = center[0] + a * jnp.cos(angles)
+    y = center[1] + b * jnp.sin(angles)
     return jnp.stack([x, y], axis=1)
+
+
+def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
+    diff_vectors = final_vertices[:,None] - outer_shape
+    dists = jnp.linalg.norm(diff_vectors, axis=2)
+    min_dists = jnp.min(dists, axis=1)
+    shape_loss = jnp.sum(min_dists * boundary_mask)
+    return shape_loss
+
+
+def _make_growth_plots(final_variations, init_areas, jax_arrays, outer_shape):
+    goal_areas = init_areas * _sigmoid(final_variations)
+    vertices = jax_arrays['init_vertices']
+    all_cells = vertices[jax_arrays['indices']]
+    target_areas = _calc_all_areas(all_cells, jax_arrays['valid_mask'])
+    optimal_angles = _calc_optimal_angles(jax_arrays['valid_mask'])
+
+    _calc_loss_and_grads = jax.value_and_grad(_calc_growth_loss)
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax_lims = _get_ax_lims(vertices)
+    output_dir = _get_output_dirs()['best_growth']
+    _plot(
+        fig, ax, ax_lims, output_dir, vertices, jax_arrays, outer_shape,
+        step=0
+    )
+
+    for t in jnp.arange(_N_GROWTH_STEPS):
+        target_areas = _update_target_areas(target_areas, t, goal_areas)
+        _, grads = _calc_loss_and_grads(
+            vertices, target_areas, optimal_angles, jax_arrays
+        )
+        vertices -= _LEARNING_RATE * grads * jax_arrays['fixed_mask']
+
+        _plot(
+            fig, ax, ax_lims, output_dir, vertices, jax_arrays, outer_shape,
+            step=t+1
+        )
 
 
 def _iterate_towards_shape(jax_arrays):
@@ -269,39 +309,49 @@ def _iterate_towards_shape(jax_arrays):
     all_cells = init_vertices[jax_arrays['indices']]
     init_areas = _calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
+    outer_shape = _make_ellipse()
+
     def shape_loss_func(variations):
         goal_areas = init_areas * _sigmoid(variations)
         final_vertices = _iterate_over_growth(goal_areas, jax_arrays)
-        shape_loss = ((final_vertices - 40)**2).mean()
+        shape_loss = _calc_shape_loss(
+            final_vertices, jax_arrays['boundary_mask'], outer_shape
+        )
+
         return shape_loss, final_vertices
 
     val_grad_loss = jax.jit(jax.value_and_grad(shape_loss_func, has_aux=True))
 
-    variations = jnp.zeros_like(init_areas) - 2.0
+    variations = jnp.zeros_like(init_areas)
 
     fig, ax = plt.subplots(figsize=(10, 10))
     ax_lims = _get_ax_lims(init_vertices)
 
-    _plot(
-        fig, ax, ax_lims, init_vertices, jax_arrays, shape_step='init',
-        state='before'
-    )
+    init_learning_rate = 0.01
+    optimizer = optax.adam(init_learning_rate)
+    opt_state = optimizer.init(params=variations)
+
+    output_dir = _get_output_dirs()['final_tissues']
     for shape_step in range(_N_SHAPE_STEPS):
-        print(variations)
-        (_, final_vertices), grad = val_grad_loss(variations)
-        variations -= 0.5 * grad
+        (shape_loss, final_vertices), grads = val_grad_loss(variations)
+        updates, opt_state = optimizer.update(grads, opt_state)
+        variations = optax.apply_updates(variations, updates)
+        print(f'{shape_step}: Shape loss = {shape_loss}')
 
         _plot(
-            fig, ax, ax_lims, final_vertices, jax_arrays, shape_step,
-            state='after'
+            fig, ax, ax_lims, output_dir, final_vertices, jax_arrays,
+            outer_shape, shape_step
         )
+
+    print(f'Best final goal area scalings {_sigmoid(variations)}')
+    _make_growth_plots(variations, init_areas, jax_arrays, outer_shape)
 
 
 def _main():
     np.random.seed(0)
     jax.config.update('jax_enable_x64', True)
 
-    _make_output_dir()
+    _make_output_dirs()
 
     args = _parse_args()
 

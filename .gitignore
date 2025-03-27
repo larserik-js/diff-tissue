@@ -9,5 +9,6 @@ uv.lock
 
 .venv
 
-output/
+final_tissues/
+best_growth/
 
