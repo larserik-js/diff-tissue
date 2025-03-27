@@ -3,6 +3,7 @@ import jax
 import jax.numpy as jnp
 import os
 from pathlib import Path
+import timeit
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -54,6 +55,20 @@ def _make_output_dirs():
     output_dirs = _get_output_dirs()
     for output_dir in output_dirs.values():
         output_dir.mkdir(exist_ok=True)
+
+
+def _timer(func):
+    def timed(*args, **kwargs):
+        t_init = timeit.default_timer()
+        res = func(*args, **kwargs)
+        t_end = timeit.default_timer()
+
+        t_tot = t_end - t_init
+
+        print(f'Total time: {t_tot:.4f} s')
+        return res
+
+    return timed
 
 
 def _send_to_device(jax_arrays):
@@ -347,6 +362,7 @@ def _iterate_towards_shape(jax_arrays):
     _make_growth_plots(variations, init_areas, jax_arrays, outer_shape)
 
 
+@_timer
 def _main():
     np.random.seed(0)
     jax.config.update('jax_enable_x64', True)
