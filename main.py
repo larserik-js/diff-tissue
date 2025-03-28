@@ -12,14 +12,16 @@ import optax
 import init_systems
 
 
-_N_SHAPE_STEPS = 300
-_N_GROWTH_STEPS = 200
+_N_SHAPE_STEPS = 100
+_N_GROWTH_STEPS = 500
 _LEARNING_RATE = 1e-4
 
 _AREAS_LOSS_WEIGHT = 10.0
 _ANGLES_LOSS_WEIGHT = 5.0
 _ASPECT_RATIO_LOSS_WEIGHT = 100.0
 _OPTIMAL_ASPECT_RATIO = 1/8
+
+_GOAL_AREA_WEIGHT = 5e-5
 
 
 def _parse_args():
@@ -91,7 +93,7 @@ def _get_jax_arrays(polygons):
 
 @jax.jit
 def _update_target_areas(target_areas, t, goal_areas):
-    w = t / _N_GROWTH_STEPS
+    w = _GOAL_AREA_WEIGHT * t
     target_areas = (1 - w) * target_areas + w * goal_areas
     return target_areas
 
@@ -271,7 +273,7 @@ def _iterate_over_growth(goal_areas, jax_arrays):
 
 
 def _sigmoid(variations):
-    return 1 + 2.0 * jax.nn.sigmoid(variations)
+    return 1.0 + 2.0 * jax.nn.sigmoid(variations)
 
 
 def _make_ellipse(num_points=50, a=10.0, b=15.0, center=(40.0, 40.0)):
