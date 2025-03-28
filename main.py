@@ -313,10 +313,11 @@ def _make_growth_plots(final_variations, init_areas, jax_arrays, outer_shape):
         )
         vertices -= _LEARNING_RATE * grads * jax_arrays['fixed_mask']
 
-        _plot(
-            fig, ax, ax_lims, output_dir, vertices, jax_arrays, outer_shape,
-            step=t+1
-        )
+        if t % 5 == 0:
+            _plot(
+                fig, ax, ax_lims, output_dir, vertices, jax_arrays, outer_shape,
+                step=t+1
+            )
 
 
 def _iterate_towards_shape(jax_arrays):
