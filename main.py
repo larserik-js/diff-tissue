@@ -286,8 +286,8 @@ def _make_ellipse(num_points=50, a=10.0, b=15.0, center=(40.0, 40.0)):
 def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
     diff_vectors = final_vertices[:,None] - outer_shape
     dists = jnp.linalg.norm(diff_vectors, axis=2)
-    min_dists = jnp.min(dists, axis=1)
-    shape_loss = jnp.sum(min_dists * boundary_mask)
+    min_sq_dists = jnp.min(dists**2, axis=1)
+    shape_loss = jnp.sum(min_sq_dists * boundary_mask)
     return shape_loss
 
 
