@@ -13,15 +13,15 @@ import init_systems
 
 
 _N_SHAPE_STEPS = 1000
-_N_GROWTH_STEPS = 500
+_N_GROWTH_STEPS = 50
 _LEARNING_RATE = 1e-4
 
 _AREAS_LOSS_WEIGHT = 10.0
-_ANGLES_LOSS_WEIGHT = 2.0
+_ANGLES_LOSS_WEIGHT = 100.0
 _ASPECT_RATIO_LOSS_WEIGHT = 100.0
 _OPTIMAL_ASPECT_RATIO = 1/8
 
-_GOAL_AREA_WEIGHT = 5e-5
+_GOAL_AREA_WEIGHT = 0.01
 
 
 def _parse_args():
@@ -315,11 +315,10 @@ def _make_growth_plots(final_variations, init_areas, jax_arrays, outer_shape):
         )
         vertices -= _LEARNING_RATE * grads * jax_arrays['fixed_mask']
 
-        if t % 5 == 0:
-            _plot(
-                fig, ax, ax_lims, output_dir, vertices, jax_arrays, outer_shape,
-                step=t+1
-            )
+        _plot(
+            fig, ax, ax_lims, output_dir, vertices, jax_arrays, outer_shape,
+            step=t+1
+        )
 
 
 def _iterate_towards_shape(jax_arrays):
@@ -340,7 +339,7 @@ def _iterate_towards_shape(jax_arrays):
 
     val_grad_loss = jax.jit(jax.value_and_grad(shape_loss_func, has_aux=True))
 
-    variations = jnp.zeros_like(init_areas) + 4.0
+    variations = jnp.zeros_like(init_areas) + 2.0
 
     fig, ax = plt.subplots(figsize=(10, 10))
     ax_lims = _get_ax_lims(init_vertices)
@@ -356,10 +355,11 @@ def _iterate_towards_shape(jax_arrays):
         variations = optax.apply_updates(variations, updates)
         print(f'{shape_step}: Shape loss = {shape_loss}')
 
-        _plot(
-            fig, ax, ax_lims, output_dir, final_vertices, jax_arrays,
-            outer_shape, shape_step
-        )
+        if shape_step % 100 == 0:
+            _plot(
+                fig, ax, ax_lims, output_dir, final_vertices, jax_arrays,
+                outer_shape, shape_step
+            )
 
     print(f'Best final goal area scalings {_sigmoid(variations)}')
     _make_growth_plots(variations, init_areas, jax_arrays, outer_shape)
