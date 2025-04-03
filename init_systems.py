@@ -6,6 +6,28 @@ from scipy.spatial import Voronoi
 
 
 class _Polygons:
+    def _check_convex(self, indices, all_vertices):
+        polygon = all_vertices[indices]
+        edges = polygon[1:] - polygon[:-1]
+        cross_products = np.cross(edges[:-1], edges[1:])
+        non_zero_cross_products = cross_products[
+            ~np.isclose(cross_products, 0.0)
+        ]
+        signs = np.sign(non_zero_cross_products)
+        if np.all(signs > 0.0):
+            convex = True
+        elif np.all(signs < 0.0):
+            convex = False
+        else:
+            raise ValueError('Non-consistent ordering of vertices.')
+        return convex
+
+    def _sort_to_counterclockwise(self, indices, all_vertices):
+        is_convex = self._check_convex(indices, all_vertices)
+        if not is_convex:
+            indices = indices[::-1]
+        return indices
+
     def _find_boundary_mask(self):
         all_edges = set()
         interior_edges = set()
@@ -115,6 +137,9 @@ class _MeshPolygons(_Polygons):
             # For efficiency
             first_idx = indices[1]
             indices.append(first_idx)
+
+            indices = self._sort_to_counterclockwise(indices, all_vertices)
+
             # Pad
             indices += [-1] * (self._max_vertices - len(indices))
             indices.extend([-1] * (self._max_vertices - len(indices)))
@@ -187,6 +212,9 @@ class _SimpleMeshPolygons(_MeshPolygons):
             # For efficiency
             first_idx = indices[1]
             indices.append(first_idx)
+
+            indices = self._sort_to_counterclockwise(indices, all_vertices)
+
             # Pad
             indices += [-1] * (self._max_vertices - len(indices))
             indices.extend([-1] * (self._max_vertices - len(indices)))
@@ -256,6 +284,11 @@ class _VoronoiPolygons(_Polygons):
                 for i in not_allowed_vertex_inds:
                     adjustment_inds -= (vertex_inds >= i).astype(int)
                 vertex_inds += adjustment_inds
+
+                vertex_inds = self._sort_to_counterclockwise(
+                    vertex_inds, allowed_vertices
+                )
+
                 all_polygon_vertex_inds.append(vertex_inds)
 
         return all_polygon_vertex_inds, allowed_vertices

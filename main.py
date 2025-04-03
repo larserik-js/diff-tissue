@@ -18,8 +18,8 @@ _LEARNING_RATE = 1e-4
 
 _AREAS_LOSS_WEIGHT = 10.0
 _ANGLES_LOSS_WEIGHT = 100.0
-_ASPECT_RATIO_LOSS_WEIGHT = 100.0
-_OPTIMAL_ASPECT_RATIO = 1/8
+# _ASPECT_RATIO_LOSS_WEIGHT = 100.0
+# _OPTIMAL_ASPECT_RATIO = 1/8
 
 _GOAL_AREA_WEIGHT = 0.01
 
@@ -118,9 +118,8 @@ def _calc_all_areas(all_cells, valid_mask):
     second_term = xs * y_minus_ones
     second_term = jnp.sum(second_term * valid, axis=1)
 
-    # Abs. because vertex orientation can be
-    # both clockwise and counter-clockwise
-    areas = 0.5 * jnp.abs(first_term - second_term)
+    # Assumes vertices are ordered counter-clockwise
+    areas = 0.5 * (first_term - second_term)
 
     return areas
 
@@ -142,34 +141,34 @@ def _calc_all_angles_loss(all_cells, valid_mask, optimal_angles):
     return angles_loss
 
 
-def _masked_min(values, mask):
-    masked_values = jnp.where(mask, values, jnp.inf)
-    return jnp.min(masked_values, axis=1)
+# def _masked_min(values, mask):
+#     masked_values = jnp.where(mask, values, jnp.inf)
+#     return jnp.min(masked_values, axis=1)
 
 
-def _masked_max(values, mask):
-    masked_values = jnp.where(mask, values, -jnp.inf)
-    return jnp.max(masked_values, axis=1)
+# def _masked_max(values, mask):
+#     masked_values = jnp.where(mask, values, -jnp.inf)
+#     return jnp.max(masked_values, axis=1)
 
 
-def _calc_aspect_ratios(all_cells, valid_mask):
-    min_xys = _masked_min(all_cells, valid_mask[:, :, None])
-    max_xys = _masked_max(all_cells, valid_mask[:, :, None])
+# def _calc_aspect_ratios(all_cells, valid_mask):
+#     min_xys = _masked_min(all_cells, valid_mask[:, :, None])
+#     max_xys = _masked_max(all_cells, valid_mask[:, :, None])
 
-    widths = max_xys[:,0] - min_xys[:,0]
-    heights = max_xys[:,1] - min_xys[:,1]
+#     widths = max_xys[:,0] - min_xys[:,0]
+#     heights = max_xys[:,1] - min_xys[:,1]
 
-    aspect_ratios = widths / (heights + 1e-7)
+#     aspect_ratios = widths / (heights + 1e-7)
 
-    return aspect_ratios
+#     return aspect_ratios
 
 
-def _calc_aspect_ratios_loss(aspect_ratios, basal_mask):
-    aspect_ratio_diffs = aspect_ratios - _OPTIMAL_ASPECT_RATIO
-    aspect_ratios_loss = _ASPECT_RATIO_LOSS_WEIGHT * jnp.sum(
-        jnp.square(basal_mask * aspect_ratio_diffs)
-    )
-    return aspect_ratios_loss
+# def _calc_aspect_ratios_loss(aspect_ratios, basal_mask):
+#     aspect_ratio_diffs = aspect_ratios - _OPTIMAL_ASPECT_RATIO
+#     aspect_ratios_loss = _ASPECT_RATIO_LOSS_WEIGHT * jnp.sum(
+#         jnp.square(basal_mask * aspect_ratio_diffs)
+#     )
+#     return aspect_ratios_loss
 
 
 def _calc_growth_loss(vertices, target_areas, optimal_angles, jax_arrays):
