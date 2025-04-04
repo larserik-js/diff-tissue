@@ -275,10 +275,13 @@ def _sigmoid(variations):
     return 1.0 + 9.0 * jax.nn.sigmoid(variations)
 
 
-def _make_ellipse(num_points=50, a=10.0, b=15.0, center=(40.0, 40.0)):
-    angles = jnp.linspace(0, 2 * jnp.pi, num_points, endpoint=True)
-    x = center[0] + a * jnp.cos(angles)
-    y = center[1] + b * jnp.sin(angles)
+def _make_ellipse():
+    a = 10.0
+    b = a * 1.5
+    origin=(40.0, 40.0)
+    angles = jnp.linspace(0, 2 * jnp.pi, 50, endpoint=True)
+    x = origin[0] + a * jnp.cos(angles)
+    y = origin[1] + b * jnp.sin(angles)
     return jnp.stack([x, y], axis=1)
 
 
