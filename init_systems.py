@@ -169,7 +169,7 @@ class _MeshPolygons(_Polygons):
 class _SimpleMeshPolygons(_MeshPolygons):
     def __init__(self):
         self._selection_origin = np.array([40.0, 40.0])
-        self._selection_radius = 10.0
+        self._selection_radius = 20.0
         super().__init__()
 
     def _all_within_selection(self, vertices):
@@ -228,7 +228,10 @@ class _SimpleMeshPolygons(_MeshPolygons):
         return all_indices, all_vertices, basal_mask
 
     def _get_fixed_inds(self):
-        # fixed_inds =  [3, 4, 9, 10]
+        # Selection radius = 10
+        ## fixed_inds =  [3, 4, 9, 10]
+        # Selection radius = 20
+        ## fixed_inds = [3, 4, 13, 26, 22, 19, 8, 9]
         fixed_inds = []
         return fixed_inds
 

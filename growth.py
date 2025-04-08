@@ -174,15 +174,15 @@ def _main():
     vertices = jax_arrays['init_vertices']
     all_cells = vertices[jax_arrays['indices']]
     init_areas = calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    goal_areas = 2.0 * init_areas
-    outer_shape = utils.make_ellipse()
+    goal_areas = 2.5 * init_areas
+    outer_shape = utils.make_ellipse(args.init_system)
 
     params = {
-        'goal_area_weight': 0.01,
+        'goal_area_weight': 1e-5,
         'learning_rate': 0.01,
-        'n_steps': 100,
+        'n_steps': 200,
         'areas_loss_weight': 1.0,
-        'angles_loss_weight': 1.0,
+        'angles_loss_weight': 10.0,
     }
     iterate_and_plot(output_dir, goal_areas, outer_shape, jax_arrays, params)
 

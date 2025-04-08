@@ -7,20 +7,20 @@ import optax
 import growth, init_systems, utils
 
 
-_N_SHAPE_STEPS = 1000
-_N_GROWTH_STEPS = 50
-_GROWTH_LEARNING_RATE = 1e-4
+_N_SHAPE_STEPS = 2000
+_N_GROWTH_STEPS = 200
+_GROWTH_LEARNING_RATE = 1e-2
 
-_AREAS_LOSS_WEIGHT = 10.0
-_ANGLES_LOSS_WEIGHT = 100.0
+_AREAS_LOSS_WEIGHT = 1.0
+_ANGLES_LOSS_WEIGHT = 10.0
 # _ASPECT_RATIO_LOSS_WEIGHT = 100.0
 # _OPTIMAL_ASPECT_RATIO = 1/8
 
-_GOAL_AREA_WEIGHT = 0.01
+_GOAL_AREA_WEIGHT = 1e-4
 
 
 def _sigmoid(variations):
-    return 1.0 + 9.0 * jax.nn.sigmoid(variations)
+    return 1.0 + 1.5 * jax.nn.sigmoid(variations)
 
 
 def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
@@ -31,12 +31,10 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
     return shape_loss
 
 
-def _iterate_towards_shape(jax_arrays):
+def _iterate_towards_shape(jax_arrays, outer_shape):
     init_vertices = jax_arrays['init_vertices']
     all_cells = init_vertices[jax_arrays['indices']]
     init_areas = growth.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-
-    outer_shape = utils.make_ellipse()
 
     growth_params = {
         'goal_area_weight': _GOAL_AREA_WEIGHT,
@@ -57,11 +55,11 @@ def _iterate_towards_shape(jax_arrays):
 
     val_grad_loss = jax.jit(jax.value_and_grad(shape_loss_func, has_aux=True))
 
-    variations = jnp.zeros_like(init_areas) + 2.0
+    variations = jnp.zeros_like(init_areas)
 
     figure = utils.Figure(init_vertices)
 
-    init_learning_rate = 0.01
+    init_learning_rate = 0.001
     optimizer = optax.adam(init_learning_rate)
     opt_state = optimizer.init(params=variations)
 
@@ -99,7 +97,9 @@ def _main():
 
     jax_arrays = utils.get_jax_arrays(polygons)
 
-    _iterate_towards_shape(jax_arrays)
+    outer_shape = utils.make_ellipse(args.init_system)
+
+    _iterate_towards_shape(jax_arrays, outer_shape)
 
 
 if __name__ == "__main__":

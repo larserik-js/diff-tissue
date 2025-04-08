@@ -76,10 +76,21 @@ def get_jax_arrays(polygons):
     return jax_arrays
 
 
-def make_ellipse():
-    a = 10.0
-    b = a * 1.5
-    origin=(40.0, 40.0)
+def make_ellipse(init_system):
+    match init_system:
+        case 'full':
+            a = 40.0
+            b = a * 1.5
+            origin=(40.0, 70.0)
+        case 'simple':
+            a = 20.0
+            b = a * 1.5
+            origin=(40.0, 45.0)
+        case 'voronoi':
+            a = 0.6
+            b = a * 1.5
+            origin=(0.5, 0.5)
+
     angles = jnp.linspace(0, 2 * jnp.pi, 50, endpoint=True)
     x = origin[0] + a * jnp.cos(angles)
     y = origin[1] + b * jnp.sin(angles)
