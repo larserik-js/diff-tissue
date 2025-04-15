@@ -1,3 +1,4 @@
+import numpy as np
 import jax
 import jax.numpy as jnp
 
@@ -47,54 +48,56 @@ def _calc_all_angles_loss(all_cells, valid_mask, optimal_angles):
     return angles_loss
 
 
-# def _masked_min(values, mask):
-#     masked_values = jnp.where(mask, values, jnp.inf)
-#     return jnp.min(masked_values, axis=1)
+def _masked_min(values, mask):
+    masked_values = jnp.where(mask, values, jnp.inf)
+    return jnp.min(masked_values, axis=1)
 
 
-# def _masked_max(values, mask):
-#     masked_values = jnp.where(mask, values, -jnp.inf)
-#     return jnp.max(masked_values, axis=1)
+def _masked_max(values, mask):
+    masked_values = jnp.where(mask, values, -jnp.inf)
+    return jnp.max(masked_values, axis=1)
 
 
-# def _calc_aspect_ratios(all_cells, valid_mask):
-#     min_xys = _masked_min(all_cells, valid_mask[:, :, None])
-#     max_xys = _masked_max(all_cells, valid_mask[:, :, None])
+def _calc_aspect_ratios(all_cells, valid_mask):
+    min_xys = _masked_min(all_cells, valid_mask[:, :, None])
+    max_xys = _masked_max(all_cells, valid_mask[:, :, None])
 
-#     widths = max_xys[:,0] - min_xys[:,0]
-#     heights = max_xys[:,1] - min_xys[:,1]
+    widths = max_xys[:,0] - min_xys[:,0]
+    heights = max_xys[:,1] - min_xys[:,1]
 
-#     aspect_ratios = widths / (heights + 1e-7)
+    aspect_ratios = widths / (heights + 1e-7)
 
-#     return aspect_ratios
+    return aspect_ratios
 
 
-# def _calc_aspect_ratios_loss(aspect_ratios, basal_mask):
-#     aspect_ratio_diffs = aspect_ratios - _OPTIMAL_ASPECT_RATIO
-#     aspect_ratios_loss = _ASPECT_RATIO_LOSS_WEIGHT * jnp.sum(
-#         jnp.square(basal_mask * aspect_ratio_diffs)
-#     )
-#     return aspect_ratios_loss
+def _calc_aspect_ratios_loss(aspect_ratios, basal_mask, params):
+    aspect_ratio_diffs = aspect_ratios - params['optimal_aspect_ratio']
+    aspect_ratios_loss = params['aspect_ratio_loss_weight'] * jnp.sum(
+        jnp.square(basal_mask * aspect_ratio_diffs)
+    )
+    return aspect_ratios_loss
 
 
 def _calc_growth_loss(vertices, target_areas, optimal_angles, jax_arrays,
                       params):
     all_cells = vertices[jax_arrays['indices']]
     areas = calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    # aspect_ratios = _calc_aspect_ratios(all_cells, jax_arrays['valid_mask'])
+    aspect_ratios = _calc_aspect_ratios(all_cells, jax_arrays['valid_mask'])
 
+    areas_loss = params['areas_loss_weight'] * jnp.sum(
+        (target_areas - areas)**2
+    )
     areas_loss = params['areas_loss_weight'] * jnp.sum(
         (target_areas - areas)**2
     )
     angles_loss = params['angles_loss_weight'] * _calc_all_angles_loss(
         all_cells, jax_arrays['valid_mask'], optimal_angles
     )
-    # aspect_ratios_loss = _calc_aspect_ratios_loss(
-    #     aspect_ratios, jax_arrays['basal_mask']
-    # )
+    aspect_ratios_loss = _calc_aspect_ratios_loss(
+        aspect_ratios, jax_arrays['basal_mask'], params
+    )
 
-    # loss = areas_loss + angles_loss + aspect_ratios_loss
-    loss = areas_loss + angles_loss
+    loss = areas_loss + angles_loss + aspect_ratios_loss
 
     return loss
 
@@ -164,6 +167,16 @@ def iterate_and_plot(output_dir, goal_areas, outer_shape, jax_arrays, params):
 
 @utils.timer
 def _main():
+    params = {
+        'goal_area_weight': 1e-5,
+        'learning_rate': 0.015,
+        'n_steps': 200,
+        'areas_loss_weight': 1.0,
+        'angles_loss_weight': 1.0,
+        'aspect_ratio_loss_weight': 10.0,
+        'optimal_aspect_ratio': 1/3
+    }
+
     utils.make_output_dirs()
 
     output_dir = utils.get_output_dirs()['growth']
@@ -174,16 +187,14 @@ def _main():
     vertices = jax_arrays['init_vertices']
     all_cells = vertices[jax_arrays['indices']]
     init_areas = calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    goal_areas = 2.5 * init_areas
+
+    aspect_ratio_scales = np.where(
+        np.isclose(polygons.get_basal_mask(), 0), 1.0,
+        polygons.get_basal_mask() / params['optimal_aspect_ratio']
+    )
+    goal_areas = 2.5 * init_areas * aspect_ratio_scales
     outer_shape = utils.make_ellipse(args.init_system)
 
-    params = {
-        'goal_area_weight': 1e-5,
-        'learning_rate': 0.01,
-        'n_steps': 200,
-        'areas_loss_weight': 1.0,
-        'angles_loss_weight': 10.0,
-    }
     iterate_and_plot(output_dir, goal_areas, outer_shape, jax_arrays, params)
 
 

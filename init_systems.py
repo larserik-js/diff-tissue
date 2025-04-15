@@ -101,7 +101,7 @@ class _MeshPolygons(_Polygons):
     def _is_basal(self, vertex):
         pseudo_origin = np.array([40.0, 0.0])
         dist_from_pseudo_origin = np.linalg.norm(vertex - pseudo_origin)
-        return dist_from_pseudo_origin < 50.0
+        return dist_from_pseudo_origin < 45.0
 
     def _make_init_polygons(self):
         all_vertices = np.zeros((0, 2))

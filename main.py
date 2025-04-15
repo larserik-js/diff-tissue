@@ -9,18 +9,30 @@ import growth, init_systems, utils
 
 _N_SHAPE_STEPS = 2000
 _N_GROWTH_STEPS = 200
-_GROWTH_LEARNING_RATE = 1e-2
+_GROWTH_LEARNING_RATE = 0.015
 
 _AREAS_LOSS_WEIGHT = 1.0
-_ANGLES_LOSS_WEIGHT = 10.0
-# _ASPECT_RATIO_LOSS_WEIGHT = 100.0
-# _OPTIMAL_ASPECT_RATIO = 1/8
+_ANGLES_LOSS_WEIGHT = 1.0
+_ASPECT_RATIO_LOSS_WEIGHT = 1.0
+_OPTIMAL_ASPECT_RATIO = 1/3.0
 
-_GOAL_AREA_WEIGHT = 1e-4
+_GOAL_AREA_WEIGHT = 1e-5
 
 
 def _sigmoid(variations):
     return 1.0 + 1.5 * jax.nn.sigmoid(variations)
+
+
+def _calc_aspect_ratio_scales(jax_arrays):
+    basal_mask = jax_arrays['basal_mask']
+    aspect_ratio_scales = np.ones(len(basal_mask))
+    aspect_ratio_scales[basal_mask] /= _OPTIMAL_ASPECT_RATIO
+    return jnp.array(aspect_ratio_scales)
+
+
+def _calc_goal_areas(init_areas, aspect_ratio_scales, variations):
+    goal_areas = init_areas * aspect_ratio_scales * _sigmoid(variations)
+    return goal_areas
 
 
 def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
@@ -36,16 +48,22 @@ def _iterate_towards_shape(jax_arrays, outer_shape):
     all_cells = init_vertices[jax_arrays['indices']]
     init_areas = growth.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
+    aspect_ratio_scales = _calc_aspect_ratio_scales(jax_arrays)
+
     growth_params = {
         'goal_area_weight': _GOAL_AREA_WEIGHT,
         'learning_rate': _GROWTH_LEARNING_RATE,
         'n_steps': _N_GROWTH_STEPS,
         'areas_loss_weight': _AREAS_LOSS_WEIGHT,
         'angles_loss_weight': _ANGLES_LOSS_WEIGHT,
+        'aspect_ratio_loss_weight': _ASPECT_RATIO_LOSS_WEIGHT,
+        'optimal_aspect_ratio': _OPTIMAL_ASPECT_RATIO
     }
 
     def shape_loss_func(variations):
-        goal_areas = init_areas * _sigmoid(variations)
+        goal_areas = _calc_goal_areas(
+            init_areas, aspect_ratio_scales, variations
+        )
         final_vertices = growth.iterate(goal_areas, jax_arrays, growth_params)
         shape_loss = _calc_shape_loss(
             final_vertices, jax_arrays['boundary_mask'], outer_shape
@@ -77,7 +95,9 @@ def _iterate_towards_shape(jax_arrays, outer_shape):
             )
 
     print(f'Best final goal area scalings {_sigmoid(variations)}')
-    final_goal_areas = init_areas * _sigmoid(variations)
+    final_goal_areas = _calc_goal_areas(
+        init_areas, aspect_ratio_scales, variations
+    )
     growth.iterate_and_plot(
         output_dirs['best_growth'], final_goal_areas, outer_shape, jax_arrays,
         growth_params
