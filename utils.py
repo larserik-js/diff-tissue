@@ -62,39 +62,19 @@ def _send_to_device(jax_arrays):
     return jax.device_put(jax_arrays, device=_get_device())
 
 
-def get_jax_arrays(polygons):
+def get_jax_arrays(polygons, outer_shape):
     arrays = {
         'init_vertices': polygons.get_vertices(),
         'indices': polygons.get_polygon_inds(),
         'valid_mask': polygons.get_valid_mask(),
         'fixed_mask': polygons.get_fixed_mask(),
         'basal_mask': polygons.get_basal_mask(),
-        'boundary_mask': polygons.get_boundary_mask()
+        'boundary_mask': polygons.get_boundary_mask(),
+        'outer_shape': outer_shape
     }
     jax_arrays = {k: _send_to_device(jnp.array(v)) for k, v in arrays.items()}
 
     return jax_arrays
-
-
-def make_ellipse(init_system):
-    match init_system:
-        case 'full':
-            a = 40.0
-            b = a * 1.5
-            origin=(40.0, 70.0)
-        case 'simple':
-            a = 20.0
-            b = a * 1.5
-            origin=(40.0, 45.0)
-        case 'voronoi':
-            a = 0.6
-            b = a * 1.5
-            origin=(0.5, 0.5)
-
-    angles = jnp.linspace(0, 2 * jnp.pi, 50, endpoint=True)
-    x = origin[0] + a * jnp.cos(angles)
-    y = origin[1] + b * jnp.sin(angles)
-    return jnp.stack([x, y], axis=1)
 
 
 class Figure:
@@ -117,7 +97,7 @@ class Figure:
         self._ax.set_ylim(self._ax_lims[1])
         self._ax.set_aspect('equal')
 
-    def _add_artists(self, vertices, jax_arrays, outer_shape):
+    def _add_artists(self, vertices, jax_arrays):
         indices = jax_arrays['indices']
         for i in range(indices.shape[0]):
             vertex_inds = indices[i][jax_arrays['valid_mask'][i]]
@@ -140,15 +120,15 @@ class Figure:
         )
 
         self._ax.plot(
-            outer_shape[:, 0], outer_shape[:, 1], 'ro-', markersize=3,
-            label='Outer shape'
+            jax_arrays['outer_shape'][:, 0], jax_arrays['outer_shape'][:, 1],
+            'ro-', markersize=3, label='Outer shape'
         )
 
     def _save(self, output_dir, step):
         fig_path = output_dir / f'step={step}.png'
         self._fig.savefig(fig_path, dpi=100)
 
-    def plot(self, output_dir, vertices, jax_arrays, outer_shape, step):
+    def plot(self, output_dir, vertices, jax_arrays, step):
         self._format()
-        self._add_artists(vertices, jax_arrays, outer_shape)
+        self._add_artists(vertices, jax_arrays)
         self._save(output_dir, step)

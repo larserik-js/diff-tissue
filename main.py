@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-
 import numpy as np
 import optax
 
@@ -8,13 +7,13 @@ import growth, init_systems, utils
 
 
 _N_SHAPE_STEPS = 2000
-_N_GROWTH_STEPS = 200
-_GROWTH_LEARNING_RATE = 0.015
+_N_GROWTH_STEPS = 400
+_GROWTH_LEARNING_RATE = 0.001
 
-_AREAS_LOSS_WEIGHT = 1.0
-_ANGLES_LOSS_WEIGHT = 1.0
+_AREAS_LOSS_WEIGHT = 10.0
+_ANGLES_LOSS_WEIGHT = 10.0
 _ASPECT_RATIO_LOSS_WEIGHT = 1.0
-_OPTIMAL_ASPECT_RATIO = 1/3.0
+_OPTIMAL_ASPECT_RATIO = 1.0
 
 _GOAL_AREA_WEIGHT = 1e-5
 
@@ -43,7 +42,7 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
     return shape_loss
 
 
-def _iterate_towards_shape(jax_arrays, outer_shape):
+def _iterate_towards_shape(jax_arrays):
     init_vertices = jax_arrays['init_vertices']
     all_cells = init_vertices[jax_arrays['indices']]
     init_areas = growth.calc_all_areas(all_cells, jax_arrays['valid_mask'])
@@ -66,7 +65,8 @@ def _iterate_towards_shape(jax_arrays, outer_shape):
         )
         final_vertices = growth.iterate(goal_areas, jax_arrays, growth_params)
         shape_loss = _calc_shape_loss(
-            final_vertices, jax_arrays['boundary_mask'], outer_shape
+            final_vertices, jax_arrays['boundary_mask'],
+            jax_arrays['outer_shape']
         )
 
         return shape_loss, final_vertices
@@ -77,7 +77,7 @@ def _iterate_towards_shape(jax_arrays, outer_shape):
 
     figure = utils.Figure(init_vertices)
 
-    init_learning_rate = 0.001
+    init_learning_rate = 0.01
     optimizer = optax.adam(init_learning_rate)
     opt_state = optimizer.init(params=variations)
 
@@ -91,7 +91,7 @@ def _iterate_towards_shape(jax_arrays, outer_shape):
         if shape_step % 100 == 0:
             figure.plot(
                 output_dirs['final_tissues'], final_vertices, jax_arrays,
-                outer_shape, shape_step
+                shape_step
             )
 
     print(f'Best final goal area scalings {_sigmoid(variations)}')
@@ -99,8 +99,7 @@ def _iterate_towards_shape(jax_arrays, outer_shape):
         init_areas, aspect_ratio_scales, variations
     )
     growth.iterate_and_plot(
-        output_dirs['best_growth'], final_goal_areas, outer_shape, jax_arrays,
-        growth_params
+        output_dirs['best_growth'], final_goal_areas, jax_arrays, growth_params
     )
 
 
@@ -113,13 +112,14 @@ def _main():
 
     args = utils.parse_args()
 
-    polygons = init_systems.get_polygons(args)
+    factory = init_systems.get_factory(args)
+    polygons = factory.get_polygons()
+    shape_params = factory.get_shape_params()
+    outer_shape = init_systems.Ellipse(shape_params).get()
 
-    jax_arrays = utils.get_jax_arrays(polygons)
+    jax_arrays = utils.get_jax_arrays(polygons, outer_shape)
 
-    outer_shape = utils.make_ellipse(args.init_system)
-
-    _iterate_towards_shape(jax_arrays, outer_shape)
+    _iterate_towards_shape(jax_arrays)
 
 
 if __name__ == "__main__":

@@ -139,7 +139,7 @@ def iterate(goal_areas, jax_arrays, params):
     return final_vertices
 
 
-def iterate_and_plot(output_dir, goal_areas, outer_shape, jax_arrays, params):
+def iterate_and_plot(output_dir, goal_areas, jax_arrays, params):
     vertices = jax_arrays['init_vertices']
     all_cells = vertices[jax_arrays['indices']]
     target_areas = calc_all_areas(all_cells, jax_arrays['valid_mask'])
@@ -147,9 +147,7 @@ def iterate_and_plot(output_dir, goal_areas, outer_shape, jax_arrays, params):
 
     _calc_loss_and_grads = jax.value_and_grad(_calc_growth_loss)
     figure = utils.Figure(vertices)
-    figure.plot(
-        output_dir, vertices, jax_arrays, outer_shape, step=0
-    )
+    figure.plot(output_dir, vertices, jax_arrays, step=0)
 
     for t in jnp.arange(params['n_steps']):
         target_areas = _update_target_areas(
@@ -160,29 +158,32 @@ def iterate_and_plot(output_dir, goal_areas, outer_shape, jax_arrays, params):
         )
         vertices -= params['learning_rate'] * grads * jax_arrays['fixed_mask']
 
-        figure.plot(
-            output_dir, vertices, jax_arrays, outer_shape, step=t+1
-        )
+        figure.plot(output_dir, vertices, jax_arrays, step=t+1)
 
 
 @utils.timer
 def _main():
     params = {
-        'goal_area_weight': 1e-5,
-        'learning_rate': 0.015,
-        'n_steps': 200,
-        'areas_loss_weight': 1.0,
-        'angles_loss_weight': 1.0,
-        'aspect_ratio_loss_weight': 10.0,
-        'optimal_aspect_ratio': 1/3
+        'learning_rate': 0.001,
+        'n_steps': 400,
+        'areas_loss_weight': 10.0,
+        'angles_loss_weight': 10.0,
+        'aspect_ratio_loss_weight': 1.0,
+        'optimal_aspect_ratio': 1.0,
+        'goal_area_weight': 1e-5
     }
 
     utils.make_output_dirs()
 
     output_dir = utils.get_output_dirs()['growth']
     args = utils.parse_args()
-    polygons = init_systems.get_polygons(args)
-    jax_arrays = utils.get_jax_arrays(polygons)
+
+    factory = init_systems.get_factory(args)
+    polygons = factory.get_polygons()
+    shape_params = factory.get_shape_params()
+    outer_shape = init_systems.Ellipse(shape_params).get()
+
+    jax_arrays = utils.get_jax_arrays(polygons, outer_shape)
 
     vertices = jax_arrays['init_vertices']
     all_cells = vertices[jax_arrays['indices']]
@@ -193,9 +194,8 @@ def _main():
         polygons.get_basal_mask() / params['optimal_aspect_ratio']
     )
     goal_areas = 2.5 * init_areas * aspect_ratio_scales
-    outer_shape = utils.make_ellipse(args.init_system)
 
-    iterate_and_plot(output_dir, goal_areas, outer_shape, jax_arrays, params)
+    iterate_and_plot(output_dir, goal_areas, jax_arrays, params)
 
 
 if __name__ == '__main__':

@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import json
 from pathlib import Path
 
@@ -316,14 +317,76 @@ class _VoronoiPolygons(_Polygons):
         return all_polygon_inds
 
 
-def get_polygons(args):
+class _Shape(ABC):
+    def __init__(self, params):
+        self._a = params['a']
+        self._b = params['b']
+        self._origin = params['origin']
+
+    @abstractmethod
+    def get(self):
+        pass
+
+
+class Ellipse(_Shape):
+    def get(self):
+        angles = np.linspace(0, 2 * np.pi, 50, endpoint=True)
+        x = self._origin[0] + self._a * np.cos(angles)
+        y = self._origin[1] + self._b * np.sin(angles)
+        return np.stack([x, y], axis=1)
+
+
+class _AbstractFactory(ABC):
+    @abstractmethod
+    def get_polygons(self):
+        pass
+
+    @abstractmethod
+    def get_shape_params(self):
+        pass
+
+
+class _FullFactory(_AbstractFactory):
+    def get_polygons(self):
+        return _MeshPolygons()
+
+    def get_shape_params(self):
+        a = 40.0
+        b = a * 1.5
+        origin = (40.0, 70.0)
+        return {'a': a, 'b': b, 'origin': origin}
+
+
+class _SimpleFactory(_AbstractFactory):
+    def get_polygons(self):
+        return _SimpleMeshPolygons()
+
+    def get_shape_params(self):
+        a = 19.0
+        b = a * 1.0
+        origin=(40.0, 45.0)
+        return {'a': a, 'b': b, 'origin': origin}
+
+
+class _VoronoiFactory(_AbstractFactory):
+    def get_polygons(self):
+        return _VoronoiPolygons()
+
+    def get_shape_params(self):
+        a = 0.6
+        b = a * 1.5
+        origin=(0.5, 0.5)
+        return {'a': a, 'b': b, 'origin': origin}
+
+
+def get_factory(args):
     match args.init_system:
         case 'full':
-            polygons = _MeshPolygons()
+            factory = _FullFactory()
         case 'simple':
-            polygons = _SimpleMeshPolygons()
+            factory = _SimpleFactory()
         case 'voronoi':
-            polygons = _VoronoiPolygons()
+            factory = _VoronoiFactory()
         case _:
             raise ValueError('Invalid initial configuration')
-    return polygons
+    return factory
