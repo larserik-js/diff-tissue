@@ -317,76 +317,120 @@ class _VoronoiPolygons(_Polygons):
         return all_polygon_inds
 
 
-class _Shape(ABC):
-    def __init__(self, params):
-        self._a = params['a']
-        self._b = params['b']
-        self._origin = params['origin']
-
-    @abstractmethod
-    def get(self):
-        pass
-
-
-class Ellipse(_Shape):
-    def get(self):
-        angles = np.linspace(0, 2 * np.pi, 50, endpoint=True)
-        x = self._origin[0] + self._a * np.cos(angles)
-        y = self._origin[1] + self._b * np.sin(angles)
-        return np.stack([x, y], axis=1)
-
-
 class _AbstractFactory(ABC):
     @abstractmethod
-    def get_polygons(self):
+    def _make_params_and_polygons(self):
         pass
 
-    @abstractmethod
-    def get_shape_params(self):
-        pass
-
-
-class _FullFactory(_AbstractFactory):
     def get_polygons(self):
-        return _MeshPolygons()
+        return self._polygons
 
-    def get_shape_params(self):
-        a = 40.0
-        b = a * 1.5
-        origin = (40.0, 70.0)
-        return {'a': a, 'b': b, 'origin': origin}
+    def get_outer_shape(self):
+        return self._outer_shape
 
 
-class _SimpleFactory(_AbstractFactory):
-    def get_polygons(self):
-        return _SimpleMeshPolygons()
+class _EllipseFactory(_AbstractFactory):
+    def __init__(self, system):
+        self._system = system
+        self._shape_params, self._polygons = self._make_params_and_polygons()
+        self._outer_shape = self._make_outer_shape()
 
-    def get_shape_params(self):
-        a = 19.0
-        b = a * 1.0
-        origin=(40.0, 45.0)
-        return {'a': a, 'b': b, 'origin': origin}
+    def _make_params_and_polygons(self):
+        match self._system:
+            case 'full':
+                a = 40.0
+                b = a * 1.5
+                origin = (40.0, 70.0)
+                polygons = _MeshPolygons()
+            case 'simple':
+                a = 19.0
+                b = a * 1.0
+                origin = (40.0, 45.0)
+                polygons = _SimpleMeshPolygons()
+            case 'voronoi':
+                a = 0.6
+                b = a * 1.5
+                origin = (0.5, 0.5)
+                polygons = _VoronoiPolygons()
+            case _:
+                raise ValueError('Invalid initial system!')
+
+        shape_params = {'a': a, 'b': b, 'origin': origin}
+        return shape_params, polygons
+
+    def _make_outer_shape(self):
+        angles = np.linspace(0, 2 * np.pi, 50, endpoint=True)
+        xs = (self._shape_params['origin'][0] +
+             self._shape_params['a'] * np.cos(angles))
+        ys = (self._shape_params['origin'][1] +
+             self._shape_params['b'] * np.sin(angles))
+        ellipse = np.stack([xs, ys], axis=1)
+        return ellipse
 
 
-class _VoronoiFactory(_AbstractFactory):
-    def get_polygons(self):
-        return _VoronoiPolygons()
+class _PetalFactory(_AbstractFactory):
+    def __init__(self, system):
+        self._system = system
+        self._shape_params, self._polygons = self._make_params_and_polygons()
+        self._outer_shape = self._make_outer_shape()
 
-    def get_shape_params(self):
-        a = 0.6
-        b = a * 1.5
-        origin=(0.5, 0.5)
-        return {'a': a, 'b': b, 'origin': origin}
+    def _make_params_and_polygons(self):
+        match self._system:
+            case 'full':
+                a = 2500.0
+                origin = (40.0, 60.0)
+                polygons = _MeshPolygons()
+            case 'simple':
+                a = 350.0
+                polygons = _SimpleMeshPolygons()
+                origin = (40.0, 45.0)
+            case 'voronoi':
+                a = 0.6
+                origin = (0.5, 0.5)
+                polygons = _VoronoiPolygons()
+            case _:
+                raise ValueError('Invalid initial system!')
+
+        b = 1.0 * a
+        m = 3.0
+        n1 = 30.0
+        n2 = 15.0
+        n3 = 15.0
+        shape_params = {
+            'a': a, 'b': b, 'm': m, 'n1': n1, 'n2': n2, 'n3': n3,
+            'origin': origin
+        }
+        return shape_params, polygons
+
+    def _gielis(self, angle, a, b, m, n1, n2, n3):
+        rs = (
+            np.abs(np.cos(m * angle / 4) / a)**n2 +
+            np.abs(np.sin(m * angle / 4) / b)**n3
+        )**(-1 / n1)
+        return rs
+
+    def _make_outer_shape(self):
+        angles = np.linspace(0, 2 * np.pi, 50, endpoint=True)
+        rs = self._gielis(angles,
+                          self._shape_params['a'],
+                          self._shape_params['b'],
+                          self._shape_params['m'],
+                          self._shape_params['n1'],
+                          self._shape_params['n2'],
+                          self._shape_params['n3'])
+        xs = rs * np.sin(angles) + self._shape_params['origin'][0]
+        ys = rs * np.cos(angles) + self._shape_params['origin'][1]
+
+        petal = np.stack([xs, ys], axis=1)
+        return petal
 
 
-def get_factory(args):
-    match args.init_system:
-        case 'full':
-            factory = _FullFactory()
-        case 'simple':
-            factory = _SimpleFactory()
-        case 'voronoi':
-            factory = _VoronoiFactory()
+def get_factory(shape, system):
+    match shape:
+        case 'ellipse':
+            factory = _EllipseFactory(system)
+        case 'petal':
+            factory = _PetalFactory(system)
         case _:
-            raise ValueError('Invalid initial configuration')
+            raise ValueError('Invalid outer shape!')
     return factory

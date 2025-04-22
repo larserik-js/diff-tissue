@@ -112,10 +112,9 @@ def _main():
 
     args = utils.parse_args()
 
-    factory = init_systems.get_factory(args)
+    factory = init_systems.get_factory(args.shape, args.system)
     polygons = factory.get_polygons()
-    shape_params = factory.get_shape_params()
-    outer_shape = init_systems.Ellipse(shape_params).get()
+    outer_shape = factory.get_outer_shape()
 
     jax_arrays = utils.get_jax_arrays(polygons, outer_shape)
 

@@ -45,11 +45,19 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        '--init_system',
+        '--system',
         type=str,
         choices=['full', 'simple', 'voronoi'],
         default='simple',
         help='Initial polygon configuration.'
+    )
+
+    parser.add_argument(
+        '--shape',
+        type=str,
+        choices=['ellipse', 'petal'],
+        default='ellipse',
+        help='Type of outer shape.'
     )
     return parser.parse_args()
 
