@@ -6,26 +6,14 @@ import optax
 import growth, init_systems, utils
 
 
-_N_SHAPE_STEPS = 2000
-_N_GROWTH_STEPS = 400
-_GROWTH_LEARNING_RATE = 0.001
-
-_AREAS_LOSS_WEIGHT = 10.0
-_ANGLES_LOSS_WEIGHT = 10.0
-_ASPECT_RATIO_LOSS_WEIGHT = 1.0
-_OPTIMAL_ASPECT_RATIO = 1.0
-
-_GOAL_AREA_WEIGHT = 1e-5
-
-
 def _sigmoid(variations):
     return 1.0 + 1.5 * jax.nn.sigmoid(variations)
 
 
-def _calc_aspect_ratio_scales(jax_arrays):
+def _calc_aspect_ratio_scales(jax_arrays, optimal_aspect_ratio):
     basal_mask = jax_arrays['basal_mask']
     aspect_ratio_scales = np.ones(len(basal_mask))
-    aspect_ratio_scales[basal_mask] /= _OPTIMAL_ASPECT_RATIO
+    aspect_ratio_scales[basal_mask] /= optimal_aspect_ratio
     return jnp.array(aspect_ratio_scales)
 
 
@@ -42,28 +30,20 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
     return shape_loss
 
 
-def _iterate_towards_shape(jax_arrays):
+def _iterate_towards_shape(jax_arrays, params):
     init_vertices = jax_arrays['init_vertices']
     all_cells = init_vertices[jax_arrays['indices']]
     init_areas = growth.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
-    aspect_ratio_scales = _calc_aspect_ratio_scales(jax_arrays)
-
-    growth_params = {
-        'goal_area_weight': _GOAL_AREA_WEIGHT,
-        'learning_rate': _GROWTH_LEARNING_RATE,
-        'n_steps': _N_GROWTH_STEPS,
-        'areas_loss_weight': _AREAS_LOSS_WEIGHT,
-        'angles_loss_weight': _ANGLES_LOSS_WEIGHT,
-        'aspect_ratio_loss_weight': _ASPECT_RATIO_LOSS_WEIGHT,
-        'optimal_aspect_ratio': _OPTIMAL_ASPECT_RATIO
-    }
+    aspect_ratio_scales = _calc_aspect_ratio_scales(
+        jax_arrays, params['optimal_aspect_ratio']
+    )
 
     def shape_loss_func(variations):
         goal_areas = _calc_goal_areas(
             init_areas, aspect_ratio_scales, variations
         )
-        final_vertices = growth.iterate(goal_areas, jax_arrays, growth_params)
+        final_vertices = growth.iterate(goal_areas, jax_arrays, params)
         shape_loss = _calc_shape_loss(
             final_vertices, jax_arrays['boundary_mask'],
             jax_arrays['outer_shape']
@@ -82,7 +62,7 @@ def _iterate_towards_shape(jax_arrays):
     opt_state = optimizer.init(params=variations)
 
     output_dirs = utils.get_output_dirs()
-    for shape_step in range(_N_SHAPE_STEPS):
+    for shape_step in range(params['n_shape_steps']):
         (shape_loss, final_vertices), grads = val_grad_loss(variations)
         updates, opt_state = optimizer.update(grads, opt_state)
         variations = optax.apply_updates(variations, updates)
@@ -99,7 +79,7 @@ def _iterate_towards_shape(jax_arrays):
         init_areas, aspect_ratio_scales, variations
     )
     growth.iterate_and_plot(
-        output_dirs['best_growth'], final_goal_areas, jax_arrays, growth_params
+        output_dirs['best_growth'], final_goal_areas, jax_arrays, params
     )
 
 
@@ -110,15 +90,15 @@ def _main():
 
     utils.make_output_dirs()
 
-    args = utils.parse_args()
+    Params = utils.Params()
 
-    factory = init_systems.get_factory(args.shape, args.system)
+    factory = init_systems.get_factory(Params.shape, Params.system)
     polygons = factory.get_polygons()
     outer_shape = factory.get_outer_shape()
 
     jax_arrays = utils.get_jax_arrays(polygons, outer_shape)
 
-    _iterate_towards_shape(jax_arrays)
+    _iterate_towards_shape(jax_arrays, Params.numerical_params)
 
 
 if __name__ == "__main__":

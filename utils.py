@@ -41,25 +41,98 @@ def timer(func):
     return timed
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
+class Params:
+    def __init__(self):
+        self._args = self._parse_args()
+        self.system = self._args.system
+        self.shape = self._args.shape
+        self.numerical_params = {
+            'n_shape_steps': self._args.ssteps,
+            'n_growth_steps': self._args.gsteps,
+            'growth_learning_rate': self._args.glr,
+            'areas_loss_weight': self._args.arlw,
+            'angles_loss_weight': self._args.anlw,
+            'aspect_ratio_loss_weight': self._args.aslw,
+            'optimal_aspect_ratio': self._args.oar,
+            'goal_area_weight': self._args.gaw
+        }
 
-    parser.add_argument(
-        '--system',
-        type=str,
-        choices=['full', 'simple', 'voronoi'],
-        default='simple',
-        help='Initial polygon configuration.'
-    )
+    def _parse_args(self):
+        parser = argparse.ArgumentParser()
 
-    parser.add_argument(
-        '--shape',
-        type=str,
-        choices=['ellipse', 'petal'],
-        default='ellipse',
-        help='Type of outer shape.'
-    )
-    return parser.parse_args()
+        parser.add_argument(
+            '--system',
+            type=str,
+            choices=['full', 'simple', 'voronoi'],
+            default='simple',
+            help='Initial polygon configuration.'
+        )
+
+        parser.add_argument(
+            '--shape',
+            type=str,
+            choices=['ellipse', 'petal'],
+            default='ellipse',
+            help='Type of outer shape.'
+        )
+
+        parser.add_argument(
+            '--ssteps',
+            type=int,
+            default=2000,
+            help='Number of shape steps.'
+        )
+
+        parser.add_argument(
+            '--gsteps',
+            type=int,
+            default=400,
+            help='Number of growth steps.'
+        )
+
+        parser.add_argument(
+            '--glr',
+            type=float,
+            default=0.001,
+            help='Learning rate for growth.'
+        )
+
+        parser.add_argument(
+            '--arlw',
+            type=float,
+            default=10.0,
+            help='Areas loss weight.'
+        )
+
+        parser.add_argument(
+            '--anlw',
+            type=float,
+            default=10.0,
+            help='Angles loss weight.'
+        )
+
+        parser.add_argument(
+            '--aslw',
+            type=float,
+            default=1.0,
+            help='Aspect ratio loss weight.'
+        )
+
+        parser.add_argument(
+            '--oar',
+            type=float,
+            default=1.0,
+            help='Optimal aspect ratio.'
+        )
+
+        parser.add_argument(
+            '--gaw',
+            type=float,
+            default=1e-5,
+            help='Goal area weight.'
+        )
+        args = parser.parse_args()
+        return args
 
 
 def _get_device():
