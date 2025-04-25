@@ -57,7 +57,7 @@ def _iterate_towards_shape(jax_arrays, params):
 
     val_grad_loss = jax.jit(jax.value_and_grad(shape_loss_func, has_aux=True))
 
-    variations = jnp.zeros_like(init_areas)
+    variations = jnp.zeros_like(init_areas) - 2.0
 
     figure = utils.Figure(init_vertices)
 
