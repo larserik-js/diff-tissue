@@ -343,8 +343,8 @@ class _EllipseFactory(_AbstractFactory):
                 origin = (40.0, 70.0)
                 polygons = _MeshPolygons()
             case 'simple':
-                a = 19.0
-                b = a * 1.0
+                a = 23.0
+                b = a * 1.2
                 origin = (40.0, 45.0)
                 polygons = _SimpleMeshPolygons()
             case 'voronoi':
@@ -366,6 +366,46 @@ class _EllipseFactory(_AbstractFactory):
              self._shape_params['b'] * np.sin(angles))
         ellipse = np.stack([xs, ys], axis=1)
         return ellipse
+
+
+class _TrapzeoidFactory(_AbstractFactory):
+    def __init__(self, system):
+        self._system = system
+        self._shape_params, self._polygons = self._make_params_and_polygons()
+        self._outer_shape = self._make_outer_shape()
+
+    def _make_params_and_polygons(self):
+        match self._system:
+            case 'full':
+                a = 2500.0
+                origin = (40.0, 60.0)
+                polygons = _MeshPolygons()
+            case 'simple':
+                a = 12.0
+                polygons = _SimpleMeshPolygons()
+                origin = (40.0, 23.0)
+            case 'voronoi':
+                a = 0.6
+                origin = (0.5, 0.5)
+                polygons = _VoronoiPolygons()
+            case _:
+                raise ValueError('Invalid initial system!')
+
+        shape_params = {'scale': a, 'origin': origin}
+        return shape_params, polygons
+
+    def _make_outer_shape(self):
+        height = 3.5
+        xs = (
+            np.array([-1.5, 1.5, 2.0, -2.0, -1.5]) * self._shape_params['scale']
+            + self._shape_params['origin'][0]
+        )
+        ys = (
+            np.array([0.0, 0.0, height, height, 0.0]) * self._shape_params['scale']
+            + self._shape_params['origin'][1]
+        )
+        triangle = np.stack([xs, ys], axis=1)
+        return triangle
 
 
 class _PetalFactory(_AbstractFactory):
@@ -434,6 +474,8 @@ def get_factory(shape, system):
     match shape:
         case 'ellipse':
             factory = _EllipseFactory(system)
+        case 'trapezoid':
+            factory = _TrapzeoidFactory(system)
         case 'petal':
             factory = _PetalFactory(system)
         case _:

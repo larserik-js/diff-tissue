@@ -72,7 +72,7 @@ class Params:
         parser.add_argument(
             '--shape',
             type=str,
-            choices=['ellipse', 'petal'],
+            choices=['ellipse', 'trapezoid', 'petal'],
             default='petal',
             help='Type of outer shape.'
         )
@@ -108,7 +108,7 @@ class Params:
         parser.add_argument(
             '--anlw',
             type=float,
-            default=100.0,
+            default=200.0,
             help='Angles loss weight.'
         )
 
@@ -136,7 +136,7 @@ class Params:
         parser.add_argument(
             '--marsc',
             type=float,
-            default=3.5,
+            default=4.0,
             help='Maximal area scaling.'
         )
         args = parser.parse_args()
