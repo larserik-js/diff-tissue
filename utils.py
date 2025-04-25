@@ -54,7 +54,8 @@ class Params:
             'angles_loss_weight': self._args.anlw,
             'aspect_ratio_loss_weight': self._args.aslw,
             'optimal_aspect_ratio': self._args.oar,
-            'goal_area_weight': self._args.gaw
+            'goal_area_weight': self._args.gaw,
+            'max_area_scaling': self._args.marsc
         }
 
     def _parse_args(self):
@@ -72,7 +73,7 @@ class Params:
             '--shape',
             type=str,
             choices=['ellipse', 'petal'],
-            default='ellipse',
+            default='petal',
             help='Type of outer shape.'
         )
 
@@ -93,7 +94,7 @@ class Params:
         parser.add_argument(
             '--glr',
             type=float,
-            default=0.001,
+            default=0.0005,
             help='Learning rate for growth.'
         )
 
@@ -107,7 +108,7 @@ class Params:
         parser.add_argument(
             '--anlw',
             type=float,
-            default=10.0,
+            default=100.0,
             help='Angles loss weight.'
         )
 
@@ -128,8 +129,15 @@ class Params:
         parser.add_argument(
             '--gaw',
             type=float,
-            default=1e-5,
+            default=5e-5,
             help='Goal area weight.'
+        )
+
+        parser.add_argument(
+            '--marsc',
+            type=float,
+            default=3.5,
+            help='Maximal area scaling.'
         )
         args = parser.parse_args()
         return args

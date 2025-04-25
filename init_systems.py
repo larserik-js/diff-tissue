@@ -381,9 +381,9 @@ class _PetalFactory(_AbstractFactory):
                 origin = (40.0, 60.0)
                 polygons = _MeshPolygons()
             case 'simple':
-                a = 350.0
+                a = 700.0
                 polygons = _SimpleMeshPolygons()
-                origin = (40.0, 45.0)
+                origin = (40.0, 46.0)
             case 'voronoi':
                 a = 0.6
                 origin = (0.5, 0.5)
@@ -420,6 +420,11 @@ class _PetalFactory(_AbstractFactory):
                           self._shape_params['n3'])
         xs = rs * np.sin(angles) + self._shape_params['origin'][0]
         ys = rs * np.cos(angles) + self._shape_params['origin'][1]
+
+        # Cheat to make it look like a petal
+        scale = 0.8
+        shift = 0.5 * (1 - scale) * (xs[0] + xs[-1])
+        xs = scale * xs + shift
 
         petal = np.stack([xs, ys], axis=1)
         return petal

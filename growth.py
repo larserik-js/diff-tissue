@@ -187,7 +187,9 @@ def _main():
         np.isclose(polygons.get_basal_mask(), 0), 1.0,
         polygons.get_basal_mask() / numerical_params['optimal_aspect_ratio']
     )
-    goal_areas = 2.5 * init_areas * aspect_ratio_scales
+    goal_areas = (
+        numerical_params['max_area_scaling'] * init_areas * aspect_ratio_scales
+    )
 
     iterate_and_plot(output_dir, goal_areas, jax_arrays, numerical_params)
 

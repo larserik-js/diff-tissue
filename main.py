@@ -6,8 +6,8 @@ import optax
 import growth, init_systems, utils
 
 
-def _sigmoid(variations):
-    return 1.0 + 1.5 * jax.nn.sigmoid(variations)
+def _sigmoid(max_area_scaling, variations):
+    return 1.0 + (max_area_scaling - 1.0) * jax.nn.sigmoid(variations)
 
 
 def _calc_aspect_ratio_scales(jax_arrays, optimal_aspect_ratio):
@@ -17,8 +17,11 @@ def _calc_aspect_ratio_scales(jax_arrays, optimal_aspect_ratio):
     return jnp.array(aspect_ratio_scales)
 
 
-def _calc_goal_areas(init_areas, aspect_ratio_scales, variations):
-    goal_areas = init_areas * aspect_ratio_scales * _sigmoid(variations)
+def _calc_goal_areas(init_areas, max_area_scaling, aspect_ratio_scales,
+                     variations):
+    goal_areas = init_areas * aspect_ratio_scales * _sigmoid(
+        max_area_scaling, variations
+    )
     return goal_areas
 
 
@@ -41,7 +44,8 @@ def _iterate_towards_shape(jax_arrays, params):
 
     def shape_loss_func(variations):
         goal_areas = _calc_goal_areas(
-            init_areas, aspect_ratio_scales, variations
+            init_areas, params['max_area_scaling'], aspect_ratio_scales,
+            variations
         )
         final_vertices = growth.iterate(goal_areas, jax_arrays, params)
         shape_loss = _calc_shape_loss(
@@ -74,9 +78,11 @@ def _iterate_towards_shape(jax_arrays, params):
                 shape_step
             )
 
-    print(f'Best final goal area scalings {_sigmoid(variations)}')
+    print(f'Best final goal area scalings {_sigmoid(
+        params['max_area_scaling'], variations)}'
+    )
     final_goal_areas = _calc_goal_areas(
-        init_areas, aspect_ratio_scales, variations
+        init_areas, params['max_area_scaling'], aspect_ratio_scales, variations
     )
     growth.iterate_and_plot(
         output_dirs['best_growth'], final_goal_areas, jax_arrays, params
