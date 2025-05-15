@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-import growth, init_systems, utils
+import growth, init_systems, my_utils
 
 
 def _sigmoid(max_area_scaling, variations):
@@ -70,13 +70,13 @@ def _iterate_towards_shape(jax_arrays, params):
     ar_variations = jnp.zeros_like(init_areas)
     as_variations = jnp.zeros_like(init_areas)
 
-    figure = utils.Figure(init_vertices)
+    figure = my_utils.Figure(init_vertices)
 
     init_learning_rate = 0.01
     optimizer = optax.adam(init_learning_rate)
     opt_state = optimizer.init(params=(ar_variations, as_variations))
 
-    output_dirs = utils.get_output_dirs()
+    output_dirs = my_utils.get_output_dirs()
     for shape_step in range(params['n_shape_steps']):
         (shape_loss, final_vertices), (ar_grads, as_grads) = (
             val_grad_loss(ar_variations, as_variations)
@@ -111,20 +111,20 @@ def _iterate_towards_shape(jax_arrays, params):
     )
 
 
-@utils.timer
+@my_utils.timer
 def _main():
     np.random.seed(0)
     jax.config.update('jax_enable_x64', True)
 
-    utils.make_output_dirs()
+    my_utils.make_output_dirs()
 
-    Params = utils.Params()
+    Params = my_utils.Params()
 
     factory = init_systems.get_factory(Params.shape, Params.system)
     polygons = factory.get_polygons()
     outer_shape = factory.get_outer_shape()
 
-    jax_arrays = utils.get_jax_arrays(polygons, outer_shape)
+    jax_arrays = my_utils.get_jax_arrays(polygons, outer_shape)
 
     _iterate_towards_shape(jax_arrays, Params.numerical_params)
 

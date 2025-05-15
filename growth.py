@@ -2,7 +2,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
-import init_systems, utils
+import init_systems, my_utils
 
 
 def calc_all_areas(all_cells, valid_mask):
@@ -158,7 +158,7 @@ def iterate_and_plot(output_dir, goal_areas, goal_aspect_ratios, jax_arrays,
     optimal_angles = _calc_optimal_angles(jax_arrays['valid_mask'])
 
     _calc_loss_and_grads = jax.value_and_grad(_calc_growth_loss)
-    figure = utils.Figure(vertices)
+    figure = my_utils.Figure(vertices)
     figure.plot(output_dir, vertices, jax_arrays, step=0)
 
     for t in jnp.arange(params['n_growth_steps']):
@@ -180,18 +180,18 @@ def iterate_and_plot(output_dir, goal_areas, goal_aspect_ratios, jax_arrays,
         figure.plot(output_dir, vertices, jax_arrays, step=t+1)
 
 
-@utils.timer
+@my_utils.timer
 def _main():
-    utils.make_output_dirs()
+    my_utils.make_output_dirs()
 
-    output_dir = utils.get_output_dirs()['growth']
-    Params = utils.Params()
+    output_dir = my_utils.get_output_dirs()['growth']
+    Params = my_utils.Params()
 
     factory = init_systems.get_factory(Params.shape, Params.system)
     polygons = factory.get_polygons()
     outer_shape = factory.get_outer_shape()
 
-    jax_arrays = utils.get_jax_arrays(polygons, outer_shape)
+    jax_arrays = my_utils.get_jax_arrays(polygons, outer_shape)
 
     vertices = jax_arrays['init_vertices']
     all_cells = vertices[jax_arrays['indices']]
