@@ -8,23 +8,68 @@ import jax.numpy as jnp
 from matplotlib import pyplot as plt
 
 
-def _get_project_dir():
-    project_dir = Path(os.path.abspath(os.path.dirname(__file__)))
-    return project_dir
+class _DirNames:
+    _formats = {'bool': '',
+                'int': 'd',
+                'float': '.7f',
+                'float64': '.7f',
+                'str': ''}
+
+    def __init__(self, params):
+        self._project_dir = self._get_project_dir()
+        self._output_dir = 'output'
+        self._params = params
+        self._param_dir = self._make_param_dir_name()
+
+    def _get_project_dir(self):
+        project_dir = os.path.abspath(os.path.dirname(__file__))
+        return project_dir
+
+    @staticmethod
+    def _get_val_type(val):
+        type_ = type(val)
+        type_str = type_.__name__
+        return type_str
+
+    def _make_param_dir_name(self):
+        param_name_vals = []
+        for name, val in self._params.all.items():
+            val_type = self._get_val_type(val)
+            format_ = self._formats[val_type]
+            param_name_val = name + '=' + format(val, format_)
+            param_name_val = param_name_val.rstrip('0').rstrip('.')
+            param_name_vals.append(param_name_val)
+
+        param_dir = '_'.join(param_name_vals)
+        return param_dir
+
+    def _join_path(self, output_type_dir):
+        full_path = (
+            Path(self._project_dir) / Path(self._output_dir) /
+            Path(output_type_dir) / Path(self._param_dir)
+        )
+        return full_path
+
+    def get_output_dirs(self, output_type_dirs):
+        output_dirs = {}
+        for output_type_dir in output_type_dirs:
+            output_type_dir = output_type_dir
+            output_dir = self._join_path(output_type_dir)
+            output_dirs[output_type_dir] = output_dir
+        return output_dirs
 
 
-def get_output_dirs():
-    project_dir = _get_project_dir()
-    output_dirs = {'final_tissues': project_dir / 'final_tissues',
-                   'best_growth': project_dir / 'best_growth',
-                   'growth': project_dir / 'growth'}
-    return output_dirs
+class OutputDirs:
+    def __init__(self, output_type_dirs, params):
+        self._dir_names = _DirNames(params)
+        self._output_dirs = self._dir_names.get_output_dirs(output_type_dirs)
 
+    def make(self):
+        for output_dir in self._output_dirs.values():
+            output_dir.mkdir(parents=True, exist_ok=True)
 
-def make_output_dirs():
-    output_dirs = get_output_dirs()
-    for output_dir in output_dirs.values():
-        output_dir.mkdir(exist_ok=True)
+    def get(self):
+        return self._output_dirs
 
 
 def timer(func):
@@ -46,7 +91,7 @@ class Params:
         self._args = self._parse_args()
         self.system = self._args.system
         self.shape = self._args.shape
-        self.numerical_params = {
+        self.numerical = {
             'n_shape_steps': self._args.ssteps,
             'n_growth_steps': self._args.gsteps,
             'growth_learning_rate': self._args.glr,
@@ -58,6 +103,7 @@ class Params:
             'goal_aspect_ratio_weight': self._args.gasw,
             'max_area_scaling': self._args.marsc
         }
+        self.all = vars(self._args)
 
     def _parse_args(self):
         parser = argparse.ArgumentParser()
@@ -81,21 +127,21 @@ class Params:
         parser.add_argument(
             '--ssteps',
             type=int,
-            default=2000,
+            default=500,
             help='Number of shape steps.'
         )
 
         parser.add_argument(
             '--gsteps',
             type=int,
-            default=400,
+            default=500,
             help='Number of growth steps.'
         )
 
         parser.add_argument(
             '--glr',
             type=float,
-            default=0.0005,
+            default=0.0002,
             help='Learning rate for growth.'
         )
 
@@ -109,7 +155,7 @@ class Params:
         parser.add_argument(
             '--anlw',
             type=float,
-            default=100.0,
+            default=500.0,
             help='Angles loss weight.'
         )
 
@@ -144,7 +190,7 @@ class Params:
         parser.add_argument(
             '--marsc',
             type=float,
-            default=4.0,
+            default=5.0,
             help='Maximal area scaling.'
         )
         args = parser.parse_args()

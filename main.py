@@ -37,7 +37,7 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
     return shape_loss
 
 
-def _iterate_towards_shape(jax_arrays, params):
+def _iterate_towards_shape(jax_arrays, params, output_dirs):
     init_vertices = jax_arrays['init_vertices']
     all_cells = init_vertices[jax_arrays['indices']]
     init_areas = growth.calc_all_areas(all_cells, jax_arrays['valid_mask'])
@@ -76,7 +76,6 @@ def _iterate_towards_shape(jax_arrays, params):
     optimizer = optax.adam(init_learning_rate)
     opt_state = optimizer.init(params=(ar_variations, as_variations))
 
-    output_dirs = my_utils.get_output_dirs()
     for shape_step in range(params['n_shape_steps']):
         (shape_loss, final_vertices), (ar_grads, as_grads) = (
             val_grad_loss(ar_variations, as_variations)
@@ -116,17 +115,17 @@ def _main():
     np.random.seed(0)
     jax.config.update('jax_enable_x64', True)
 
-    my_utils.make_output_dirs()
+    params = my_utils.Params()
+    output_dirs = my_utils.OutputDirs(['final_tissues', 'best_growth'], params)
+    output_dirs.make()
 
-    Params = my_utils.Params()
-
-    factory = init_systems.get_factory(Params.shape, Params.system)
+    factory = init_systems.get_factory(params.shape, params.system)
     polygons = factory.get_polygons()
     outer_shape = factory.get_outer_shape()
 
     jax_arrays = my_utils.get_jax_arrays(polygons, outer_shape)
 
-    _iterate_towards_shape(jax_arrays, Params.numerical_params)
+    _iterate_towards_shape(jax_arrays, params.numerical, output_dirs.get())
 
 
 if __name__ == "__main__":
