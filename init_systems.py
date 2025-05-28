@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 from scipy.spatial import Voronoi
+from shapely.geometry import Polygon
 
 
 class _Polygons:
@@ -242,7 +243,7 @@ class _SimpleMeshPolygons(_MeshPolygons):
 
 class _VoronoiPolygons(_Polygons):
     def __init__(self):
-        self._init_polygons = 100
+        self._init_polygons = 700
         self._all_polygon_vertex_inds, self._vertices = (
             self._make_init_polygons()
         )
@@ -270,35 +271,122 @@ class _VoronoiPolygons(_Polygons):
         region.append(region[1])
         return region
 
-    def _make_init_polygons(self):
-        circumcenters = np.random.rand(self._init_polygons, 2)
-        vor = Voronoi(circumcenters)
-        inside_unit_square = self._inside_unit_square(vor.vertices)
-        not_allowed_vertex_inds = np.where(~inside_unit_square)[0]
-        allowed_vertices = vor.vertices[inside_unit_square]
+    def _generate_random_points(self, generation_bounds):
+        xs = np.random.uniform(
+            generation_bounds[0], generation_bounds[1], self._init_polygons
+        )
+        ys = np.random.uniform(
+            generation_bounds[2], generation_bounds[3], self._init_polygons
+        )
+        points = np.vstack((xs, ys)).T
+        return points
 
-        all_polygon_vertex_inds = []
-        for region in vor.regions:
-            if self._is_finite(region):
-                vertices = vor.vertices[region]
-                if self._any_vertex_outside_unit_square(vertices):
+    @staticmethod
+    def _lloyd_relaxation(points, bounds):
+        n_iterations = 3
+        for _ in range(n_iterations):
+            vor = Voronoi(points)
+            new_points = []
+
+            for region_idx in vor.point_region:
+                vertices = vor.regions[region_idx]
+                if -1 in vertices or len(vertices) == 0:
                     continue
+                polygon = [vor.vertices[i] for i in vertices]
+                polygon = np.array(polygon)
+                centroid = polygon.mean(axis=0)
 
-                # For efficiency
-                region = self._extend_region(region)
-                vertex_inds = np.array(region)
-                adjustment_inds = np.zeros_like(vertex_inds)
-                for i in not_allowed_vertex_inds:
-                    adjustment_inds -= (vertex_inds >= i).astype(int)
-                vertex_inds += adjustment_inds
+                if ((bounds[0] <= centroid[0] <= bounds[1]) and
+                    (bounds[2] <= centroid[1] <= bounds[3])):
+                    new_points.append(centroid)
 
-                vertex_inds = self._sort_to_counterclockwise(
-                    vertex_inds, allowed_vertices
-                )
+            points = np.array(new_points)
+        return points
 
-                all_polygon_vertex_inds.append(vertex_inds)
+    @staticmethod
+    def _add_artificial_points(points, bounds):
+        extra_points = [
+            [bounds[0] - 1, bounds[2] - 1],
+            [bounds[0] - 1, bounds[3] + 1],
+            [bounds[1] + 1, bounds[2] - 1],
+            [bounds[1] + 1, bounds[3] + 1]
+        ]
+        all_points = np.concatenate([points, extra_points])
+        return all_points
 
+    @staticmethod
+    def _region_fully_inside_ellipse(vertices, center, radii):
+        cx, cy = center
+        rx, ry = radii
+        for x, y in vertices:
+            norm_x = (x - cx) / rx
+            norm_y = (y - cy) / ry
+            if norm_x ** 2 + norm_y ** 2 > 1:
+                return False
+        return True
+
+    def _extract_vertex_indexed_cells(self, vor, ellipse_center, ellipse_radii):
+        allowed_vertices = []
+        vertex_index_map = {}
+        all_polygon_vertex_inds = []
+
+        n_non_artificial_points = len(vor.points) - 4
+        for region_idx in vor.point_region[:n_non_artificial_points]:
+            region = vor.regions[region_idx]
+            if -1 in region or len(region) == 0:
+                continue
+
+            raw_polygon = [vor.vertices[i] for i in region]
+            if not self._region_fully_inside_ellipse(
+                raw_polygon, ellipse_center, ellipse_radii
+            ):
+                continue
+
+            polygon = Polygon(raw_polygon)
+            if not polygon.is_valid:
+                continue
+
+            vertex_inds = []
+            for vertex in raw_polygon:
+                # Round to avoid floating point noise
+                key = tuple(np.round(vertex, decimals=8))
+                if key not in vertex_index_map:
+                    vertex_index_map[key] = len(allowed_vertices)
+                    allowed_vertices.append(vertex)
+                vertex_inds.append(vertex_index_map[key])
+
+            vertex_inds = self._extend_region(vertex_inds)
+            vertex_inds = np.array(vertex_inds)
+            vertex_inds = self._sort_to_counterclockwise(
+                vertex_inds, np.array(allowed_vertices)
+            )
+
+            all_polygon_vertex_inds.append(vertex_inds)
+
+        allowed_vertices = np.array(allowed_vertices)
         return all_polygon_vertex_inds, allowed_vertices
+
+    def _make_init_polygons(self):
+        generation_bounds = 100.0 * np.array([0.0, 1.0, 0.0, 1.0])
+        points = self._generate_random_points(generation_bounds)
+        relaxed_points = self._lloyd_relaxation(points, generation_bounds)
+
+        # TODO: Remove points that are too close
+
+        all_points = self._add_artificial_points(
+            relaxed_points, generation_bounds
+        )
+
+        vor = Voronoi(all_points)
+
+        ellipse_center = (40.0, 45.0)
+        ellipse_radii = (20.0, 15.0)
+
+        all_polygon_vertex_inds, vertices = self._extract_vertex_indexed_cells(
+            vor, ellipse_center, ellipse_radii
+        )
+
+        return all_polygon_vertex_inds, vertices
 
     def _find_max_vertices(self):
         max_vertices = 0
@@ -404,7 +492,8 @@ class _TrapzeoidFactory(_AbstractFactory):
             + self._shape_params['origin'][0]
         )
         ys = (
-            np.array([0.0, 0.0, height, height, 0.0]) * self._shape_params['scale']
+            np.array([0.0, 0.0, height, height, 0.0]) *
+            self._shape_params['scale']
             + self._shape_params['origin'][1]
         )
         triangle = np.stack([xs, ys], axis=1)
@@ -425,11 +514,11 @@ class _PetalFactory(_AbstractFactory):
                 polygons = _MeshPolygons()
             case 'simple':
                 a = 700.0
-                polygons = _SimpleMeshPolygons()
                 origin = (40.0, 46.0)
+                polygons = _SimpleMeshPolygons()
             case 'voronoi':
-                a = 0.6
-                origin = (0.5, 0.5)
+                a = 700.0
+                origin = (40.0, 46.0)
                 polygons = _VoronoiPolygons()
             case _:
                 raise ValueError('Invalid initial system!')
