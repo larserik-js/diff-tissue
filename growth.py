@@ -183,6 +183,9 @@ def iterate_and_plot(output_dir, goal_areas, goal_aspect_ratios, jax_arrays,
 
 @my_utils.timer
 def _main():
+    np.random.seed(0)
+    jax.config.update('jax_enable_x64', True)
+
     params = my_utils.Params()
 
     output_dirs = my_utils.OutputDirs(['growth'], params)
