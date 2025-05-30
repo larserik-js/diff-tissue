@@ -158,6 +158,7 @@ def iterate_and_plot(output_dir, goal_areas, goal_aspect_ratios, jax_arrays,
     optimal_angles = _calc_optimal_angles(jax_arrays['valid_mask'])
 
     _calc_loss_and_grads = jax.value_and_grad(_calc_growth_loss)
+
     figure = my_utils.Figure(vertices)
     figure.plot(output_dir, vertices, jax_arrays, step=0)
 
@@ -182,12 +183,16 @@ def iterate_and_plot(output_dir, goal_areas, goal_aspect_ratios, jax_arrays,
 
 @my_utils.timer
 def _main():
-    my_utils.make_output_dirs()
+    np.random.seed(0)
+    jax.config.update('jax_enable_x64', True)
 
-    output_dir = my_utils.get_output_dirs()['growth']
-    Params = my_utils.Params()
+    params = my_utils.Params()
 
-    factory = init_systems.get_factory(Params.shape, Params.system)
+    output_dirs = my_utils.OutputDirs(['growth'], params)
+    output_dirs.make()
+    output_dir = output_dirs.get()['growth']
+
+    factory = init_systems.get_factory(params.shape, params.system)
     polygons = factory.get_polygons()
     outer_shape = factory.get_outer_shape()
 
@@ -197,19 +202,18 @@ def _main():
     all_cells = vertices[jax_arrays['indices']]
     init_areas = calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
-    numerical_params = Params.numerical_params
     aspect_ratio_scales = np.where(
         np.isclose(polygons.get_basal_mask(), 0), 1.0,
-        polygons.get_basal_mask() / numerical_params['optimal_aspect_ratio']
+        polygons.get_basal_mask() / params.numerical['optimal_aspect_ratio']
     )
     goal_areas = (
-        numerical_params['max_area_scaling'] * init_areas * aspect_ratio_scales
+        params.numerical['max_area_scaling'] * init_areas * aspect_ratio_scales
     )
     goal_aspect_ratios = 0.5 * jnp.ones_like(init_areas)
 
     iterate_and_plot(
         output_dir, goal_areas, goal_aspect_ratios, jax_arrays,
-        numerical_params
+        params.numerical
     )
 
 

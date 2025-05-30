@@ -7,9 +7,7 @@ wheels/
 .DS_Store
 uv.lock
 
-.venv
+.venv/
 
-final_tissues/
-best_growth/
-growth/
+output/
 

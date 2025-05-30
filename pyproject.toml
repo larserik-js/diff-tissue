@@ -11,5 +11,6 @@ dependencies = [
     "numpy>=2.2.3",
     "optax>=0.2.4",
     "scipy>=1.15.2",
+    "shapely>=2.1.1",
     "torch>=2.6.0",
 ]
