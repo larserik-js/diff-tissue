@@ -178,7 +178,8 @@ def iterate_and_plot(output_dir, goal_areas, goal_aspect_ratios, jax_arrays,
             params['growth_learning_rate'] * grads * jax_arrays['fixed_mask']
         )
 
-        figure.plot(output_dir, vertices, jax_arrays, step=t+1)
+        if (t + 1) % 2 == 0:
+            figure.plot(output_dir, vertices, jax_arrays, step=t + 1)
 
 
 @my_utils.timer
