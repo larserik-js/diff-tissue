@@ -112,10 +112,12 @@ def _iterate_towards_shape(jax_arrays, params, output_dirs):
 
 @my_utils.timer
 def _main():
-    np.random.seed(0)
     jax.config.update('jax_enable_x64', True)
 
     params = my_utils.Params()
+
+    np.random.seed(params.numerical['seed'])
+
     output_dirs = my_utils.OutputDirs(['final_tissues', 'best_growth'], params)
     output_dirs.make()
 

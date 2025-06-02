@@ -106,7 +106,8 @@ class Params:
             'optimal_aspect_ratio': self._args.oar,
             'goal_area_weight': self._args.gaw,
             'goal_aspect_ratio_weight': self._args.gasw,
-            'max_area_scaling': self._args.marsc
+            'max_area_scaling': self._args.marsc,
+            'seed': self._args.seed
         }
         self.all = vars(self._args)
 
@@ -197,6 +198,13 @@ class Params:
             type=float,
             default=5.0,
             help='Maximal area scaling.'
+        )
+
+        parser.add_argument(
+            '--seed',
+            type=int,
+            default=0,
+            help='Random NumPy seed for reproducibility.'
         )
         args = parser.parse_args()
         return args
