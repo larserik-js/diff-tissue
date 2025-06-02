@@ -254,18 +254,6 @@ class _VoronoiPolygons(_Polygons):
         self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
         self._boundary_mask = self._find_boundary_mask()
 
-    def _is_finite(self, region):
-        return (-1 not in region) and (len(region) > 0)
-
-    def _inside_unit_square(self, vertices):
-        inside_unit_square = (
-            (vertices >= 0).all(axis=1) & (vertices <= 1).all(axis=1)
-        )
-        return inside_unit_square
-
-    def _any_vertex_outside_unit_square(self, vertices):
-        return np.any((vertices < 0) | (vertices > 1))
-
     def _extend_region(self, region):
         region.insert(0, region[-1])
         region.append(region[1])
