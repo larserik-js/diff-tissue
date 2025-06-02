@@ -396,6 +396,42 @@ class _VoronoiPolygons(_Polygons):
         return all_polygon_inds
 
 
+class _SinglePolygon(_Polygons):
+    def __init__(self):
+        self._n_vertices = 8
+        self._vertices = self._make_init_polygons()
+        self._polygon_inds = self._find_polygon_inds()
+        self._valid_mask = (self._polygon_inds != -1)
+        self._fixed_mask = np.array([1.0])
+        self._basal_mask = np.array([True])
+        self._boundary_mask = self._find_boundary_mask()
+
+    def _make_init_polygons(self):
+        if self._n_vertices < 3:
+            raise ValueError('A polygon must have at least 3 vertices.')
+
+        origin = np.array([40.0, 45.0])
+        radius = 15.0
+
+        angle_steps = np.linspace(0, 2*np.pi, self._n_vertices, endpoint=False)
+
+        xs = origin[0] + radius * np.cos(angle_steps)
+        ys = origin[1] + radius * np.sin(angle_steps)
+        vertices = np.column_stack((xs, ys))
+
+        return vertices
+
+    def _find_polygon_inds(self):
+        polygon_inds = np.arange(self._n_vertices)
+        polygon_inds = np.concatenate(
+            [polygon_inds, polygon_inds[:2]]
+        )
+        polygon_inds = self._sort_to_counterclockwise(
+            polygon_inds, self._vertices
+        )
+        return polygon_inds.reshape(1, -1)
+
+
 class _AbstractFactory(ABC):
     @abstractmethod
     def _make_params_and_polygons(self):
@@ -431,6 +467,11 @@ class _EllipseFactory(_AbstractFactory):
                 b = a * 1.5
                 origin = (0.5, 0.5)
                 polygons = _VoronoiPolygons()
+            case 'single':
+                a = 15.0
+                b = a * 1.5
+                origin = (40.0, 45.0)
+                polygons = _SinglePolygon()
             case _:
                 raise ValueError('Invalid initial system!')
 
@@ -467,6 +508,10 @@ class _TrapzeoidFactory(_AbstractFactory):
                 a = 0.6
                 origin = (0.5, 0.5)
                 polygons = _VoronoiPolygons()
+            case 'single':
+                a = 10.0
+                origin = (40.0, 45.0)
+                polygons = _SinglePolygon()
             case _:
                 raise ValueError('Invalid initial system!')
 
@@ -508,6 +553,10 @@ class _PetalFactory(_AbstractFactory):
                 a = 700.0
                 origin = (40.0, 46.0)
                 polygons = _VoronoiPolygons()
+            case 'single':
+                a = 700.0
+                origin = (40.0, 46.0)
+                polygons = _SinglePolygon()
             case _:
                 raise ValueError('Invalid initial system!')
 
