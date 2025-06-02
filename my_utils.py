@@ -31,13 +31,18 @@ class _DirNames:
         type_str = type_.__name__
         return type_str
 
+    def _format_param_val_str(self, name, val):
+        val_type = self._get_val_type(val)
+        format_ = self._formats[val_type]
+        param_name_val = name + '=' + format(val, format_)
+        if val_type == 'float' or val_type == 'float64':
+            param_name_val = param_name_val.rstrip('0').rstrip('.')
+        return param_name_val
+
     def _make_param_dir_name(self):
         param_name_vals = []
         for name, val in self._params.all.items():
-            val_type = self._get_val_type(val)
-            format_ = self._formats[val_type]
-            param_name_val = name + '=' + format(val, format_)
-            param_name_val = param_name_val.rstrip('0').rstrip('.')
+            param_name_val = self._format_param_val_str(name, val)
             param_name_vals.append(param_name_val)
 
         param_dir = '_'.join(param_name_vals)
