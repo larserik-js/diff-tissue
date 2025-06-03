@@ -214,7 +214,7 @@ def _main():
     output_dir.make()
 
     iterate_and_plot(
-        output_dir.get(), goal_areas, goal_aspect_ratios, jax_arrays,
+        output_dir.get_param_path(), goal_areas, goal_aspect_ratios, jax_arrays,
         params.numerical
     )
 

@@ -17,14 +17,14 @@ class Paths:
 
     def __init__(self, output_type_dir, params):
         self._project_dir = self._get_project_dir()
-        self._output_dir = 'output'
-        self._output_type_dir = output_type_dir
+        self._output_dir = self._project_dir / 'output'
+        self._output_type_dir = self._output_dir / output_type_dir
         self._params = params
         self._param_path = self._make_param_path()
 
     def _get_project_dir(self):
         project_dir = os.path.abspath(os.path.dirname(__file__))
-        return project_dir
+        return Path(project_dir)
 
     @staticmethod
     def _get_val_type(val):
@@ -51,16 +51,16 @@ class Paths:
 
     def _make_param_path(self):
         param_path_str = self._concatenate_param_val_pairs()
-        param_path = (
-            Path(self._project_dir) / Path(self._output_dir) /
-            Path(self._output_type_dir) / Path(param_path_str)
-        )
+        param_path = self._output_type_dir / param_path_str
         return param_path
 
-    def get(self):
+    def get_output_type_dir(self):
+        return self._output_type_dir
+
+    def get_param_path(self):
         return self._param_path
 
-    def get_with_suffix(self, suffix):
+    def get_param_path_with_suffix(self, suffix):
         return self._param_path.with_name(self._param_path.name + suffix)
 
 
