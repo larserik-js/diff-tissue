@@ -54,6 +54,13 @@ class _Polygons:
 
         return boundary_mask
 
+    def _calc_centroids(self):
+        polygons = self._vertices[self._polygon_inds]
+        mask = self._valid_mask[..., None].repeat(2, axis=2)
+        polygons[~mask] = np.nan
+        centroids = np.nanmean(polygons, axis=1)
+        return centroids
+
     def get_polygon_inds(self):
         return self._polygon_inds
 
@@ -62,6 +69,10 @@ class _Polygons:
 
     def get_vertices(self):
         return self._vertices
+
+    def get_centroids(self):
+        centroids = self._calc_centroids()
+        return centroids
 
     def get_fixed_mask(self):
         return self._fixed_mask

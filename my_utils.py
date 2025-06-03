@@ -8,18 +8,19 @@ import jax.numpy as jnp
 from matplotlib import pyplot as plt
 
 
-class _DirNames:
+class Paths:
     _formats = {'bool': '',
                 'int': 'd',
                 'float': '.7f',
                 'float64': '.7f',
                 'str': ''}
 
-    def __init__(self, params):
+    def __init__(self, output_type_dir, params):
         self._project_dir = self._get_project_dir()
         self._output_dir = 'output'
+        self._output_type_dir = output_type_dir
         self._params = params
-        self._param_dir = self._make_param_dir_name()
+        self._param_path = self._make_param_path()
 
     def _get_project_dir(self):
         project_dir = os.path.abspath(os.path.dirname(__file__))
@@ -39,42 +40,33 @@ class _DirNames:
             param_name_val = param_name_val.rstrip('0').rstrip('.')
         return param_name_val
 
-    def _make_param_dir_name(self):
+    def _concatenate_param_val_pairs(self):
         param_name_vals = []
         for name, val in self._params.all.items():
             param_name_val = self._format_param_val_str(name, val)
             param_name_vals.append(param_name_val)
 
-        param_dir = '_'.join(param_name_vals)
-        return param_dir
+        param_path_str = '_'.join(param_name_vals)
+        return param_path_str
 
-    def _join_path(self, output_type_dir):
-        full_path = (
+    def _make_param_path(self):
+        param_path_str = self._concatenate_param_val_pairs()
+        param_path = (
             Path(self._project_dir) / Path(self._output_dir) /
-            Path(output_type_dir) / Path(self._param_dir)
+            Path(self._output_type_dir) / Path(param_path_str)
         )
-        return full_path
-
-    def get_output_dirs(self, output_type_dirs):
-        output_dirs = {}
-        for output_type_dir in output_type_dirs:
-            output_type_dir = output_type_dir
-            output_dir = self._join_path(output_type_dir)
-            output_dirs[output_type_dir] = output_dir
-        return output_dirs
-
-
-class OutputDirs:
-    def __init__(self, output_type_dirs, params):
-        self._dir_names = _DirNames(params)
-        self._output_dirs = self._dir_names.get_output_dirs(output_type_dirs)
-
-    def make(self):
-        for output_dir in self._output_dirs.values():
-            output_dir.mkdir(parents=True, exist_ok=True)
+        return param_path
 
     def get(self):
-        return self._output_dirs
+        return self._param_path
+
+    def get_with_suffix(self, suffix):
+        return self._param_path.with_name(self._param_path.name + suffix)
+
+
+class OutputDir(Paths):
+    def make(self):
+        self._param_path.mkdir(exist_ok=True)
 
 
 def timer(func):
@@ -220,9 +212,10 @@ def _send_to_device(jax_arrays):
 
 def get_jax_arrays(polygons, outer_shape):
     arrays = {
-        'init_vertices': polygons.get_vertices(),
         'indices': polygons.get_polygon_inds(),
         'valid_mask': polygons.get_valid_mask(),
+        'init_vertices': polygons.get_vertices(),
+        'init_centroids': polygons.get_centroids(),
         'fixed_mask': polygons.get_fixed_mask(),
         'basal_mask': polygons.get_basal_mask(),
         'boundary_mask': polygons.get_boundary_mask(),

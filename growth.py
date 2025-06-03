@@ -190,10 +190,6 @@ def _main():
 
     np.random.seed(params.numerical['seed'])
 
-    output_dirs = my_utils.OutputDirs(['growth'], params)
-    output_dirs.make()
-    output_dir = output_dirs.get()['growth']
-
     factory = init_systems.get_factory(params.shape, params.system)
     polygons = factory.get_polygons()
     outer_shape = factory.get_outer_shape()
@@ -213,8 +209,12 @@ def _main():
     )
     goal_aspect_ratios = 0.5 * jnp.ones_like(init_areas)
 
+
+    output_dir = my_utils.OutputDir('growth', params)
+    output_dir.make()
+
     iterate_and_plot(
-        output_dir, goal_areas, goal_aspect_ratios, jax_arrays,
+        output_dir.get(), goal_areas, goal_aspect_ratios, jax_arrays,
         params.numerical
     )
 
