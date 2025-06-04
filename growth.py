@@ -178,19 +178,17 @@ def iterate_and_plot(output_dir, goal_areas, goal_aspect_ratios, jax_arrays,
             params['growth_learning_rate'] * grads * jax_arrays['fixed_mask']
         )
 
-        figure.plot(output_dir, vertices, jax_arrays, step=t+1)
+        if (t + 1) % 2 == 0:
+            figure.plot(output_dir, vertices, jax_arrays, step=t + 1)
 
 
 @my_utils.timer
 def _main():
-    np.random.seed(0)
     jax.config.update('jax_enable_x64', True)
 
     params = my_utils.Params()
 
-    output_dirs = my_utils.OutputDirs(['growth'], params)
-    output_dirs.make()
-    output_dir = output_dirs.get()['growth']
+    np.random.seed(params.numerical['seed'])
 
     factory = init_systems.get_factory(params.shape, params.system)
     polygons = factory.get_polygons()
@@ -211,8 +209,12 @@ def _main():
     )
     goal_aspect_ratios = 0.5 * jnp.ones_like(init_areas)
 
+
+    output_dir = my_utils.OutputDir('growth', params)
+    output_dir.make()
+
     iterate_and_plot(
-        output_dir, goal_areas, goal_aspect_ratios, jax_arrays,
+        output_dir.get_param_path(), goal_areas, goal_aspect_ratios, jax_arrays,
         params.numerical
     )
 

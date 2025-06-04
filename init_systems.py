@@ -54,6 +54,13 @@ class _Polygons:
 
         return boundary_mask
 
+    def _calc_centroids(self):
+        polygons = self._vertices[self._polygon_inds]
+        mask = self._valid_mask[..., None].repeat(2, axis=2)
+        polygons[~mask] = np.nan
+        centroids = np.nanmean(polygons, axis=1)
+        return centroids
+
     def get_polygon_inds(self):
         return self._polygon_inds
 
@@ -62,6 +69,10 @@ class _Polygons:
 
     def get_vertices(self):
         return self._vertices
+
+    def get_centroids(self):
+        centroids = self._calc_centroids()
+        return centroids
 
     def get_fixed_mask(self):
         return self._fixed_mask
@@ -254,18 +265,6 @@ class _VoronoiPolygons(_Polygons):
         self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
         self._boundary_mask = self._find_boundary_mask()
 
-    def _is_finite(self, region):
-        return (-1 not in region) and (len(region) > 0)
-
-    def _inside_unit_square(self, vertices):
-        inside_unit_square = (
-            (vertices >= 0).all(axis=1) & (vertices <= 1).all(axis=1)
-        )
-        return inside_unit_square
-
-    def _any_vertex_outside_unit_square(self, vertices):
-        return np.any((vertices < 0) | (vertices > 1))
-
     def _extend_region(self, region):
         region.insert(0, region[-1])
         region.append(region[1])
@@ -408,6 +407,42 @@ class _VoronoiPolygons(_Polygons):
         return all_polygon_inds
 
 
+class _SinglePolygon(_Polygons):
+    def __init__(self):
+        self._n_vertices = 8
+        self._vertices = self._make_init_polygons()
+        self._polygon_inds = self._find_polygon_inds()
+        self._valid_mask = (self._polygon_inds != -1)
+        self._fixed_mask = np.array([1.0])
+        self._basal_mask = np.array([True])
+        self._boundary_mask = self._find_boundary_mask()
+
+    def _make_init_polygons(self):
+        if self._n_vertices < 3:
+            raise ValueError('A polygon must have at least 3 vertices.')
+
+        origin = np.array([40.0, 45.0])
+        radius = 15.0
+
+        angle_steps = np.linspace(0, 2*np.pi, self._n_vertices, endpoint=False)
+
+        xs = origin[0] + radius * np.cos(angle_steps)
+        ys = origin[1] + radius * np.sin(angle_steps)
+        vertices = np.column_stack((xs, ys))
+
+        return vertices
+
+    def _find_polygon_inds(self):
+        polygon_inds = np.arange(self._n_vertices)
+        polygon_inds = np.concatenate(
+            [polygon_inds, polygon_inds[:2]]
+        )
+        polygon_inds = self._sort_to_counterclockwise(
+            polygon_inds, self._vertices
+        )
+        return polygon_inds.reshape(1, -1)
+
+
 class _AbstractFactory(ABC):
     @abstractmethod
     def _make_params_and_polygons(self):
@@ -443,6 +478,11 @@ class _EllipseFactory(_AbstractFactory):
                 b = a * 1.5
                 origin = (0.5, 0.5)
                 polygons = _VoronoiPolygons()
+            case 'single':
+                a = 15.0
+                b = a * 1.5
+                origin = (40.0, 45.0)
+                polygons = _SinglePolygon()
             case _:
                 raise ValueError('Invalid initial system!')
 
@@ -479,6 +519,10 @@ class _TrapzeoidFactory(_AbstractFactory):
                 a = 0.6
                 origin = (0.5, 0.5)
                 polygons = _VoronoiPolygons()
+            case 'single':
+                a = 10.0
+                origin = (40.0, 45.0)
+                polygons = _SinglePolygon()
             case _:
                 raise ValueError('Invalid initial system!')
 
@@ -520,6 +564,10 @@ class _PetalFactory(_AbstractFactory):
                 a = 700.0
                 origin = (40.0, 46.0)
                 polygons = _VoronoiPolygons()
+            case 'single':
+                a = 700.0
+                origin = (40.0, 46.0)
+                polygons = _SinglePolygon()
             case _:
                 raise ValueError('Invalid initial system!')
 
