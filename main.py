@@ -130,7 +130,9 @@ def _iterate_towards_shape(jax_arrays, all_params):
     )
 
     output_params_file = (
-        my_utils.Paths('output_params', all_params).get_param_path_with_suffix('.txt')
+        my_utils.Paths(
+            'output_params', all_params
+        ).get_param_path_with_suffix('.txt')
     )
     _save_output_params(
         jax_arrays['init_centroids'], init_areas, final_goal_areas_scalings,
@@ -140,8 +142,8 @@ def _iterate_towards_shape(jax_arrays, all_params):
     best_growth_dir = my_utils.OutputDir('best_growth', all_params)
     best_growth_dir.make()
     growth.iterate_and_plot(
-        best_growth_dir.get_param_path(), final_goal_areas, final_goal_aspect_ratios,
-        jax_arrays, params
+        best_growth_dir.get_param_path(), final_goal_areas,
+        final_goal_aspect_ratios, jax_arrays, params
     )
 
 

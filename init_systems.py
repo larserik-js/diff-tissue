@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import json
 from pathlib import Path
+import sys
 
 import numpy as np
 from scipy.spatial import Voronoi
@@ -282,23 +283,25 @@ class _VoronoiPolygons(_Polygons):
 
     @staticmethod
     def _lloyd_relaxation(points, bounds):
-        n_iterations = 3
+        n_iterations = 20
         for _ in range(n_iterations):
             vor = Voronoi(points)
             new_points = []
 
-            for region_idx in vor.point_region:
+            for i, region_idx in enumerate(vor.point_region):
                 vertices = vor.regions[region_idx]
                 if -1 in vertices or len(vertices) == 0:
+                    new_points.append(points[i])  # fallback to original point
                     continue
-                polygon = [vor.vertices[i] for i in vertices]
-                polygon = np.array(polygon)
+
+                polygon = np.array([vor.vertices[j] for j in vertices])
                 centroid = polygon.mean(axis=0)
 
                 if ((bounds[0] <= centroid[0] <= bounds[1]) and
                     (bounds[2] <= centroid[1] <= bounds[3])):
                     new_points.append(centroid)
-
+                else:
+                    new_points.append(points[i])  # fallback again
             points = np.array(new_points)
         return points
 
@@ -365,12 +368,40 @@ class _VoronoiPolygons(_Polygons):
         allowed_vertices = np.array(allowed_vertices)
         return all_polygon_vertex_inds, allowed_vertices
 
+    @staticmethod
+    def _separate_close_vertices(vertices):
+        min_dist = 1.0
+        jitter_scale = 1.0
+        max_n = 1000
+        for n in range(max_n):
+            diffs = vertices[:,None,:] - vertices
+            dists = np.linalg.norm(diffs, axis=-1)
+            np.fill_diagonal(dists, np.inf)
+
+            too_close = (dists < min_dist) & (dists > 0.0)
+            n_too_close = too_close.sum()
+            if n_too_close == 0:
+                break
+            if n == max_n - 1:
+                print(
+                    f'Jittering did not converge after {max_n} iterations.'
+                )
+                sys.exit()
+
+            for i in range(dists.shape[0]):
+                for j in range(i+1, dists.shape[1]):
+                    if dists[i,j] < min_dist:
+                        norm_diff_vec = diffs[i,j] / np.linalg.norm(diffs[i,j])
+                        jitter = 0.5 * jitter_scale * norm_diff_vec
+                        vertices[i] += jitter
+                        vertices[j] -= jitter
+
+        return vertices
+
     def _make_init_polygons(self):
         generation_bounds = 100.0 * np.array([0.0, 1.0, 0.0, 1.0])
         points = self._generate_random_points(generation_bounds)
         relaxed_points = self._lloyd_relaxation(points, generation_bounds)
-
-        # TODO: Remove points that are too close
 
         all_points = self._add_artificial_points(
             relaxed_points, generation_bounds
@@ -384,6 +415,8 @@ class _VoronoiPolygons(_Polygons):
         all_polygon_vertex_inds, vertices = self._extract_vertex_indexed_cells(
             vor, ellipse_center, ellipse_radii
         )
+
+        vertices = self._separate_close_vertices(vertices)
 
         return all_polygon_vertex_inds, vertices
 
