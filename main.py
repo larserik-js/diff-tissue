@@ -38,16 +38,16 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
     return shape_loss
 
 
-def _save_output_params(init_centroids, init_areas, final_goal_areas_scalings,
-                        final_goal_areas, final_goal_aspect_ratios,
+def _save_output_params(init_centroids, init_areas, best_goal_areas_scalings,
+                        best_goal_areas, best_goal_aspect_ratios,
                         output_file):
     param_dict = {
         'init_centroid_x': init_centroids[:,0],
         'init_centroid_y': init_centroids[:,1],
         'init_area': init_areas,
-        'goal_area_scaling': final_goal_areas_scalings,
-        'goal_area': final_goal_areas,
-        'goal_aspect_ratio': final_goal_aspect_ratios
+        'goal_area_scaling': best_goal_areas_scalings,
+        'goal_area': best_goal_areas,
+        'goal_aspect_ratio': best_goal_aspect_ratios
     }
 
     df = pd.DataFrame(param_dict)
@@ -98,15 +98,32 @@ def _iterate_towards_shape(jax_arrays, all_params):
     final_tissues_dir = my_utils.OutputDir('final_tissues', all_params)
     final_tissues_dir.make()
 
+    shape_loss = jnp.inf
+
     for shape_step in range(params['n_shape_steps']):
-        (shape_loss, final_vertices), (ar_grads, as_grads) = (
+        (new_shape_loss, final_vertices), (ar_grads, as_grads) = (
             val_grad_loss(ar_variations, as_variations)
         )
         updates, opt_state = optimizer.update((ar_grads, as_grads), opt_state)
         ar_variations, as_variations = optax.apply_updates(
             (ar_variations, as_variations), updates
         )
-        print(f'{shape_step}: Shape loss = {shape_loss}')
+        print(f'{shape_step}: Shape loss = {new_shape_loss}')
+
+        if new_shape_loss < shape_loss:
+            best_goal_areas_scalings = _sigmoid(
+                params['max_area_scaling'], ar_variations
+            )
+            best_goal_areas = _calc_goal_areas(
+                init_areas, params['max_area_scaling'], aspect_ratio_scales,
+                ar_variations
+            )
+            best_goal_aspect_ratios = _calc_goal_aspect_ratios(as_variations)
+
+            shape_loss = new_shape_loss
+
+            print(f'(Stored params with new best shape loss.)')
+            print('')
 
         if shape_step % 100 == 0:
             figure.plot(
@@ -114,36 +131,22 @@ def _iterate_towards_shape(jax_arrays, all_params):
                 shape_step
             )
 
-    final_goal_areas_scalings = _sigmoid(
-        params['max_area_scaling'], ar_variations
-    )
-    final_goal_areas = _calc_goal_areas(
-        init_areas, params['max_area_scaling'], aspect_ratio_scales,
-        ar_variations
-    )
-    final_goal_aspect_ratios = _calc_goal_aspect_ratios(as_variations)
-    print(f'Initial areas: {init_areas}')
-    print(f'Best final goal area scalings: {final_goal_areas_scalings}')
-    print(f'Best final goal areas: {final_goal_areas}')
-    print(
-        f'Best final goal aspect ratios: {final_goal_aspect_ratios}'
-    )
-
     output_params_file = (
         my_utils.Paths(
             'output_params', all_params
         ).get_param_path_with_suffix('.txt')
     )
     _save_output_params(
-        jax_arrays['init_centroids'], init_areas, final_goal_areas_scalings,
-        final_goal_areas, final_goal_aspect_ratios, output_params_file
+        jax_arrays['init_centroids'], init_areas, best_goal_areas_scalings,
+        best_goal_areas, best_goal_aspect_ratios, output_params_file
     )
 
     best_growth_dir = my_utils.OutputDir('best_growth', all_params)
     best_growth_dir.make()
+
     growth.iterate_and_plot(
-        best_growth_dir.get_param_path(), final_goal_areas,
-        final_goal_aspect_ratios, jax_arrays, params
+        best_growth_dir.get_param_path(), best_goal_areas,
+        best_goal_aspect_ratios, jax_arrays, params
     )
 
 
