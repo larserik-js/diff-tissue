@@ -14,7 +14,9 @@ def _sigmoid(max_area_scaling, variations):
 def _calc_aspect_ratio_scales(jax_arrays, optimal_aspect_ratio):
     basal_mask = jax_arrays['basal_mask']
     aspect_ratio_scales = np.ones(len(basal_mask))
-    aspect_ratio_scales[basal_mask] /= optimal_aspect_ratio
+    aspect_ratio_scales[basal_mask] = (
+        aspect_ratio_scales[basal_mask] * (1 / optimal_aspect_ratio - 1.0)
+    )
     return jnp.array(aspect_ratio_scales)
 
 

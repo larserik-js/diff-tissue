@@ -167,7 +167,7 @@ class Params:
         parser.add_argument(
             '--oar',
             type=float,
-            default=1.0,
+            default=0.5,
             help='Optimal aspect ratio.'
         )
 

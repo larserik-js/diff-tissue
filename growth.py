@@ -202,13 +202,13 @@ def _main():
 
     aspect_ratio_scales = np.where(
         np.isclose(polygons.get_basal_mask(), 0), 1.0,
-        polygons.get_basal_mask() / params.numerical['optimal_aspect_ratio']
+        (polygons.get_basal_mask() *
+         (1 / params.numerical['optimal_aspect_ratio'] - 1.0))
     )
     goal_areas = (
         params.numerical['max_area_scaling'] * init_areas * aspect_ratio_scales
     )
     goal_aspect_ratios = 0.5 * jnp.ones_like(init_areas)
-
 
     output_dir = my_utils.OutputDir('growth', params)
     output_dir.make()
