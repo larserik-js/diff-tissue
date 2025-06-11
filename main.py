@@ -7,8 +7,21 @@ import pandas as pd
 import growth, init_systems, my_utils
 
 
-def _sigmoid(max_area_scaling, variations):
-    return 1.0 + (max_area_scaling - 1.0) * jax.nn.sigmoid(variations)
+def _calc_scaling(min_scaling, max_scaling, variations):
+    scaling = (
+        min_scaling + (max_scaling - min_scaling) * jax.nn.sigmoid(variations)
+    )
+    return scaling
+
+
+def _calc_area_scaling(max_scaling, variations):
+    area_scaling = _calc_scaling(1.0, max_scaling, variations)
+    return area_scaling
+
+
+def _calc_aspect_ratio_scaling(variations):
+    aspect_ratio_scaling = _calc_scaling(0.0, 1.0, variations)
+    return aspect_ratio_scaling
 
 
 def _calc_aspect_ratio_scales(jax_arrays, optimal_aspect_ratio):
@@ -22,14 +35,15 @@ def _calc_aspect_ratio_scales(jax_arrays, optimal_aspect_ratio):
 
 def _calc_goal_areas(init_areas, max_area_scaling, aspect_ratio_scales,
                      variations):
-    goal_areas = init_areas * aspect_ratio_scales * _sigmoid(
+    goal_areas = init_areas * aspect_ratio_scales * _calc_area_scaling(
         max_area_scaling, variations
     )
     return goal_areas
 
 
 def _calc_goal_aspect_ratios(as_variations):
-    return jax.nn.sigmoid(as_variations)
+    goal_aspect_ratios = _calc_aspect_ratio_scaling(as_variations)
+    return goal_aspect_ratios
 
 
 def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
@@ -113,7 +127,7 @@ def _iterate_towards_shape(jax_arrays, all_params):
         print(f'{shape_step}: Shape loss = {new_shape_loss}')
 
         if new_shape_loss < shape_loss:
-            best_goal_areas_scalings = _sigmoid(
+            best_goal_areas_scalings = _calc_area_scaling(
                 params['max_area_scaling'], ar_variations
             )
             best_goal_areas = _calc_goal_areas(
