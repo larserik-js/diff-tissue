@@ -96,8 +96,6 @@ class Params:
             'angles_loss_weight': self._args.anlw,
             'aspect_ratio_loss_weight': self._args.aslw,
             'optimal_aspect_ratio': self._args.oar,
-            'goal_area_weight': self._args.gaw,
-            'goal_aspect_ratio_weight': self._args.gasw,
             'max_area_scaling': self._args.marsc,
             'seed': self._args.seed
         }
@@ -169,20 +167,6 @@ class Params:
             type=float,
             default=0.5,
             help='Optimal aspect ratio.'
-        )
-
-        parser.add_argument(
-            '--gaw',
-            type=float,
-            default=5e-5,
-            help='Goal area weight.'
-        )
-
-        parser.add_argument(
-            '--gasw',
-            type=float,
-            default=5e-5,
-            help='Goal aspect ratio weight.'
         )
 
         parser.add_argument(
