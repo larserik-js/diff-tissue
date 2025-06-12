@@ -255,7 +255,7 @@ class _SimpleMeshPolygons(_MeshPolygons):
 
 class _VoronoiPolygons(_Polygons):
     def __init__(self):
-        self._init_polygons = 700
+        self._init_polygons = 1200
         self._all_polygon_vertex_inds, self._vertices = (
             self._make_init_polygons()
         )
@@ -507,9 +507,9 @@ class _EllipseFactory(_AbstractFactory):
                 origin = (40.0, 45.0)
                 polygons = _SimpleMeshPolygons()
             case 'voronoi':
-                a = 0.6
-                b = a * 1.5
-                origin = (0.5, 0.5)
+                a = 23.0
+                b = a * 1.2
+                origin = (40.0, 45.0)
                 polygons = _VoronoiPolygons()
             case 'single':
                 a = 15.0
