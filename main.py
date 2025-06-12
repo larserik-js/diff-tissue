@@ -7,20 +7,20 @@ import pandas as pd
 import growth, init_systems, my_utils
 
 
-def _calc_scaling(min_scaling, max_scaling, variations):
+def _calc_scaling(min_scaling, max_scaling, logits):
     scaling = (
-        min_scaling + (max_scaling - min_scaling) * jax.nn.sigmoid(variations)
+        min_scaling + (max_scaling - min_scaling) * jax.nn.sigmoid(logits)
     )
     return scaling
 
 
-def _calc_area_scaling(max_scaling, variations):
-    area_scaling = _calc_scaling(1.0, max_scaling, variations)
+def _calc_area_scaling(max_scaling, logits):
+    area_scaling = _calc_scaling(1.0, max_scaling, logits)
     return area_scaling
 
 
-def _calc_aspect_ratio_scaling(variations):
-    aspect_ratio_scaling = _calc_scaling(0.0, 1.0, variations)
+def _calc_aspect_ratio_scaling(logits):
+    aspect_ratio_scaling = _calc_scaling(0.0, 1.0, logits)
     return aspect_ratio_scaling
 
 
@@ -33,16 +33,15 @@ def _calc_aspect_ratio_scales(jax_arrays, optimal_aspect_ratio):
     return jnp.array(aspect_ratio_scales)
 
 
-def _calc_goal_areas(init_areas, max_area_scaling, aspect_ratio_scales,
-                     variations):
+def _calc_goal_areas(init_areas, max_area_scaling, aspect_ratio_scales, logits):
     goal_areas = init_areas * aspect_ratio_scales * _calc_area_scaling(
-        max_area_scaling, variations
+        max_area_scaling, logits
     )
     return goal_areas
 
 
-def _calc_goal_aspect_ratios(as_variations):
-    goal_aspect_ratios = _calc_aspect_ratio_scaling(as_variations)
+def _calc_goal_aspect_ratios(as_logits):
+    goal_aspect_ratios = _calc_aspect_ratio_scaling(as_logits)
     return goal_aspect_ratios
 
 
@@ -55,7 +54,7 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
 
 
 class _MyOptimizer:
-    def __init__(self, ar_variations, as_variations):
+    def __init__(self, ar_logits, as_logits):
         self._lr_schedule = optax.cosine_decay_schedule(
             init_value=0.02, decay_steps=500, alpha=0.1
         )
@@ -67,22 +66,21 @@ class _MyOptimizer:
             optax.scale(-1.0)
         )
         self._state = self._optimizer.init(
-            params=(ar_variations, as_variations)
+            params=(ar_logits, as_logits)
         )
 
-    def update(self, ar_variations, as_variations, ar_grads, as_grads):
+    def update(self, ar_logits, as_logits, ar_grads, as_grads):
         updates, self._state = self._optimizer.update(
             (ar_grads, as_grads), self._state
         )
-        ar_variations, as_variations = optax.apply_updates(
-            (ar_variations, as_variations), updates
+        ar_logits, as_logits = optax.apply_updates(
+            (ar_logits, as_logits), updates
         )
-        return ar_variations, as_variations
+        return ar_logits, as_logits
 
 
 def _save_output_params(init_centroids, init_areas, best_goal_areas_scalings,
-                        best_goal_areas, best_goal_aspect_ratios,
-                        output_file):
+                        best_goal_areas, best_goal_aspect_ratios, output_file):
     param_dict = {
         'init_centroid_x': init_centroids[:,0],
         'init_centroid_y': init_centroids[:,1],
@@ -107,12 +105,12 @@ def _iterate_towards_shape(jax_arrays, all_params):
         jax_arrays, params['optimal_aspect_ratio']
     )
 
-    def shape_loss_func(ar_variations, as_variations):
+    def shape_loss_func(ar_logits, as_logits):
         goal_areas = _calc_goal_areas(
             init_areas, params['max_area_scaling'], aspect_ratio_scales,
-            ar_variations
+            ar_logits
         )
-        goal_aspect_ratios = _calc_goal_aspect_ratios(as_variations)
+        goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
         final_vertices = growth.iterate(
             goal_areas, goal_aspect_ratios, jax_arrays, params
@@ -129,10 +127,10 @@ def _iterate_towards_shape(jax_arrays, all_params):
     )
 
     # Initialize parameters
-    ar_variations = jnp.zeros_like(init_areas)
-    as_variations = jnp.zeros_like(init_areas)
+    ar_logits = jnp.zeros_like(init_areas)
+    as_logits = jnp.zeros_like(init_areas)
 
-    optimizer = _MyOptimizer(ar_variations, as_variations)
+    optimizer = _MyOptimizer(ar_logits, as_logits)
 
     figure = my_utils.Figure(init_vertices)
 
@@ -143,23 +141,23 @@ def _iterate_towards_shape(jax_arrays, all_params):
 
     for shape_step in range(params['n_shape_steps']):
         (new_shape_loss, final_vertices), (ar_grads, as_grads) = (
-            val_grad_loss(ar_variations, as_variations)
+            val_grad_loss(ar_logits, as_logits)
         )
-        ar_variations, as_variations = (
-            optimizer.update(ar_variations, as_variations, ar_grads, as_grads)
+        ar_logits, as_logits = (
+            optimizer.update(ar_logits, as_logits, ar_grads, as_grads)
         )
 
         print(f'{shape_step}: Shape loss = {new_shape_loss}')
 
         if new_shape_loss < shape_loss:
             best_goal_areas_scalings = _calc_area_scaling(
-                params['max_area_scaling'], ar_variations
+                params['max_area_scaling'], ar_logits
             )
             best_goal_areas = _calc_goal_areas(
                 init_areas, params['max_area_scaling'], aspect_ratio_scales,
-                ar_variations
+                ar_logits
             )
-            best_goal_aspect_ratios = _calc_goal_aspect_ratios(as_variations)
+            best_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
             shape_loss = new_shape_loss
 
