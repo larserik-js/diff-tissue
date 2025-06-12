@@ -54,6 +54,32 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
     return shape_loss
 
 
+class _MyOptimizer:
+    def __init__(self, ar_variations, as_variations):
+        self._lr_schedule = optax.cosine_decay_schedule(
+            init_value=0.02, decay_steps=500, alpha=0.1
+        )
+
+        self._optimizer = optax.chain(
+            optax.clip_by_global_norm(1.0),
+            optax.scale_by_adam(),
+            optax.scale_by_schedule(self._lr_schedule),
+            optax.scale(-1.0)
+        )
+        self._state = self._optimizer.init(
+            params=(ar_variations, as_variations)
+        )
+
+    def update(self, ar_variations, as_variations, ar_grads, as_grads):
+        updates, self._state = self._optimizer.update(
+            (ar_grads, as_grads), self._state
+        )
+        ar_variations, as_variations = optax.apply_updates(
+            (ar_variations, as_variations), updates
+        )
+        return ar_variations, as_variations
+
+
 def _save_output_params(init_centroids, init_areas, best_goal_areas_scalings,
                         best_goal_areas, best_goal_aspect_ratios,
                         output_file):
@@ -102,14 +128,13 @@ def _iterate_towards_shape(jax_arrays, all_params):
         jax.value_and_grad(shape_loss_func, has_aux=True, argnums=(0, 1))
     )
 
+    # Initialize parameters
     ar_variations = jnp.zeros_like(init_areas)
     as_variations = jnp.zeros_like(init_areas)
 
-    figure = my_utils.Figure(init_vertices)
+    optimizer = _MyOptimizer(ar_variations, as_variations)
 
-    init_learning_rate = 0.01
-    optimizer = optax.adam(init_learning_rate)
-    opt_state = optimizer.init(params=(ar_variations, as_variations))
+    figure = my_utils.Figure(init_vertices)
 
     final_tissues_dir = my_utils.OutputDir('final_tissues', all_params)
     final_tissues_dir.make()
@@ -120,10 +145,10 @@ def _iterate_towards_shape(jax_arrays, all_params):
         (new_shape_loss, final_vertices), (ar_grads, as_grads) = (
             val_grad_loss(ar_variations, as_variations)
         )
-        updates, opt_state = optimizer.update((ar_grads, as_grads), opt_state)
-        ar_variations, as_variations = optax.apply_updates(
-            (ar_variations, as_variations), updates
+        ar_variations, as_variations = (
+            optimizer.update(ar_variations, as_variations, ar_grads, as_grads)
         )
+
         print(f'{shape_step}: Shape loss = {new_shape_loss}')
 
         if new_shape_loss < shape_loss:
