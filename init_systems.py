@@ -8,6 +8,12 @@ from scipy.spatial import Voronoi
 from shapely.geometry import Polygon
 
 
+class Coords:
+    full_mesh_origin = np.array([40.0, 0.0])
+    full_mesh_base = np.array([40.0, 18.635])
+    shape_origin = full_mesh_origin + (0.0, 45.0)
+
+
 class _Polygons:
     def _check_convex(self, indices, all_vertices):
         polygon = all_vertices[indices]
@@ -113,12 +119,11 @@ class _MeshPolygons(_Polygons):
         return max_vertices
 
     def _is_basal(self, vertex):
-        pseudo_origin = np.array([40.0, 0.0])
-        dist_from_pseudo_origin = np.linalg.norm(vertex - pseudo_origin)
+        dist_from_origin = np.linalg.norm(vertex - Coords.full_mesh_origin)
         # Basal radius of 45.0 is good for Hibiscus trionum
         # (using full mesh)
         basal_radius = np.inf
-        return dist_from_pseudo_origin < basal_radius
+        return dist_from_origin < basal_radius
 
     def _make_init_polygons(self):
         all_vertices = np.zeros((0, 2))
@@ -185,12 +190,11 @@ class _MeshPolygons(_Polygons):
 
 class _SimpleMeshPolygons(_MeshPolygons):
     def __init__(self):
-        self._selection_origin = np.array([40.0, 40.0])
         self._selection_radius = 20.0
         super().__init__()
 
     def _all_within_selection(self, vertices):
-        dists = np.linalg.norm(vertices - self._selection_origin, axis=1)
+        dists = np.linalg.norm(vertices - Coords.shape_origin, axis=1)
         return np.all(dists < self._selection_radius)
 
     def _make_init_polygons(self):
@@ -256,6 +260,7 @@ class _SimpleMeshPolygons(_MeshPolygons):
 class _VoronoiPolygons(_Polygons):
     def __init__(self):
         self._init_polygons = 1200
+        self._generation_bounds = self._get_generation_bounds()
         self._all_polygon_vertex_inds, self._vertices = (
             self._make_init_polygons()
         )
@@ -266,23 +271,32 @@ class _VoronoiPolygons(_Polygons):
         self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
         self._boundary_mask = self._find_boundary_mask()
 
+    def _get_generation_bounds(self):
+        generation_bounds = (
+            Coords.shape_origin + 50.0 * np.array([[-1.0, -1.0],
+                                                    [1.0, 1.0]])
+        )
+        return generation_bounds
+
     def _extend_region(self, region):
         region.insert(0, region[-1])
         region.append(region[1])
         return region
 
-    def _generate_random_points(self, generation_bounds):
+    def _generate_random_points(self):
         xs = np.random.uniform(
-            generation_bounds[0], generation_bounds[1], self._init_polygons
+            self._generation_bounds[0,0], self._generation_bounds[1,0],
+            self._init_polygons
         )
         ys = np.random.uniform(
-            generation_bounds[2], generation_bounds[3], self._init_polygons
+            self._generation_bounds[0,1], self._generation_bounds[1,1],
+            self._init_polygons
         )
         points = np.vstack((xs, ys)).T
         return points
 
-    @staticmethod
-    def _lloyd_relaxation(points, bounds):
+    def _lloyd_relaxation(self):
+        points = self._generate_random_points()
         n_iterations = 20
         for _ in range(n_iterations):
             vor = Voronoi(points)
@@ -291,28 +305,28 @@ class _VoronoiPolygons(_Polygons):
             for i, region_idx in enumerate(vor.point_region):
                 vertices = vor.regions[region_idx]
                 if -1 in vertices or len(vertices) == 0:
-                    new_points.append(points[i])  # fallback to original point
+                    # Fallback to original point
+                    new_points.append(points[i])
                     continue
 
                 polygon = np.array([vor.vertices[j] for j in vertices])
                 centroid = polygon.mean(axis=0)
 
-                if ((bounds[0] <= centroid[0] <= bounds[1]) and
-                    (bounds[2] <= centroid[1] <= bounds[3])):
+                if (np.all(self._generation_bounds[0] <= centroid) and
+                    np.all(self._generation_bounds[1] >= centroid)):
                     new_points.append(centroid)
                 else:
                     new_points.append(points[i])  # fallback again
             points = np.array(new_points)
         return points
 
-    @staticmethod
-    def _add_artificial_points(points, bounds):
-        extra_points = [
-            [bounds[0] - 1, bounds[2] - 1],
-            [bounds[0] - 1, bounds[3] + 1],
-            [bounds[1] + 1, bounds[2] - 1],
-            [bounds[1] + 1, bounds[3] + 1]
-        ]
+    def _add_artificial_points(self, points):
+        xmin, ymin = self._generation_bounds[0]
+        xmax, ymax = self._generation_bounds[1]
+        extra_points = [[xmin - 1.0, ymin - 1.0],
+                        [xmin - 1.0, ymax + 1.0],
+                        [xmax + 1.0, ymin - 1.0],
+                        [xmax + 1.0, ymax + 1.0]]
         all_points = np.concatenate([points, extra_points])
         return all_points
 
@@ -399,21 +413,15 @@ class _VoronoiPolygons(_Polygons):
         return vertices
 
     def _make_init_polygons(self):
-        generation_bounds = 100.0 * np.array([0.0, 1.0, 0.0, 1.0])
-        points = self._generate_random_points(generation_bounds)
-        relaxed_points = self._lloyd_relaxation(points, generation_bounds)
-
-        all_points = self._add_artificial_points(
-            relaxed_points, generation_bounds
-        )
+        relaxed_points = self._lloyd_relaxation()
+        all_points = self._add_artificial_points(relaxed_points)
 
         vor = Voronoi(all_points)
 
-        ellipse_center = (40.0, 45.0)
         ellipse_radii = (20.0, 15.0)
 
         all_polygon_vertex_inds, vertices = self._extract_vertex_indexed_cells(
-            vor, ellipse_center, ellipse_radii
+            vor, Coords.shape_origin, ellipse_radii
         )
 
         vertices = self._separate_close_vertices(vertices)
@@ -454,13 +462,12 @@ class _SinglePolygon(_Polygons):
         if self._n_vertices < 3:
             raise ValueError('A polygon must have at least 3 vertices.')
 
-        origin = np.array([40.0, 45.0])
         radius = 15.0
 
         angle_steps = np.linspace(0, 2*np.pi, self._n_vertices, endpoint=False)
 
-        xs = origin[0] + radius * np.cos(angle_steps)
-        ys = origin[1] + radius * np.sin(angle_steps)
+        xs = Coords.shape_origin[0] + radius * np.cos(angle_steps)
+        ys = Coords.shape_origin[1] + radius * np.sin(angle_steps)
         vertices = np.column_stack((xs, ys))
 
         return vertices
@@ -499,22 +506,22 @@ class _EllipseFactory(_AbstractFactory):
             case 'full':
                 a = 40.0
                 b = a * 1.5
-                origin = (40.0, 70.0)
+                origin = Coords.shape_origin + (0.0, 25.0)
                 polygons = _MeshPolygons()
             case 'simple':
                 a = 23.0
                 b = a * 1.2
-                origin = (40.0, 45.0)
+                origin = Coords.shape_origin
                 polygons = _SimpleMeshPolygons()
             case 'voronoi':
                 a = 23.0
                 b = a * 1.2
-                origin = (40.0, 45.0)
+                origin = Coords.shape_origin
                 polygons = _VoronoiPolygons()
             case 'single':
                 a = 15.0
                 b = a * 1.5
-                origin = (40.0, 45.0)
+                origin = Coords.shape_origin
                 polygons = _SinglePolygon()
             case _:
                 raise ValueError('Invalid initial system!')
@@ -542,19 +549,19 @@ class _TrapzeoidFactory(_AbstractFactory):
         match self._system:
             case 'full':
                 a = 2500.0
-                origin = (40.0, 60.0)
+                origin = Coords.shape_origin + (0.0, 15.0)
                 polygons = _MeshPolygons()
             case 'simple':
                 a = 12.0
                 polygons = _SimpleMeshPolygons()
-                origin = (40.0, 23.0)
+                origin = Coords.shape_origin + (0.0, -22.0)
             case 'voronoi':
-                a = 0.6
-                origin = (0.5, 0.5)
+                a = 12.0
+                origin = Coords.shape_origin + (0.0, -22.0)
                 polygons = _VoronoiPolygons()
             case 'single':
                 a = 10.0
-                origin = (40.0, 45.0)
+                origin = Coords.shape_origin
                 polygons = _SinglePolygon()
             case _:
                 raise ValueError('Invalid initial system!')
@@ -587,19 +594,19 @@ class _PetalFactory(_AbstractFactory):
         match self._system:
             case 'full':
                 a = 2500.0
-                origin = (40.0, 60.0)
+                origin = Coords.shape_origin + (0.0, 15.0)
                 polygons = _MeshPolygons()
             case 'simple':
                 a = 700.0
-                origin = (40.0, 46.0)
+                origin = Coords.shape_origin + (0.0, 1.0)
                 polygons = _SimpleMeshPolygons()
             case 'voronoi':
                 a = 700.0
-                origin = (40.0, 46.0)
+                origin = Coords.shape_origin + (0.0, 1.0)
                 polygons = _VoronoiPolygons()
             case 'single':
                 a = 700.0
-                origin = (40.0, 46.0)
+                origin = Coords.shape_origin + (0.0, 1.0)
                 polygons = _SinglePolygon()
             case _:
                 raise ValueError('Invalid initial system!')

@@ -6,6 +6,9 @@ import timeit
 import jax
 import jax.numpy as jnp
 from matplotlib import pyplot as plt
+import numpy as np
+
+import init_systems
 
 
 class Paths:
@@ -230,6 +233,18 @@ class Figure:
         self._ax.set_ylim(self._ax_lims[1])
         self._ax.set_aspect('equal')
 
+    def _add_baselines(self):
+        line_len = 40.0
+        dist_x = 30.0
+        baseline = np.array([[dist_x, 0.0],
+                             [dist_x + line_len, 0.0]])
+        base = init_systems.Coords.full_mesh_base
+        left_baseline = base - baseline
+        right_baseline = base + baseline
+
+        self._ax.plot(left_baseline[:,0], left_baseline[:,1], 'k', lw=0.7)
+        self._ax.plot(right_baseline[:,0], right_baseline[:,1], 'k', lw=0.7)
+
     def _add_artists(self, vertices, jax_arrays):
         indices = jax_arrays['indices']
         for i in range(indices.shape[0]):
@@ -242,9 +257,7 @@ class Figure:
                 polygon[:, 0], polygon[:, 1], lw=0.7, color='black', zorder=2
             )
 
-        base_y = 18.635
-        self._ax.plot([-20, 10], [base_y, base_y], 'k', lw=0.7)
-        self._ax.plot([70, 100], [base_y, base_y], 'k', lw=0.7)
+        self._add_baselines()
 
         boundary_vertices = vertices[jax_arrays['boundary_mask']]
         self._ax.scatter(
