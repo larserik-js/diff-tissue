@@ -110,8 +110,8 @@ class Params:
         parser.add_argument(
             '--system',
             type=str,
-            choices=['full', 'simple', 'voronoi', 'single'],
-            default='simple',
+            choices=['full', 'voronoi', 'single'],
+            default='voronoi',
             help='Initial polygon configuration.'
         )
 

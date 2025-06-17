@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
+from collections import defaultdict
 import json
 from pathlib import Path
 import sys
 
 import numpy as np
 from scipy.spatial import Voronoi
+import shapely
 from shapely.geometry import Polygon
 
 
@@ -188,80 +190,11 @@ class _MeshPolygons(_Polygons):
         return fixed_mask
 
 
-class _SimpleMeshPolygons(_MeshPolygons):
-    def __init__(self):
-        self._selection_radius = 20.0
-        super().__init__()
-
-    def _all_within_selection(self, vertices):
-        dists = np.linalg.norm(vertices - Coords.shape_origin, axis=1)
-        return np.all(dists < self._selection_radius)
-
-    def _make_init_polygons(self):
-        all_vertices = np.zeros((0, 2))
-        all_indices = []
-        basal_mask = []
-        index = 0
-        for polygon in self._input_cells:
-            if polygon['is_boundary']:
-                continue
-            indices = []
-            vertices = polygon['edges']
-            if not self._all_within_selection(vertices):
-                continue
-            is_basal = True
-            for vertex in vertices:
-                are_equal = np.isclose(
-                    np.array(vertex) - all_vertices, 0.0, atol=0.5
-                )
-                possible_inds = np.where(np.all(are_equal, axis=1))[0]
-
-                # Add new index
-                if len(possible_inds) == 0:
-                    all_vertices = np.vstack([all_vertices, vertex])
-                    indices.append(index)
-                    index += 1
-                # Use existing index
-                elif len(possible_inds) == 1:
-                    indices.append(possible_inds[0])
-                else:
-                    raise ValueError('Multiple indices found')
-
-                # True if all vertices are basal
-                is_basal *= self._is_basal(vertex)
-
-            # For efficiency
-            first_idx = indices[1]
-            indices.append(first_idx)
-
-            indices = self._sort_to_counterclockwise(indices, all_vertices)
-
-            # Pad
-            indices += [-1] * (self._max_vertices - len(indices))
-            indices.extend([-1] * (self._max_vertices - len(indices)))
-
-            all_indices.append(indices)
-            basal_mask.append(is_basal)
-
-        all_indices = np.array(all_indices)
-        basal_mask = np.array(basal_mask)
-
-        return all_indices, all_vertices, basal_mask
-
-    def _get_fixed_inds(self):
-        # Selection radius = 10
-        ## fixed_inds =  [3, 4, 9, 10]
-        # Selection radius = 20
-        ## fixed_inds = [3, 4, 13, 26, 22, 19, 8, 9]
-        fixed_inds = []
-        return fixed_inds
-
-
 class _VoronoiPolygons(_Polygons):
     def __init__(self):
-        self._init_polygons = 1200
-        self._generation_bounds = self._get_generation_bounds()
-        self._all_polygon_vertex_inds, self._vertices = (
+        self._n_polygons = 200
+        self._generating_shape = self._get_generating_shape()
+        self._all_polygon_inds, self._vertices = (
             self._make_init_polygons()
         )
         self._max_vertices = self._find_max_vertices()
@@ -271,31 +204,41 @@ class _VoronoiPolygons(_Polygons):
         self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
         self._boundary_mask = self._find_boundary_mask()
 
-    def _get_generation_bounds(self):
-        generation_bounds = (
-            Coords.shape_origin + 50.0 * np.array([[-1.0, -1.0],
-                                                    [1.0, 1.0]])
-        )
-        return generation_bounds
+    def _get_generating_shape(self):
+        num_points = 20
+        thetas = np.linspace(0, 2 * np.pi, num_points, endpoint=False)
 
-    def _extend_region(self, region):
-        region.insert(0, region[-1])
-        region.append(region[1])
-        return region
+        cx, cy = Coords.shape_origin
+        rx, ry = 15.0, 20.0
+        xs = cx + rx * np.cos(thetas)
+        ys = cy + ry * np.sin(thetas)
+        coords = [point for point in zip(xs, ys)]
+
+        box = Polygon(coords)
+        return box
 
     def _generate_random_points(self):
-        xs = np.random.uniform(
-            self._generation_bounds[0,0], self._generation_bounds[1,0],
-            self._init_polygons
-        )
-        ys = np.random.uniform(
-            self._generation_bounds[0,1], self._generation_bounds[1,1],
-            self._init_polygons
-        )
-        points = np.vstack((xs, ys)).T
-        return points
+        bounds = self._generating_shape.bounds
+        xs = np.random.uniform(bounds[0], bounds[2], self._n_polygons)
+        ys = np.random.uniform(bounds[1], bounds[3], self._n_polygons)
+        points_array = np.vstack((xs, ys)).T
+        points = shapely.points(points_array)
+        inside_mask = shapely.contains(self._generating_shape, points)
+        inside_points = points_array[inside_mask]
 
-    def _lloyd_relaxation(self):
+        return inside_points
+
+    def _get_inside_mask(self, points_array):
+        points = shapely.points(points_array)
+        inside_mask = shapely.contains(self._generating_shape, points)
+        return inside_mask
+
+    def _get_inside_points(self, points_array):
+        inside_mask = self._get_inside_mask(points_array)
+        inside_points = points_array[inside_mask]
+        return inside_points
+
+    def _generate_relaxed_random_points(self):
         points = self._generate_random_points()
         n_iterations = 20
         for _ in range(n_iterations):
@@ -303,84 +246,134 @@ class _VoronoiPolygons(_Polygons):
             new_points = []
 
             for i, region_idx in enumerate(vor.point_region):
-                vertices = vor.regions[region_idx]
-                if -1 in vertices or len(vertices) == 0:
-                    # Fallback to original point
+                vertex_inds = vor.regions[region_idx]
+                # Infinite or empty region: use original point
+                if (-1 in vertex_inds) or (len(vertex_inds) == 0):
                     new_points.append(points[i])
-                    continue
-
-                polygon = np.array([vor.vertices[j] for j in vertices])
-                centroid = polygon.mean(axis=0)
-
-                if (np.all(self._generation_bounds[0] <= centroid) and
-                    np.all(self._generation_bounds[1] >= centroid)):
-                    new_points.append(centroid)
                 else:
-                    new_points.append(points[i])  # fallback again
+                    vertices = vor.vertices[vertex_inds]
+                    centroid = vertices.mean(axis=0)
+
+                    if self._get_inside_mask(centroid):
+                        new_points.append(centroid)
+                    # Point outside generating shape: use original point
+                    else:
+                        new_points.append(points[i])
             points = np.array(new_points)
+
         return points
 
-    def _add_artificial_points(self, points):
-        xmin, ymin = self._generation_bounds[0]
-        xmax, ymax = self._generation_bounds[1]
-        extra_points = [[xmin - 1.0, ymin - 1.0],
-                        [xmin - 1.0, ymax + 1.0],
-                        [xmax + 1.0, ymin - 1.0],
-                        [xmax + 1.0, ymax + 1.0]]
-        all_points = np.concatenate([points, extra_points])
-        return all_points
+    def _make_clipped_voronoi(self, relaxed_points, radius=None):
+        vor = Voronoi(relaxed_points)
+        if vor.points.shape[1] != 2:
+            raise ValueError("Requires 2D input")
+
+        all_polygon_inds = []
+        new_vertices = vor.vertices.tolist()
+
+        centroid = vor.points.mean(axis=0)
+        if radius is None:
+            radius = 2 * np.ptp(vor.points).max()
+
+        all_ridges = defaultdict(list)
+        for (p1, p2), (v1, v2) in zip(vor.ridge_points, vor.ridge_vertices):
+            all_ridges[p1].append((p2, v1, v2))
+            all_ridges[p2].append((p1, v1, v2))
+
+        for p1, region in enumerate(vor.point_region):
+            poly_inds = vor.regions[region]
+
+            # Finite region
+            if all(idx >= 0 for idx in poly_inds):
+                all_polygon_inds.append(poly_inds)
+
+            # Infinite region
+            else:
+                ridges = all_ridges[p1]
+                new_poly_inds = [idx for idx in poly_inds if idx >= 0]
+
+                for p2, v1, v2 in ridges:
+                    if v2 < 0:
+                        v1, v2 = v2, v1
+                    if v1 >= 0:
+                        # Finite ridge: already in the region
+                        continue
+
+                    # Compute the missing endpoint of an infinite ridge
+                    tangent = vor.points[p2] - vor.points[p1]
+                    tangent /= np.linalg.norm(tangent)
+                    normal = np.array([-tangent[1], tangent[0]])
+
+                    midpoint = vor.points[[p1, p2]].mean(axis=0)
+                    direction = np.sign(
+                        np.dot(midpoint - centroid, normal)
+                    ) * normal
+                    far_point = vor.vertices[v2] + direction * radius
+
+                    new_poly_inds.append(len(new_vertices))
+                    new_vertices.append(far_point.tolist())
+
+                # Sort region counterclockwise
+                vertices = np.array([new_vertices[idx] for idx in new_poly_inds])
+                c = vertices.mean(axis=0)
+                angles = np.arctan2(vertices[:,1] - c[1], vertices[:,0] - c[0])
+                new_poly_inds = np.array(new_poly_inds)[np.argsort(angles)]
+                all_polygon_inds.append(new_poly_inds.tolist())
+
+        all_vertices = np.array(new_vertices)
+
+        clipped_polygons = self._clip_polygons(all_polygon_inds, all_vertices)
+
+        return clipped_polygons
+
+    def _clip_polygons(self, all_poly_inds, all_vertices):
+        clipped_polygons = []
+        for poly_inds in all_poly_inds:
+            polygon = all_vertices[poly_inds]
+            poly = Polygon(polygon)
+            poly = poly.intersection(self._generating_shape)
+
+            poly_vertices = list(poly.exterior.coords)
+            if poly_vertices:
+                poly_vertices = np.vstack(poly_vertices)
+                clipped_polygons.append(poly_vertices)
+
+        return clipped_polygons
 
     @staticmethod
-    def _region_fully_inside_ellipse(vertices, center, radii):
-        cx, cy = center
-        rx, ry = radii
-        for x, y in vertices:
-            norm_x = (x - cx) / rx
-            norm_y = (y - cy) / ry
-            if norm_x ** 2 + norm_y ** 2 > 1:
-                return False
-        return True
+    def _make_shared_vertex_structure(polygons):
+        vertex_to_index = {}
+        unique_vertices = []
+        poly_indices = []
 
-    def _extract_vertex_indexed_cells(self, vor, ellipse_center, ellipse_radii):
-        allowed_vertices = []
-        vertex_index_map = {}
-        all_polygon_vertex_inds = []
+        for poly in polygons:
+            # Remove duplicate last point if same as first
+            if np.array_equal(poly[0], poly[-1]):
+                poly = poly[:-1]
 
-        n_non_artificial_points = len(vor.points) - 4
-        for region_idx in vor.point_region[:n_non_artificial_points]:
-            region = vor.regions[region_idx]
-            if -1 in region or len(region) == 0:
-                continue
+            poly_idx = []
+            for pt in poly:
+                pt_tuple = tuple(pt)
+                if pt_tuple not in vertex_to_index:
+                    vertex_to_index[pt_tuple] = len(unique_vertices)
+                    unique_vertices.append(pt_tuple)
+                poly_idx.append(vertex_to_index[pt_tuple])
+            poly_indices.append(poly_idx)
 
-            raw_polygon = [vor.vertices[i] for i in region]
-            if not self._region_fully_inside_ellipse(
-                raw_polygon, ellipse_center, ellipse_radii
-            ):
-                continue
+        vertices = np.array(unique_vertices)
+        return poly_indices, vertices
 
-            polygon = Polygon(raw_polygon)
-            if not polygon.is_valid:
-                continue
+    def _extend(self, polygon):
+        polygon.insert(0, polygon[-1])
+        polygon.append(polygon[1])
+        return polygon
 
-            vertex_inds = []
-            for vertex in raw_polygon:
-                # Round to avoid floating point noise
-                key = tuple(np.round(vertex, decimals=8))
-                if key not in vertex_index_map:
-                    vertex_index_map[key] = len(allowed_vertices)
-                    allowed_vertices.append(vertex)
-                vertex_inds.append(vertex_index_map[key])
-
-            vertex_inds = self._extend_region(vertex_inds)
-            vertex_inds = np.array(vertex_inds)
-            vertex_inds = self._sort_to_counterclockwise(
-                vertex_inds, np.array(allowed_vertices)
-            )
-
-            all_polygon_vertex_inds.append(vertex_inds)
-
-        allowed_vertices = np.array(allowed_vertices)
-        return all_polygon_vertex_inds, allowed_vertices
+    def _extend_polygons(self, polygons):
+        extended_polygons = []
+        for polygon in polygons:
+            extended_polygon = self._extend(polygon)
+            extended_polygons.append(extended_polygon)
+        return extended_polygons
 
     @staticmethod
     def _separate_close_vertices(vertices):
@@ -413,30 +406,27 @@ class _VoronoiPolygons(_Polygons):
         return vertices
 
     def _make_init_polygons(self):
-        relaxed_points = self._lloyd_relaxation()
-        all_points = self._add_artificial_points(relaxed_points)
+        relaxed_points = self._generate_relaxed_random_points()
+        polygons = self._make_clipped_voronoi(relaxed_points)
 
-        vor = Voronoi(all_points)
-
-        ellipse_radii = (20.0, 15.0)
-
-        all_polygon_vertex_inds, vertices = self._extract_vertex_indexed_cells(
-            vor, Coords.shape_origin, ellipse_radii
+        all_polygon_inds, vertices = self._make_shared_vertex_structure(
+            polygons
         )
 
+        all_polygon_inds = self._extend_polygons(all_polygon_inds)
         vertices = self._separate_close_vertices(vertices)
 
-        return all_polygon_vertex_inds, vertices
+        return all_polygon_inds, vertices
 
     def _find_max_vertices(self):
         max_vertices = 0
-        for vertex_inds in self._all_polygon_vertex_inds:
+        for vertex_inds in self._all_polygon_inds:
             max_vertices = max(max_vertices, len(vertex_inds))
         return max_vertices
 
     def _finalize_polygon_inds(self):
         all_polygon_inds = []
-        for vertex_inds in self._all_polygon_vertex_inds:
+        for vertex_inds in self._all_polygon_inds:
             n_padding_values = self._max_vertices - len(vertex_inds)
             padding_array = np.full((n_padding_values,), -1, dtype=np.long)
             polygon_inds = np.concatenate(
@@ -508,11 +498,6 @@ class _EllipseFactory(_AbstractFactory):
                 b = a * 1.5
                 origin = Coords.shape_origin + (0.0, 25.0)
                 polygons = _MeshPolygons()
-            case 'simple':
-                a = 23.0
-                b = a * 1.2
-                origin = Coords.shape_origin
-                polygons = _SimpleMeshPolygons()
             case 'voronoi':
                 a = 23.0
                 b = a * 1.2
@@ -551,10 +536,6 @@ class _TrapzeoidFactory(_AbstractFactory):
                 a = 2500.0
                 origin = Coords.shape_origin + (0.0, 15.0)
                 polygons = _MeshPolygons()
-            case 'simple':
-                a = 12.0
-                polygons = _SimpleMeshPolygons()
-                origin = Coords.shape_origin + (0.0, -22.0)
             case 'voronoi':
                 a = 12.0
                 origin = Coords.shape_origin + (0.0, -22.0)
@@ -596,10 +577,6 @@ class _PetalFactory(_AbstractFactory):
                 a = 2500.0
                 origin = Coords.shape_origin + (0.0, 15.0)
                 polygons = _MeshPolygons()
-            case 'simple':
-                a = 700.0
-                origin = Coords.shape_origin + (0.0, 1.0)
-                polygons = _SimpleMeshPolygons()
             case 'voronoi':
                 a = 700.0
                 origin = Coords.shape_origin + (0.0, 1.0)
