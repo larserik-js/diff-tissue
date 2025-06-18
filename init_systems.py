@@ -192,7 +192,11 @@ class _MeshPolygons(_Polygons):
 
 class _VoronoiPolygons(_Polygons):
     def __init__(self):
-        self._n_polygons = 200
+        self._radius_x = 15.0
+        self._radius_y = 15.0
+        self._polygon_area = 5.0
+        self._n_polygons = self._calc_n_polygons()
+
         self._generating_shape = self._get_generating_shape()
         self._all_polygon_inds, self._vertices = (
             self._make_init_polygons()
@@ -209,13 +213,19 @@ class _VoronoiPolygons(_Polygons):
         thetas = np.linspace(0, 2 * np.pi, num_points, endpoint=False)
 
         cx, cy = Coords.shape_origin
-        rx, ry = 15.0, 20.0
-        xs = cx + rx * np.cos(thetas)
-        ys = cy + ry * np.sin(thetas)
+        xs = cx + self._radius_x * np.cos(thetas)
+        ys = cy + self._radius_y * np.sin(thetas)
         coords = [point for point in zip(xs, ys)]
 
-        box = Polygon(coords)
-        return box
+        generating_shape = Polygon(coords)
+        return generating_shape
+
+    def _calc_n_polygons(self):
+        n_polygons = int(
+            np.pi * self._radius_x * self._radius_y /
+            self._polygon_area
+        )
+        return n_polygons
 
     def _generate_random_points(self):
         bounds = self._generating_shape.bounds
@@ -314,7 +324,9 @@ class _VoronoiPolygons(_Polygons):
                     new_vertices.append(far_point.tolist())
 
                 # Sort region counterclockwise
-                vertices = np.array([new_vertices[idx] for idx in new_poly_inds])
+                vertices = np.array(
+                    [new_vertices[idx] for idx in new_poly_inds]
+                )
                 c = vertices.mean(axis=0)
                 angles = np.arctan2(vertices[:,1] - c[1], vertices[:,0] - c[0])
                 new_poly_inds = np.array(new_poly_inds)[np.argsort(angles)]
@@ -375,10 +387,9 @@ class _VoronoiPolygons(_Polygons):
             extended_polygons.append(extended_polygon)
         return extended_polygons
 
-    @staticmethod
-    def _separate_close_vertices(vertices):
-        min_dist = 1.0
-        jitter_scale = 1.0
+    def _separate_close_vertices(self, vertices):
+        min_dist = 0.5 * np.sqrt(self._polygon_area)
+        jitter_scale = 0.1 * min_dist
         max_n = 1000
         for n in range(max_n):
             diffs = vertices[:,None,:] - vertices
