@@ -34,7 +34,7 @@ def _calc_aspect_ratio_scales(jax_arrays, optimal_aspect_ratio):
 
 
 def _calc_goal_areas(init_areas, max_area_scaling, aspect_ratio_scales, logits):
-    goal_areas = init_areas * aspect_ratio_scales * _calc_area_scaling(
+    goal_areas = init_areas.mean() * aspect_ratio_scales * _calc_area_scaling(
         max_area_scaling, logits
     )
     return goal_areas

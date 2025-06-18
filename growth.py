@@ -215,7 +215,8 @@ def _main():
          (1 / params.numerical['optimal_aspect_ratio'] - 1.0))
     )
     goal_areas = (
-        params.numerical['max_area_scaling'] * init_areas * aspect_ratio_scales
+        params.numerical['max_area_scaling'] * init_areas.mean() *
+        aspect_ratio_scales
     )
     goal_aspect_ratios = 0.5 * jnp.ones_like(init_areas)
 
