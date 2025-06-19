@@ -140,28 +140,28 @@ class Params:
         parser.add_argument(
             '--glr',
             type=float,
-            default=0.0002,
+            default=0.00015,
             help='Learning rate for growth.'
         )
 
         parser.add_argument(
             '--arlw',
             type=float,
-            default=10.0,
+            default=50.0,
             help='Areas loss weight.'
         )
 
         parser.add_argument(
             '--anlw',
             type=float,
-            default=500.0,
+            default=200.0,
             help='Angles loss weight.'
         )
 
         parser.add_argument(
             '--aslw',
             type=float,
-            default=1e4,
+            default=100.0,
             help='Aspect ratio loss weight.'
         )
 
