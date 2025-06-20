@@ -16,29 +16,24 @@ class Coords:
     shape_origin = full_mesh_origin + (0.0, 45.0)
 
 
+def _sort_counterclockwise(indices, vertices):
+    centroid = vertices.mean(axis=0)
+    angles = np.arctan2(
+        vertices[:,1] - centroid[1], vertices[:,0] - centroid[0]
+    )
+    inds_for_sorting = np.argsort(angles)
+    sorted_poly_inds = np.array(indices)[inds_for_sorting]
+    sorted_poly_inds = sorted_poly_inds.tolist()
+    return sorted_poly_inds
+
+
+def _extend(indices):
+    indices.insert(0, indices[-1])
+    indices.append(indices[1])
+    return indices
+
+
 class _Polygons:
-    def _check_convex(self, indices, all_vertices):
-        polygon = all_vertices[indices]
-        edges = polygon[1:] - polygon[:-1]
-        cross_products = np.cross(edges[:-1], edges[1:])
-        non_zero_cross_products = cross_products[
-            ~np.isclose(cross_products, 0.0)
-        ]
-        signs = np.sign(non_zero_cross_products)
-        if np.all(signs > 0.0):
-            convex = True
-        elif np.all(signs < 0.0):
-            convex = False
-        else:
-            raise ValueError('Non-consistent ordering of vertices.')
-        return convex
-
-    def _sort_to_counterclockwise(self, indices, all_vertices):
-        is_convex = self._check_convex(indices, all_vertices)
-        if not is_convex:
-            indices = indices[::-1]
-        return indices
-
     def _find_boundary_mask(self):
         all_edges = set()
         interior_edges = set()
@@ -127,6 +122,11 @@ class _MeshPolygons(_Polygons):
         basal_radius = np.inf
         return dist_from_origin < basal_radius
 
+    @staticmethod
+    def _remove_duplicates(lst):
+        seen = set()
+        return [x for x in lst if not (x in seen or seen.add(x))]
+
     def _make_init_polygons(self):
         all_vertices = np.zeros((0, 2))
         all_indices = []
@@ -151,18 +151,19 @@ class _MeshPolygons(_Polygons):
                     index += 1
                 # Use existing index
                 elif len(possible_inds) == 1:
-                    indices.append(possible_inds[0])
+                    indices.append(int(possible_inds[0]))
                 else:
                     raise ValueError('Multiple indices found')
 
                 # True if all vertices are basal
                 is_basal *= self._is_basal(vertex)
 
+            indices = self._remove_duplicates(indices)
+            indices = _sort_counterclockwise(
+                indices, all_vertices[indices]
+            )
             # For efficiency
-            first_idx = indices[1]
-            indices.append(first_idx)
-
-            indices = self._sort_to_counterclockwise(indices, all_vertices)
+            indices = _extend(indices)
 
             # Pad
             indices += [-1] * (self._max_vertices - len(indices))
@@ -196,7 +197,6 @@ class _VoronoiPolygons(_Polygons):
         self._radius_y = 15.0
         self._polygon_area = 5.0
         self._n_polygons = self._calc_n_polygons()
-
         self._generating_shape = self._get_generating_shape()
         self._all_polygon_inds, self._vertices = (
             self._make_init_polygons()
@@ -273,6 +273,20 @@ class _VoronoiPolygons(_Polygons):
 
         return points
 
+    def _clip_polygons(self, all_poly_inds, all_vertices):
+        clipped_polygons = []
+        for poly_inds in all_poly_inds:
+            polygon = all_vertices[poly_inds]
+            poly = Polygon(polygon)
+            poly = poly.intersection(self._generating_shape)
+
+            poly_vertices = list(poly.exterior.coords)
+            if poly_vertices:
+                poly_vertices = np.vstack(poly_vertices)
+                clipped_polygons.append(poly_vertices)
+
+        return clipped_polygons
+
     def _make_clipped_voronoi(self, relaxed_points, radius=None):
         vor = Voronoi(relaxed_points)
         if vor.points.shape[1] != 2:
@@ -281,7 +295,7 @@ class _VoronoiPolygons(_Polygons):
         all_polygon_inds = []
         new_vertices = vor.vertices.tolist()
 
-        centroid = vor.points.mean(axis=0)
+        tissue_centroid = vor.points.mean(axis=0)
         if radius is None:
             radius = 2 * np.ptp(vor.points).max()
 
@@ -316,39 +330,24 @@ class _VoronoiPolygons(_Polygons):
 
                     midpoint = vor.points[[p1, p2]].mean(axis=0)
                     direction = np.sign(
-                        np.dot(midpoint - centroid, normal)
+                        np.dot(midpoint - tissue_centroid, normal)
                     ) * normal
                     far_point = vor.vertices[v2] + direction * radius
 
                     new_poly_inds.append(len(new_vertices))
                     new_vertices.append(far_point.tolist())
 
-                # Sort region counterclockwise
-                vertices = np.array(
+                unsorted_vertices = np.array(
                     [new_vertices[idx] for idx in new_poly_inds]
                 )
-                c = vertices.mean(axis=0)
-                angles = np.arctan2(vertices[:,1] - c[1], vertices[:,0] - c[0])
-                new_poly_inds = np.array(new_poly_inds)[np.argsort(angles)]
-                all_polygon_inds.append(new_poly_inds.tolist())
+                sorted_poly_inds = _sort_counterclockwise(
+                    new_poly_inds, unsorted_vertices
+                )
+                all_polygon_inds.append(sorted_poly_inds)
 
         all_vertices = np.array(new_vertices)
 
         clipped_polygons = self._clip_polygons(all_polygon_inds, all_vertices)
-
-        return clipped_polygons
-
-    def _clip_polygons(self, all_poly_inds, all_vertices):
-        clipped_polygons = []
-        for poly_inds in all_poly_inds:
-            polygon = all_vertices[poly_inds]
-            poly = Polygon(polygon)
-            poly = poly.intersection(self._generating_shape)
-
-            poly_vertices = list(poly.exterior.coords)
-            if poly_vertices:
-                poly_vertices = np.vstack(poly_vertices)
-                clipped_polygons.append(poly_vertices)
 
         return clipped_polygons
 
@@ -374,18 +373,6 @@ class _VoronoiPolygons(_Polygons):
 
         vertices = np.array(unique_vertices)
         return poly_indices, vertices
-
-    def _extend(self, polygon):
-        polygon.insert(0, polygon[-1])
-        polygon.append(polygon[1])
-        return polygon
-
-    def _extend_polygons(self, polygons):
-        extended_polygons = []
-        for polygon in polygons:
-            extended_polygon = self._extend(polygon)
-            extended_polygons.append(extended_polygon)
-        return extended_polygons
 
     def _separate_close_vertices(self, vertices):
         min_dist = 0.5 * np.sqrt(self._polygon_area)
@@ -416,15 +403,34 @@ class _VoronoiPolygons(_Polygons):
 
         return vertices
 
+    def _sort_all_counterclockwise(self, all_poly_inds, all_vertices):
+        all_sorted_poly_inds = []
+        for poly_inds in all_poly_inds:
+            vertices = all_vertices[poly_inds]
+            sorted_inds = _sort_counterclockwise(
+                poly_inds, vertices
+            )
+            all_sorted_poly_inds.append(sorted_inds)
+        return all_sorted_poly_inds
+
+    def _extend_polygons(self, polygons):
+        extended_polygons = []
+        for polygon in polygons:
+            extended_polygon = _extend(polygon)
+            extended_polygons.append(extended_polygon)
+        return extended_polygons
+
     def _make_init_polygons(self):
         relaxed_points = self._generate_relaxed_random_points()
         polygons = self._make_clipped_voronoi(relaxed_points)
-
         all_polygon_inds, vertices = self._make_shared_vertex_structure(
             polygons
         )
-
+        all_polygon_inds = self._sort_all_counterclockwise(
+            all_polygon_inds, vertices
+        )
         all_polygon_inds = self._extend_polygons(all_polygon_inds)
+
         vertices = self._separate_close_vertices(vertices)
 
         return all_polygon_inds, vertices
@@ -475,13 +481,11 @@ class _SinglePolygon(_Polygons):
 
     def _find_polygon_inds(self):
         polygon_inds = np.arange(self._n_vertices)
-        polygon_inds = np.concatenate(
-            [polygon_inds, polygon_inds[:2]]
-        )
-        polygon_inds = self._sort_to_counterclockwise(
+        polygon_inds = _sort_counterclockwise(
             polygon_inds, self._vertices
         )
-        return polygon_inds.reshape(1, -1)
+        polygon_inds = _extend(polygon_inds)
+        return np.array(polygon_inds).reshape(1, -1)
 
 
 class _AbstractFactory(ABC):
