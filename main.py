@@ -4,7 +4,7 @@ import numpy as np
 import optax
 import pandas as pd
 
-import growth, init_systems, my_utils
+import growth, my_utils
 
 
 def _calc_scaling(min_scaling, max_scaling, logits):
@@ -22,15 +22,6 @@ def _calc_area_scaling(max_scaling, logits):
 def _calc_aspect_ratio_scaling(logits):
     aspect_ratio_scaling = _calc_scaling(0.0, 1.0, logits)
     return aspect_ratio_scaling
-
-
-def _calc_aspect_ratio_scales(jax_arrays, optimal_aspect_ratio):
-    basal_mask = jax_arrays['basal_mask']
-    aspect_ratio_scales = np.ones(len(basal_mask))
-    aspect_ratio_scales[basal_mask] = (
-        aspect_ratio_scales[basal_mask] * (1 / optimal_aspect_ratio - 1.0)
-    )
-    return jnp.array(aspect_ratio_scales)
 
 
 def _calc_goal_areas(init_areas, max_area_scaling, aspect_ratio_scales, logits):
@@ -101,7 +92,7 @@ def _iterate_towards_shape(jax_arrays, all_params):
     all_cells = init_vertices[jax_arrays['indices']]
     init_areas = growth.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
-    aspect_ratio_scales = _calc_aspect_ratio_scales(
+    aspect_ratio_scales = my_utils.calc_aspect_ratio_scales(
         jax_arrays, params['optimal_aspect_ratio']
     )
 
@@ -197,11 +188,7 @@ def _main():
 
     np.random.seed(params.numerical['seed'])
 
-    factory = init_systems.get_factory(params.shape, params.system)
-    polygons = factory.get_polygons()
-    outer_shape = factory.get_outer_shape()
-
-    jax_arrays = my_utils.get_jax_arrays(polygons, outer_shape)
+    jax_arrays = my_utils.get_jax_arrays(params)
 
     _iterate_towards_shape(jax_arrays, params)
 

@@ -197,7 +197,7 @@ def _send_to_device(jax_arrays):
     return jax.device_put(jax_arrays, device=_get_device())
 
 
-def get_jax_arrays(polygons, outer_shape):
+def _make_jax_arrays(polygons, outer_shape):
     arrays = {
         'indices': polygons.get_polygon_inds(),
         'valid_mask': polygons.get_valid_mask(),
@@ -211,6 +211,24 @@ def get_jax_arrays(polygons, outer_shape):
     jax_arrays = {k: _send_to_device(jnp.array(v)) for k, v in arrays.items()}
 
     return jax_arrays
+
+
+def get_jax_arrays(params):
+    factory = init_systems.get_factory(params.shape, params.system)
+    polygons = factory.get_polygons()
+    outer_shape = factory.get_outer_shape()
+    jax_arrays = _make_jax_arrays(polygons, outer_shape)
+
+    return jax_arrays
+
+
+def calc_aspect_ratio_scales(jax_arrays, optimal_aspect_ratio):
+    basal_mask = jax_arrays['basal_mask']
+    aspect_ratio_scales = np.ones(len(basal_mask))
+    aspect_ratio_scales[basal_mask] = (
+        aspect_ratio_scales[basal_mask] * (1 / optimal_aspect_ratio - 1.0)
+    )
+    return jnp.array(aspect_ratio_scales)
 
 
 class Figure:

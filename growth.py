@@ -2,7 +2,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
-import init_systems, my_utils
+import my_utils
 
 
 def calc_all_areas(all_cells, valid_mask):
@@ -199,20 +199,14 @@ def _main():
 
     np.random.seed(params.numerical['seed'])
 
-    factory = init_systems.get_factory(params.shape, params.system)
-    polygons = factory.get_polygons()
-    outer_shape = factory.get_outer_shape()
+    jax_arrays = my_utils.get_jax_arrays(params)
 
-    jax_arrays = my_utils.get_jax_arrays(polygons, outer_shape)
-
-    vertices = jax_arrays['init_vertices']
-    all_cells = vertices[jax_arrays['indices']]
+    init_vertices = jax_arrays['init_vertices']
+    all_cells = init_vertices[jax_arrays['indices']]
     init_areas = calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
-    aspect_ratio_scales = np.where(
-        np.isclose(polygons.get_basal_mask(), 0), 1.0,
-        (polygons.get_basal_mask() *
-         (1 / params.numerical['optimal_aspect_ratio'] - 1.0))
+    aspect_ratio_scales = my_utils.calc_aspect_ratio_scales(
+        jax_arrays, params.numerical['optimal_aspect_ratio']
     )
     goal_areas = (
         params.numerical['max_area_scaling'] * init_areas.mean() *
