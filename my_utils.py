@@ -193,8 +193,12 @@ def _get_device():
     return jax.devices('cpu')[0]
 
 
-def _send_to_device(jax_arrays):
-    return jax.device_put(jax_arrays, device=_get_device())
+def _send_to_device(jax_array):
+    return jax.device_put(jax_array, device=_get_device())
+
+
+def to_jax(np_array):
+    return _send_to_device(jnp.array(np_array))
 
 
 def _make_jax_arrays(polygons, outer_shape):
@@ -208,7 +212,7 @@ def _make_jax_arrays(polygons, outer_shape):
         'boundary_mask': polygons.get_boundary_mask(),
         'outer_shape': outer_shape
     }
-    jax_arrays = {k: _send_to_device(jnp.array(v)) for k, v in arrays.items()}
+    jax_arrays = {name: to_jax(array) for name, array in arrays.items()}
 
     return jax_arrays
 
@@ -229,6 +233,13 @@ def calc_aspect_ratio_scales(jax_arrays, optimal_aspect_ratio):
         aspect_ratio_scales[basal_mask] * (1 / optimal_aspect_ratio - 1.0)
     )
     return jnp.array(aspect_ratio_scales)
+
+
+def get_output_params_file(params):
+    output_params_file = (
+        Paths('output_params', params).get_param_path_with_suffix('.txt')
+    )
+    return output_params_file
 
 
 class Figure:
