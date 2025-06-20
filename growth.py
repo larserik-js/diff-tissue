@@ -5,24 +5,6 @@ import jax.numpy as jnp
 import my_utils
 
 
-def calc_all_areas(all_cells, valid_mask):
-    xs = all_cells[:, 1:-1, 0]
-    y_plus_ones = all_cells[:, 2:, 1]
-    y_minus_ones = all_cells[:, :-2, 1]
-
-    valid = valid_mask[:, 1:-1] & valid_mask[:, 2:] & valid_mask[:, :-2]
-
-    first_term = xs * y_plus_ones
-    first_term = jnp.sum(first_term * valid, axis=1)
-    second_term = xs * y_minus_ones
-    second_term = jnp.sum(second_term * valid, axis=1)
-
-    # Assumes vertices are ordered counter-clockwise
-    areas = 0.5 * (first_term - second_term)
-
-    return areas
-
-
 def _calc_optimal_angles(mask):
     n_vertices = mask.sum(axis=1) - 2
     interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
@@ -79,7 +61,7 @@ def _calc_aspect_ratios_loss(target_aspect_ratios, aspect_ratios, basal_mask):
 def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
                       optimal_angles, jax_arrays, params):
     all_cells = vertices[jax_arrays['indices']]
-    areas = calc_all_areas(all_cells, jax_arrays['valid_mask'])
+    areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
     aspect_ratios = _calc_aspect_ratios(all_cells, jax_arrays['valid_mask'])
 
     areas_loss = params['areas_loss_weight'] * jnp.sum(
@@ -128,7 +110,7 @@ def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
 
 def iterate(goal_areas, goal_aspect_ratios, jax_arrays, params):
     all_cells = jax_arrays['init_vertices'][jax_arrays['indices']]
-    init_areas = calc_all_areas(all_cells, jax_arrays['valid_mask'])
+    init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
     init_aspect_ratios = _calc_aspect_ratios(
         all_cells, jax_arrays['valid_mask']
     )
@@ -169,7 +151,7 @@ def iterate_and_plot(output_dir, goal_areas, goal_aspect_ratios, jax_arrays,
                      params):
     vertices = jax_arrays['init_vertices']
     all_cells = vertices[jax_arrays['indices']]
-    init_areas = calc_all_areas(all_cells, jax_arrays['valid_mask'])
+    init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
     init_aspect_ratios = _calc_aspect_ratios(
         all_cells, jax_arrays['valid_mask']
     )
@@ -203,7 +185,7 @@ def _main():
 
     init_vertices = jax_arrays['init_vertices']
     all_cells = init_vertices[jax_arrays['indices']]
-    init_areas = calc_all_areas(all_cells, jax_arrays['valid_mask'])
+    init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
     aspect_ratio_scales = my_utils.calc_aspect_ratio_scales(
         jax_arrays, params.numerical['optimal_aspect_ratio']

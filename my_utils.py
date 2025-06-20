@@ -189,6 +189,20 @@ class Params:
         return args
 
 
+def _make_arrays(polygons, outer_shape):
+    arrays = {
+        'indices': polygons.get_polygon_inds(),
+        'valid_mask': polygons.get_valid_mask(),
+        'init_vertices': polygons.get_vertices(),
+        'init_centroids': polygons.get_centroids(),
+        'fixed_mask': polygons.get_fixed_mask(),
+        'basal_mask': polygons.get_basal_mask(),
+        'boundary_mask': polygons.get_boundary_mask(),
+        'outer_shape': outer_shape
+    }
+    return arrays
+
+
 def _get_device():
     return jax.devices('cpu')[0]
 
@@ -201,29 +215,41 @@ def to_jax(np_array):
     return _send_to_device(jnp.array(np_array))
 
 
-def _make_jax_arrays(polygons, outer_shape):
-    arrays = {
-        'indices': polygons.get_polygon_inds(),
-        'valid_mask': polygons.get_valid_mask(),
-        'init_vertices': polygons.get_vertices(),
-        'init_centroids': polygons.get_centroids(),
-        'fixed_mask': polygons.get_fixed_mask(),
-        'basal_mask': polygons.get_basal_mask(),
-        'boundary_mask': polygons.get_boundary_mask(),
-        'outer_shape': outer_shape
-    }
+def _make_jax_arrays(arrays):
     jax_arrays = {name: to_jax(array) for name, array in arrays.items()}
-
     return jax_arrays
 
 
-def get_jax_arrays(params):
+def get_arrays(params):
     factory = init_systems.get_factory(params.shape, params.system)
     polygons = factory.get_polygons()
     outer_shape = factory.get_outer_shape()
-    jax_arrays = _make_jax_arrays(polygons, outer_shape)
+    arrays = _make_arrays(polygons, outer_shape)
+    return arrays
 
+
+def get_jax_arrays(params):
+    arrays = get_arrays(params)
+    jax_arrays = _make_jax_arrays(arrays)
     return jax_arrays
+
+
+def calc_all_areas(all_cells, valid_mask):
+    xs = all_cells[:, 1:-1, 0]
+    y_plus_ones = all_cells[:, 2:, 1]
+    y_minus_ones = all_cells[:, :-2, 1]
+
+    valid = valid_mask[:, 1:-1] & valid_mask[:, 2:] & valid_mask[:, :-2]
+
+    first_term = xs * y_plus_ones
+    first_term = jnp.sum(first_term * valid, axis=1)
+    second_term = xs * y_minus_ones
+    second_term = jnp.sum(second_term * valid, axis=1)
+
+    # Assumes vertices are ordered counter-clockwise
+    areas = 0.5 * (first_term - second_term)
+
+    return areas
 
 
 def calc_aspect_ratio_scales(jax_arrays, optimal_aspect_ratio):
