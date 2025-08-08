@@ -204,18 +204,29 @@ class _VoronoiPolygons(_Polygons):
         self._max_vertices = self._find_max_vertices()
         self._polygon_inds = self._finalize_polygon_inds()
         self._valid_mask = (self._polygon_inds != -1)
+
         self._fixed_mask = np.ones_like(self._vertices)
+        base_vertices = np.where(
+            self._vertices[:,1] < (Coords.full_mesh_base[1] + 0.5)
+        )[0]
+        self._fixed_mask[base_vertices, 1] = 0.0
+
         self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
         self._boundary_mask = self._find_boundary_mask()
 
     def _get_generating_shape(self):
-        num_points = 20
-        thetas = np.linspace(0, 2 * np.pi, num_points, endpoint=False)
+        cx, cy = Coords.full_mesh_base
+        base_coords = np.linspace(cx - self._radius_x, cx + self._radius_x, 5)
+        base_coords = [(x, cy) for x in base_coords]
 
-        cx, cy = Coords.shape_origin
+        num_points = 10
+        thetas = np.linspace(0, np.pi, num_points, endpoint=False)
+
         xs = cx + self._radius_x * np.cos(thetas)
         ys = cy + self._radius_y * np.sin(thetas)
-        coords = [point for point in zip(xs, ys)]
+        half_circle_coords = [point for point in zip(xs, ys)]
+        coords = base_coords + half_circle_coords
+        coords = np.vstack(coords)
 
         generating_shape = Polygon(coords)
         return generating_shape
@@ -614,32 +625,26 @@ class _PetalFactory(_AbstractFactory):
         }
         return shape_params, polygons
 
-    def _gielis(self, angle, a, b, m, n1, n2, n3):
-        rs = (
-            np.abs(np.cos(m * angle / 4) / a)**n2 +
-            np.abs(np.sin(m * angle / 4) / b)**n3
-        )**(-1 / n1)
-        return rs
-
     def _make_outer_shape(self):
-        angles = np.linspace(0, 2 * np.pi, 50, endpoint=True)
-        rs = self._gielis(angles,
-                          self._shape_params['a'],
-                          self._shape_params['b'],
-                          self._shape_params['m'],
-                          self._shape_params['n1'],
-                          self._shape_params['n2'],
-                          self._shape_params['n3'])
-        xs = rs * np.sin(angles) + self._shape_params['origin'][0]
-        ys = rs * np.cos(angles) + self._shape_params['origin'][1]
+        rx = 20.0
+        h = 50.0
+        n_points = 50
+        xs = np.linspace(-rx, rx, n_points)
+        ys = h * np.sqrt(1 - (xs / rx) ** 2)
 
-        # Cheat to make it look like a petal
-        scale = 0.8
-        shift = 0.5 * (1 - scale) * (xs[0] + xs[-1])
-        xs = scale * xs + shift
+        stretch_strength = 1.1
 
-        petal = np.stack([xs, ys], axis=1)
-        return petal
+        factor = 1 + stretch_strength * (ys / h)
+        xs = xs * factor
+
+        points_left = [(-x, y) for x, y in zip(xs, ys)]
+        points_right = [(x, y) for x, y in zip(xs, ys)]
+        points = points_left + points_right
+        points = np.vstack(points)
+
+        points += Coords.full_mesh_base
+
+        return points
 
 
 def get_factory(shape, system):

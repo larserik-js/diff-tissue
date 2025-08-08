@@ -13,19 +13,20 @@ def _calc_optimal_angles(mask):
     return optimal_angles
 
 
-def _calc_all_angles_loss(all_cells, valid_mask, optimal_angles):
+def _calc_all_angles_loss(edges, valid_mask, optimal_angles):
     epsilon = 1e-7
-    edges = all_cells[:, 1:] - all_cells[:, :-1]
-    dot_products = jnp.sum(edges[:, :-1] * edges[:, 1:], axis=2)
     norms = jnp.linalg.norm(edges + epsilon, axis=2)
+    dot_products = jnp.sum(edges[:, :-1] * edges[:, 1:], axis=2)
+
     cosines = dot_products / (epsilon + norms[:, :-1] * norms[:, 1:])
     clip_value = 1.0 - epsilon
     cosines = jnp.clip(cosines, -clip_value, clip_value)
-    angles = jnp.arccos(cosines)
 
+    optimal_cosines = jnp.cos(optimal_angles)
     valid = valid_mask[:, 1:] & valid_mask[:, :-1]
     valid = valid[:, 1:] & valid[:, :-1]
-    angles_loss = jnp.sum((angles - optimal_angles)**2 * valid)
+
+    angles_loss = jnp.sum((cosines - optimal_cosines)**2 * valid)
 
     return angles_loss
 
@@ -61,6 +62,8 @@ def _calc_aspect_ratios_loss(target_aspect_ratios, aspect_ratios, basal_mask):
 def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
                       optimal_angles, jax_arrays, params):
     all_cells = vertices[jax_arrays['indices']]
+    edges = all_cells[:, 1:] - all_cells[:, :-1]
+
     areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
     aspect_ratios = _calc_aspect_ratios(all_cells, jax_arrays['valid_mask'])
 
@@ -68,7 +71,7 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
         (target_areas - areas)**2
     )
     angles_loss = params['angles_loss_weight'] * _calc_all_angles_loss(
-        all_cells, jax_arrays['valid_mask'], optimal_angles
+        edges, jax_arrays['valid_mask'], optimal_angles
     )
     aspect_ratios_loss = (
         params['aspect_ratio_loss_weight'] * _calc_aspect_ratios_loss(
@@ -76,7 +79,14 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
         )
     )
 
-    loss = areas_loss + angles_loss + aspect_ratios_loss
+    # Very crude, needs improvement
+    current_vertex_ys = vertices[:,1]
+    vertical_elongation_loss = 5e4 * -jnp.mean(current_vertex_ys)
+
+    loss = (
+        areas_loss + angles_loss + aspect_ratios_loss +
+        vertical_elongation_loss
+    )
 
     return loss
 
@@ -185,6 +195,7 @@ def _main():
 
     init_vertices = jax_arrays['init_vertices']
     all_cells = init_vertices[jax_arrays['indices']]
+
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
     aspect_ratio_scales = my_utils.calc_aspect_ratio_scales(

@@ -276,8 +276,8 @@ class Figure:
     def _get_ax_lims(self, vertices):
         minvals = vertices.min(axis=0)
         maxvals = vertices.max(axis=0)
-        center = (minvals + maxvals) / 2
-        dims = maxvals - minvals
+        center = init_systems.Coords.shape_origin
+        dims = 1.5 * (maxvals - minvals)
         xlim = center + jnp.array([-1.0, 1.0]) * dims[0]
         ylim = center + jnp.array([-1.0, 1.0]) * dims[1]
         return xlim, ylim
