@@ -277,9 +277,10 @@ class Figure:
         minvals = vertices.min(axis=0)
         maxvals = vertices.max(axis=0)
         center = init_systems.Coords.shape_origin
-        dims = 1.5 * (maxvals - minvals)
-        xlim = center + jnp.array([-1.0, 1.0]) * dims[0]
-        ylim = center + jnp.array([-1.0, 1.0]) * dims[1]
+        ranges = (maxvals - minvals)
+        dims = np.array([1.5, 2.0]) * ranges
+        xlim = center[0] + jnp.array([-1.0, 1.0]) * dims[0]
+        ylim = center[1] + jnp.array([-1.0, 1.0]) * dims[1]
         return xlim, ylim
 
     def _format(self):
@@ -293,7 +294,7 @@ class Figure:
         dist_x = 30.0
         baseline = np.array([[dist_x, 0.0],
                              [dist_x + line_len, 0.0]])
-        base = init_systems.Coords.full_mesh_base
+        base = init_systems.Coords.base_origin
         left_baseline = base - baseline
         right_baseline = base + baseline
 

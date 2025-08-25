@@ -11,9 +11,11 @@ from shapely.geometry import Polygon
 
 
 class Coords:
+    _origin = np.array([0.0, 0.0])
+    base_origin = _origin + 0.0
+    shape_origin = _origin + np.array([0.0, 26.5])
     full_mesh_origin = np.array([40.0, 0.0])
     full_mesh_base = np.array([40.0, 18.635])
-    shape_origin = full_mesh_origin + (0.0, 45.0)
 
 
 def _sort_counterclockwise(indices, vertices):
@@ -117,8 +119,6 @@ class _MeshPolygons(_Polygons):
 
     def _is_basal(self, vertex):
         dist_from_origin = np.linalg.norm(vertex - Coords.full_mesh_origin)
-        # Basal radius of 45.0 is good for Hibiscus trionum
-        # (using full mesh)
         basal_radius = np.inf
         return dist_from_origin < basal_radius
 
@@ -175,6 +175,9 @@ class _MeshPolygons(_Polygons):
         all_indices = np.array(all_indices)
         basal_mask = np.array(basal_mask)
 
+        # Transform coordinates
+        all_vertices -= Coords.full_mesh_base
+
         return all_indices, all_vertices, basal_mask
 
     def _get_fixed_inds(self):
@@ -207,7 +210,7 @@ class _VoronoiPolygons(_Polygons):
 
         self._fixed_mask = np.ones_like(self._vertices)
         base_vertices = np.where(
-            self._vertices[:,1] < (Coords.full_mesh_base[1] + 0.5)
+            self._vertices[:,1] < (Coords.base_origin[1] + 0.5)
         )[0]
         self._fixed_mask[base_vertices, 1] = 0.0
 
@@ -215,7 +218,7 @@ class _VoronoiPolygons(_Polygons):
         self._boundary_mask = self._find_boundary_mask()
 
     def _get_generating_shape(self):
-        cx, cy = Coords.full_mesh_base
+        cx, cy = Coords.base_origin
         base_coords = np.linspace(cx - self._radius_x, cx + self._radius_x, 5)
         base_coords = [(x, cy) for x in base_coords]
 
@@ -642,7 +645,7 @@ class _PetalFactory(_AbstractFactory):
         points = points_left + points_right
         points = np.vstack(points)
 
-        points += Coords.full_mesh_base
+        points += Coords.base_origin
 
         return points
 
