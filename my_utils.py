@@ -278,28 +278,24 @@ class Figure:
         maxvals = vertices.max(axis=0)
         center = init_systems.Coords.shape_origin
         ranges = (maxvals - minvals)
-        dims = np.array([1.5, 2.0]) * ranges
+        dims = np.array([1.5, 2.5]) * ranges
         xlim = center[0] + jnp.array([-1.0, 1.0]) * dims[0]
         ylim = center[1] + jnp.array([-1.0, 1.0]) * dims[1]
-        return xlim, ylim
+        ax_lims = {'x': xlim, 'y': ylim}
+        return ax_lims
 
     def _format(self):
         self._ax.clear()
-        self._ax.set_xlim(self._ax_lims[0])
-        self._ax.set_ylim(self._ax_lims[1])
+        self._ax.set_xlim(self._ax_lims['x'])
+        self._ax.set_ylim(self._ax_lims['y'])
         self._ax.set_aspect('equal')
 
     def _add_baselines(self):
-        line_len = 40.0
-        dist_x = 30.0
-        baseline = np.array([[dist_x, 0.0],
-                             [dist_x + line_len, 0.0]])
-        base = init_systems.Coords.base_origin
-        left_baseline = base - baseline
-        right_baseline = base + baseline
+        baseline = np.block(
+            [[self._ax_lims['x']], [init_systems.Coords.base_origin]]
+        )
 
-        self._ax.plot(left_baseline[:,0], left_baseline[:,1], 'k', lw=0.7)
-        self._ax.plot(right_baseline[:,0], right_baseline[:,1], 'k', lw=0.7)
+        self._ax.plot(baseline[0,:], baseline[1,:], 'k', lw=0.7)
 
     def _add_artists(self, vertices, jax_arrays):
         indices = jax_arrays['indices']
