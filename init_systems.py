@@ -223,10 +223,12 @@ class _MeshPolygons(_Polygons):
 
 class _VoronoiPolygons(_Polygons):
     def __init__(self):
-        self._radius_x = 15.0
-        self._radius_y = 15.0
-        self._polygon_area = 5.0
+        self._radius_x = 12.0
+        self._radius_y = 12.0
+        self._polygon_area = 3.0
         self._n_polygons = self._calc_n_polygons()
+        print(f'Tissue area = {self._n_polygons * self._polygon_area}')
+
         self._generating_shape = self._get_generating_shape()
         self._all_polygon_inds, self._vertices = (
             self._make_init_polygons()
@@ -474,7 +476,11 @@ class _VoronoiPolygons(_Polygons):
         )
         all_polygon_inds = self._extend_polygons(all_polygon_inds)
 
-        vertices = self._separate_close_vertices(vertices)
+        # Commented out to keep base vertices exactly at the base line.
+        # If the program remains numerically stable,
+        # this can eventually be deleted entirely.
+
+        # vertices = self._separate_close_vertices(vertices)
 
         return all_polygon_inds, vertices
 
@@ -659,26 +665,70 @@ class _PetalFactory(_AbstractFactory):
         }
         return shape_params, polygons
 
-    def _make_outer_shape(self):
-        rx = 20.0
-        h = 50.0
-        n_points = 50
-        xs = np.linspace(-rx, rx, n_points)
-        ys = h * np.sqrt(1 - (xs / rx) ** 2)
+    @staticmethod
+    def _resample_curve(points, num_points=None, spacing=None):
+        points = np.asarray(points)
+        diffs = np.diff(points, axis=0)
+        seg_lengths = np.hypot(diffs[:,0], diffs[:,1])
+        cumulative_lengths = np.insert(np.cumsum(seg_lengths), 0, 0.0)
+        total_length = cumulative_lengths[-1]
 
-        stretch_strength = 1.1
+        if spacing is not None:
+            num_points = int(np.floor(total_length / spacing)) + 1
+        elif num_points is None:
+            raise ValueError('You must provide either num_points or spacing.')
+
+        target_lengths = np.linspace(0, total_length, num_points)
+
+        resampled = []
+        for t in target_lengths:
+            idx = np.searchsorted(cumulative_lengths, t) - 1
+            idx = min(max(idx, 0), len(points) - 2)
+            t0, t1 = cumulative_lengths[idx], cumulative_lengths[idx+1]
+            p0, p1 = points[idx], points[idx+1]
+            # Handle zero-length segments
+            if t1 == t0:
+                resampled.append(p0)
+            else:
+                alpha = (t - t0) / (t1 - t0)
+                resampled.append((1 - alpha)*p0 + alpha*p1)
+        return np.array(resampled)
+
+    def _make_outer_shape(self):
+        scale = 0.254
+        rx = 20.0 * scale
+        h = 60.0 * scale
+
+        # Values are presently hard-coded, but
+        # should be based on the Voronoi tissue
+        n_base_vertices = 22
+        n_boundary_vertices = 52
+        n_vertices = n_boundary_vertices - n_base_vertices + 2
+
+        xs = np.linspace(-rx, rx, n_vertices)
+        ys = h * np.sqrt(1 - (xs / rx)**2)
+
+        stretch_strength = 2.0
 
         factor = 1 + stretch_strength * (ys / h)
         xs = xs * factor
 
-        points_left = [(-x, y) for x, y in zip(xs, ys)]
-        points_right = [(x, y) for x, y in zip(xs, ys)]
-        points = points_left + points_right
-        points = np.vstack(points)
+        petal_vertices = np.array([(x, y) for x, y in zip(xs, ys)])
+        petal_vertices = self._resample_curve(
+            petal_vertices, num_points=len(petal_vertices)
+        )
 
-        points += Coords.base_origin
+        base_xs = np.linspace(-rx, rx, n_base_vertices)[1:-1]
+        base_vertices = np.array([(x, 0.0) for x in base_xs])
 
-        return points
+        vertices = np.concatenate([petal_vertices, base_vertices], axis=0)
+        vertices += Coords.base_origin
+
+        area = 2 * rx * h * (np.pi / 2 + 2 * stretch_strength / 3)
+
+        print(f'Outer shape area = {area}')
+
+        return vertices
 
 
 def get_factory(shape, system):
