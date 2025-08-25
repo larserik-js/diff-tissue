@@ -67,6 +67,29 @@ class _Polygons:
         centroids = np.nanmean(polygons, axis=1)
         return centroids
 
+    def _calc_neighbors(self):
+        neighbors_ = []
+        max_n_neighbors = 0
+        n_polygons = self._polygon_inds.shape[0]
+
+        for idx, vertex_inds_ in enumerate(self._polygon_inds):
+            vertex_inds = vertex_inds_[vertex_inds_ != -1]
+            poly_neighbors = np.isin(self._polygon_inds, vertex_inds)
+            poly_neighbors = np.where(np.any(poly_neighbors, axis=1))[0]
+            poly_neighbors = poly_neighbors[poly_neighbors != idx]
+            neighbors_.append(poly_neighbors)
+
+            n_neighbors = len(poly_neighbors)
+            if n_neighbors > max_n_neighbors:
+                max_n_neighbors = n_neighbors
+
+        neighbors = -1 * np.ones((n_polygons, max_n_neighbors), dtype=int)
+        for i, poly_neighbors in enumerate(neighbors_):
+            n_poly_neighbors = len(poly_neighbors)
+            neighbors[i,:n_poly_neighbors] = poly_neighbors
+
+        return neighbors
+
     def get_polygon_inds(self):
         return self._polygon_inds
 
@@ -77,8 +100,10 @@ class _Polygons:
         return self._vertices
 
     def get_centroids(self):
-        centroids = self._calc_centroids()
-        return centroids
+        return self._centroids
+
+    def get_neighbors(self):
+        return self._neighbors
 
     def get_fixed_mask(self):
         return self._fixed_mask
@@ -100,6 +125,8 @@ class _MeshPolygons(_Polygons):
         self._valid_mask = (self._polygon_inds != -1)
         self._fixed_mask = self._get_fixed_mask()
         self._boundary_mask = self._find_boundary_mask()
+        self._centroids = self._calc_centroids()
+        self._neighbors = self._calc_neighbors()
 
     def _read_input_cells(self):
         input_path = Path('input_cells.json')
@@ -216,6 +243,8 @@ class _VoronoiPolygons(_Polygons):
 
         self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
         self._boundary_mask = self._find_boundary_mask()
+        self._centroids = self._calc_centroids()
+        self._neighbors = self._calc_neighbors()
 
     def _get_generating_shape(self):
         cx, cy = Coords.base_origin
@@ -478,6 +507,8 @@ class _SinglePolygon(_Polygons):
         self._fixed_mask = np.array([1.0])
         self._basal_mask = np.array([True])
         self._boundary_mask = self._find_boundary_mask()
+        self._centroids = self._calc_centroids()
+        self._neighbors = self._calc_neighbors()
 
     def _make_init_polygons(self):
         if self._n_vertices < 3:
