@@ -98,7 +98,6 @@ class Params:
             'areas_loss_weight': self._args.arlw,
             'angles_loss_weight': self._args.anlw,
             'aspect_ratio_loss_weight': self._args.aslw,
-            'optimal_aspect_ratio': self._args.oar,
             'max_area_scaling': self._args.marsc,
             'seed': self._args.seed
         }
@@ -140,42 +139,35 @@ class Params:
         parser.add_argument(
             '--glr',
             type=float,
-            default=0.00015,
+            default=0.00005,
             help='Learning rate for growth.'
         )
 
         parser.add_argument(
             '--arlw',
             type=float,
-            default=50.0,
+            default=100.0,
             help='Areas loss weight.'
         )
 
         parser.add_argument(
             '--anlw',
             type=float,
-            default=200.0,
+            default=100.0,
             help='Angles loss weight.'
         )
 
         parser.add_argument(
             '--aslw',
             type=float,
-            default=100.0,
+            default=1000.0,
             help='Aspect ratio loss weight.'
-        )
-
-        parser.add_argument(
-            '--oar',
-            type=float,
-            default=0.5,
-            help='Optimal aspect ratio.'
         )
 
         parser.add_argument(
             '--marsc',
             type=float,
-            default=5.0,
+            default=3.0,
             help='Maximal area scaling.'
         )
 
@@ -253,15 +245,6 @@ def calc_all_areas(all_cells, valid_mask):
     return areas
 
 
-def calc_aspect_ratio_scales(jax_arrays, optimal_aspect_ratio):
-    basal_mask = jax_arrays['basal_mask']
-    aspect_ratio_scales = np.ones(len(basal_mask))
-    aspect_ratio_scales[basal_mask] = (
-        aspect_ratio_scales[basal_mask] * (1 / optimal_aspect_ratio - 1.0)
-    )
-    return jnp.array(aspect_ratio_scales)
-
-
 def get_output_params_file(params):
     output_params_file = (
         Paths('output_params', params).get_param_path_with_suffix('.txt')
@@ -277,11 +260,11 @@ class Figure:
     def _get_ax_lims(self, vertices):
         minvals = vertices.min(axis=0)
         maxvals = vertices.max(axis=0)
-        center = init_systems.Coords.shape_origin
+        center = init_systems.Coords.base_origin
         ranges = (maxvals - minvals)
-        dims = np.array([1.5, 2.5]) * ranges
+        dims = np.array([0.8, 1.5]) * ranges
         xlim = center[0] + jnp.array([-1.0, 1.0]) * dims[0]
-        ylim = center[1] + jnp.array([-1.0, 1.0]) * dims[1]
+        ylim = center[1] + jnp.array([-1.0, dims[1]])
         ax_lims = {'x': xlim, 'y': ylim}
         return ax_lims
 

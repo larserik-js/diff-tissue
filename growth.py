@@ -79,14 +79,7 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
         )
     )
 
-    # Very crude, needs improvement
-    current_vertex_ys = vertices[:,1]
-    vertical_elongation_loss = 5e4 * -jnp.mean(current_vertex_ys)
-
-    loss = (
-        areas_loss + angles_loss + aspect_ratios_loss +
-        vertical_elongation_loss
-    )
+    loss = areas_loss + angles_loss + aspect_ratios_loss
 
     return loss
 
@@ -198,12 +191,8 @@ def _main():
 
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
-    aspect_ratio_scales = my_utils.calc_aspect_ratio_scales(
-        jax_arrays, params.numerical['optimal_aspect_ratio']
-    )
     goal_areas = (
-        params.numerical['max_area_scaling'] * init_areas.mean() *
-        aspect_ratio_scales
+        params.numerical['max_area_scaling'] * init_areas.mean()
     )
     goal_aspect_ratios = 0.5 * jnp.ones_like(init_areas)
 
