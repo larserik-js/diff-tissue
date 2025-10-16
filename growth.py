@@ -5,8 +5,8 @@ import jax.numpy as jnp
 import my_utils
 
 
-def _calc_optimal_angles(mask):
-    n_vertices = mask.sum(axis=1) - 2
+def _calc_optimal_angles(valid_mask):
+    n_vertices = valid_mask.sum(axis=1) - 2
     interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
     optimal_angles = jnp.pi - interior_angles
     optimal_angles = optimal_angles[:, None]
@@ -172,7 +172,7 @@ def iterate_and_plot(output_dir, goal_areas, goal_aspect_ratios, jax_arrays,
             _calc_loss_and_grads, params
         )
 
-        if (t + 1) % 2 == 0:
+        if (t + 1) % 25 == 0:
             figure.plot(output_dir, vertices, jax_arrays, step=t + 1)
 
 
@@ -191,13 +191,13 @@ def _main():
 
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
+    output_dir = my_utils.OutputDir('growth', params)
+    output_dir.make()
+
     goal_areas = (
         params.numerical['max_area_scaling'] * init_areas.mean()
     )
     goal_aspect_ratios = 0.5 * jnp.ones_like(init_areas)
-
-    output_dir = my_utils.OutputDir('growth', params)
-    output_dir.make()
 
     iterate_and_plot(
         output_dir.get_param_path(), goal_areas, goal_aspect_ratios, jax_arrays,
