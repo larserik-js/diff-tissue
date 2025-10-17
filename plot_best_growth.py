@@ -13,7 +13,6 @@ def main():
     np.random.seed(params.numerical['seed'])
 
     best_growth_dir = my_utils.OutputDir('best_growth', params)
-    best_growth_dir.make()
 
     jax_arrays = my_utils.get_jax_arrays(params)
 

@@ -192,7 +192,6 @@ def _main():
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
     output_dir = my_utils.OutputDir('growth', params)
-    output_dir.make()
 
     goal_areas = (
         params.numerical['max_area_scaling'] * init_areas.mean()

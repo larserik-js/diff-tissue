@@ -121,7 +121,6 @@ def _iterate_towards_shape(jax_arrays, all_params):
     figure = my_utils.Figure(init_vertices)
 
     final_tissues_dir = my_utils.OutputDir('final_tissues', all_params)
-    final_tissues_dir.make()
 
     shape_loss = jnp.inf
 

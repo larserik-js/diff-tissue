@@ -11,7 +11,7 @@ import numpy as np
 import init_systems
 
 
-class Paths:
+class OutputDir:
     _formats = {'bool': '',
                 'int': 'd',
                 'float': '.7f',
@@ -24,6 +24,7 @@ class Paths:
         self._output_type_dir = self._output_dir / output_type_dir
         self._params = params
         self._param_path = self._make_param_path()
+        self._make()
 
     def _get_project_dir(self):
         project_dir = os.path.abspath(os.path.dirname(__file__))
@@ -57,6 +58,9 @@ class Paths:
         param_path = self._output_type_dir / param_path_str
         return param_path
 
+    def _make(self):
+        self._param_path.mkdir(exist_ok=True)
+
     def get_output_type_dir(self):
         return self._output_type_dir
 
@@ -65,11 +69,6 @@ class Paths:
 
     def get_param_path_with_suffix(self, suffix):
         return self._param_path.with_name(self._param_path.name + suffix)
-
-
-class OutputDir(Paths):
-    def make(self):
-        self._param_path.mkdir(exist_ok=True)
 
 
 def timer(func):
@@ -247,7 +246,7 @@ def calc_all_areas(all_cells, valid_mask):
 
 def get_output_params_file(params):
     output_params_file = (
-        Paths('output_params', params).get_param_path_with_suffix('.txt')
+        OutputDir('output_params', params).get_param_path_with_suffix('.txt')
     )
     return output_params_file
 

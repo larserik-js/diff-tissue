@@ -69,7 +69,6 @@ def _main():
     np.random.seed(params.numerical['seed'])
 
     learned_growth_dir = my_utils.OutputDir('learned_growth', params)
-    learned_growth_dir.make()
 
     arrays = my_utils.get_arrays(params)
     old_polygons = _build_polygons(arrays)
