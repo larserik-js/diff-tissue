@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-import my_utils
+import my_files, my_utils
 
 
 def _calc_optimal_angles(valid_mask):
@@ -150,8 +150,8 @@ def iterate(goal_areas, goal_aspect_ratios, jax_arrays, params):
 
 
 def _save_growth_evolution(growth_evolution, params):
-    output_file = my_utils.OutputFile('growth', '.pkl', params)
-    data_handler = my_utils.DataHandler(output_file)
+    output_file = my_files.OutputFile('growth', '.pkl', params)
+    data_handler = my_files.DataHandler(output_file)
     data_handler.save(growth_evolution)
 
 

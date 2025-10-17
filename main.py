@@ -4,7 +4,7 @@ import numpy as np
 import optax
 import pandas as pd
 
-import growth, my_utils
+import growth, my_files, my_utils
 
 
 def _calc_scaling(min_scaling, max_scaling, logits):
@@ -83,7 +83,7 @@ def _save_output_params(init_centroids, init_areas, best_goal_areas_scalings,
 
     df = pd.DataFrame(param_dict)
 
-    output_file = my_utils.OutputFile(
+    output_file = my_files.OutputFile(
         'output_params', '.txt', params
     ).get_path()
     df.to_csv(output_file, sep='\t', index=True, header=True)
@@ -126,7 +126,7 @@ def _iterate_towards_shape(jax_arrays, all_params):
 
     figure = my_utils.Figure(init_vertices)
 
-    final_tissues_dir = my_utils.OutputDir('final_tissues', all_params)
+    final_tissues_dir = my_files.OutputDir('final_tissues', all_params)
 
     shape_loss = jnp.inf
 
