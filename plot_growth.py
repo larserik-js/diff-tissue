@@ -1,0 +1,37 @@
+import jax
+import numpy as np
+
+import my_utils
+
+
+def _get_plotting_data(params):
+    input_file = my_utils.OutputFile('growth', '.pkl', params)
+    data_handler = my_utils.DataHandler(input_file)
+    growth_evolution = data_handler.load()
+    return growth_evolution
+
+
+def _plot(growth_evolution, params):
+    output_dir = my_utils.OutputDir('growth', params).get_path()
+    jax_arrays = my_utils.get_jax_arrays(params)
+    figure = my_utils.Figure(growth_evolution[0])
+
+    for t, vertices in enumerate(growth_evolution):
+        if t%10 == 0:
+            figure.plot(output_dir, vertices, jax_arrays, step=t)
+
+
+def _main():
+    jax.config.update('jax_enable_x64', True)
+
+    params = my_utils.Params()
+
+    np.random.seed(params.numerical['seed'])
+
+    growth_evolution = _get_plotting_data(params)
+
+    _plot(growth_evolution, params)
+
+
+if __name__ == '__main__':
+    _main()

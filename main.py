@@ -71,7 +71,7 @@ class _MyOptimizer:
 
 
 def _save_output_params(init_centroids, init_areas, best_goal_areas_scalings,
-                        best_goal_areas, best_goal_aspect_ratios, output_file):
+                        best_goal_areas, best_goal_aspect_ratios, params):
     param_dict = {
         'init_centroid_x': init_centroids[:,0],
         'init_centroid_y': init_centroids[:,1],
@@ -82,6 +82,10 @@ def _save_output_params(init_centroids, init_areas, best_goal_areas_scalings,
     }
 
     df = pd.DataFrame(param_dict)
+
+    output_file = my_utils.OutputFile(
+        'output_params', '.txt', params
+    ).get_path()
     df.to_csv(output_file, sep='\t', index=True, header=True)
 
 
@@ -98,9 +102,11 @@ def _iterate_towards_shape(jax_arrays, all_params):
         )
         goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
-        final_vertices = growth.iterate(
+        growth_evolution = growth.iterate(
             goal_areas, goal_aspect_ratios, jax_arrays, params
         )
+        final_vertices = growth_evolution[-1]
+
         shape_loss = _calc_shape_loss(
             final_vertices, jax_arrays['boundary_mask'],
             jax_arrays['outer_shape']
@@ -150,14 +156,13 @@ def _iterate_towards_shape(jax_arrays, all_params):
 
         if shape_step % 100 == 0:
             figure.plot(
-                final_tissues_dir.get_param_path(), final_vertices, jax_arrays,
+                final_tissues_dir.get_path(), final_vertices, jax_arrays,
                 shape_step
             )
 
-    output_file = my_utils.get_output_params_file(all_params)
     _save_output_params(
         jax_arrays['init_centroids'], init_areas, best_goal_areas_scalings,
-        best_goal_areas, best_goal_aspect_ratios, output_file
+        best_goal_areas, best_goal_aspect_ratios, all_params
     )
 
 

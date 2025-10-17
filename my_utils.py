@@ -1,6 +1,7 @@
 import argparse
 import os
 from pathlib import Path
+import pickle
 import timeit
 
 import jax
@@ -11,7 +12,7 @@ import numpy as np
 import init_systems
 
 
-class OutputDir:
+class _Output:
     _formats = {'bool': '',
                 'int': 'd',
                 'float': '.7f',
@@ -24,7 +25,6 @@ class OutputDir:
         self._output_type_dir = self._output_dir / output_type_dir
         self._params = params
         self._param_path = self._make_param_path()
-        self._make()
 
     def _get_project_dir(self):
         project_dir = os.path.abspath(os.path.dirname(__file__))
@@ -58,17 +58,63 @@ class OutputDir:
         param_path = self._output_type_dir / param_path_str
         return param_path
 
-    def _make(self):
-        self._param_path.mkdir(exist_ok=True)
-
     def get_output_type_dir(self):
         return self._output_type_dir
 
-    def get_param_path(self):
+
+class OutputDir(_Output):
+    def __init__(self, output_type_dir, params):
+        super().__init__(output_type_dir, params)
+        self._make()
+
+    def _make(self):
+        self._param_path.mkdir(exist_ok=True)
+
+    def get_path(self):
         return self._param_path
 
-    def get_param_path_with_suffix(self, suffix):
-        return self._param_path.with_name(self._param_path.name + suffix)
+
+class OutputFile(_Output):
+    def __init__(self, output_type_dir, suffix, params):
+        super().__init__(output_type_dir, params)
+        self._path = self._param_path.with_name(self._param_path.name + suffix)
+
+    def get_path(self):
+        return self._path
+
+
+class DataHandler:
+    def __init__(self, file):
+        self._file_path = file.get_path()
+
+    def _load_pkl(self):
+        with open(self._file_path, 'rb') as f:
+            data = pickle.load(f)
+        return data
+
+    def _save_pkl(self, data):
+        with open(self._file_path, 'wb') as f:
+            pickle.dump(data, f)
+
+    def load(self):
+        if self._file_path.suffix == '.pkl':
+            data = self._load_pkl()
+        else:
+            raise NotImplementedError
+        return data
+
+    def save(self, data):
+        if self._file_path.suffix == '.pkl':
+            self._save_pkl(data)
+        else:
+            raise NotImplementedError
+
+
+def get_output_params_file(params):
+    output_params_file = (
+        OutputDir('output_params', params).get_param_path_with_suffix('.txt')
+    )
+    return output_params_file
 
 
 def timer(func):
@@ -242,13 +288,6 @@ def calc_all_areas(all_cells, valid_mask):
     areas = 0.5 * (first_term - second_term)
 
     return areas
-
-
-def get_output_params_file(params):
-    output_params_file = (
-        OutputDir('output_params', params).get_param_path_with_suffix('.txt')
-    )
-    return output_params_file
 
 
 class Figure:
