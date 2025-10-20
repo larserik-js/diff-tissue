@@ -84,27 +84,36 @@ class _Polygons(ABC):
         centroids = np.nanmean(polygons, axis=1)
         return centroids
 
+    @staticmethod
+    def _list_of_ints_to_padded_array(all_neighbors):
+        max_n_neighbors = max([
+            len(neighbors_list) for neighbors_list in all_neighbors
+        ])
+        padded_neighbors = -1 * np.ones(
+            (len(all_neighbors), max_n_neighbors), dtype=int
+        )
+        for i, neighbors in enumerate(all_neighbors):
+            n_poly_neighbors = len(neighbors)
+            padded_neighbors[i,:n_poly_neighbors] = neighbors
+
+        return padded_neighbors
+
     def _calc_poly_neighbors(self):
-        neighbors_ = []
+        neighbors = []
         max_n_neighbors = 0
-        n_polygons = self._polygon_inds.shape[0]
 
         for idx, vertex_inds_ in enumerate(self._polygon_inds):
             vertex_inds = vertex_inds_[vertex_inds_ != -1]
             poly_neighbors = np.isin(self._polygon_inds, vertex_inds)
             poly_neighbors = np.where(np.any(poly_neighbors, axis=1))[0]
             poly_neighbors = poly_neighbors[poly_neighbors != idx]
-            neighbors_.append(poly_neighbors)
+            neighbors.append(poly_neighbors)
 
             n_neighbors = len(poly_neighbors)
             if n_neighbors > max_n_neighbors:
                 max_n_neighbors = n_neighbors
 
-        neighbors = -1 * np.ones((n_polygons, max_n_neighbors), dtype=int)
-        for i, poly_neighbors in enumerate(neighbors_):
-            n_poly_neighbors = len(poly_neighbors)
-            neighbors[i,:n_poly_neighbors] = poly_neighbors
-
+        neighbors = self._list_of_ints_to_padded_array(neighbors)
         return neighbors
 
     def _calc_vertex_neighbors(self):
@@ -122,7 +131,7 @@ class _Polygons(ABC):
         vertex_neighbors = [
             list(neighbors_set) for neighbors_set in vertex_neighbors.values()
         ]
-
+        vertex_neighbors = self._list_of_ints_to_padded_array(vertex_neighbors)
         return vertex_neighbors
 
     @property
