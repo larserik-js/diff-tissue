@@ -124,7 +124,7 @@ def _make_arrays(polygons, outer_shape):
         'valid_mask': polygons.get_valid_mask(),
         'init_vertices': polygons.get_vertices(),
         'init_centroids': polygons.get_centroids(),
-        'neighbors': polygons.get_neighbors(),
+        'poly_neighbors': polygons.get_poly_neighbors(),
         'free_mask': polygons.get_free_mask(),
         'basal_mask': polygons.get_basal_mask(),
         'boundary_mask': polygons.get_boundary_mask(),
