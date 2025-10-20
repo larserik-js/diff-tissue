@@ -102,7 +102,4 @@ class DataHandler:
 
 
 def get_output_params_file(params):
-    output_params_file = (
-        OutputDir('output_params', params).get_param_path_with_suffix('.txt')
-    )
-    return output_params_file
+    return OutputFile('output_params', '.txt', params).get_path()

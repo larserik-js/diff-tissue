@@ -83,9 +83,7 @@ def _save_output_params(init_centroids, init_areas, best_goal_areas_scalings,
 
     df = pd.DataFrame(param_dict)
 
-    output_file = my_files.OutputFile(
-        'output_params', '.txt', params
-    ).get_path()
+    output_file = my_files.get_output_params_file(params)
     df.to_csv(output_file, sep='\t', index=True, header=True)
 
 
