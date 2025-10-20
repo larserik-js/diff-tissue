@@ -35,7 +35,20 @@ def _extend(indices):
     return indices
 
 
-class _Polygons:
+class _Polygons(ABC):
+    def __init__(self):
+        self._build()
+
+        self._valid_mask = self._find_valid_mask()
+        self._boundary_mask = self._find_boundary_mask()
+        self._centroids = self._calc_centroids()
+        self._poly_neighbors = self._calc_poly_neighbors()
+        self._vertex_neighbors = self._calc_vertex_neighbors()
+
+    @abstractmethod
+    def _build(self):
+        pass
+
     def _find_valid_mask(self):
         valid_mask = (self._polygon_inds != -1)
         return valid_mask
@@ -113,24 +126,12 @@ class _Polygons:
         return vertex_neighbors
 
     @property
-    def polygon_inds(self):
-        return self._polygon_inds
-
-    @property
-    def valid_mask(self):
-        return self._valid_mask
-
-    @property
     def vertices(self):
         return self._vertices
 
     @property
-    def centroids(self):
-        return self._centroids
-
-    @property
-    def poly_neighbors(self):
-        return self._poly_neighbors
+    def polygon_inds(self):
+        return self._polygon_inds
 
     @property
     def free_mask(self):
@@ -141,23 +142,37 @@ class _Polygons:
         return self._basal_mask
 
     @property
+    def valid_mask(self):
+        return self._valid_mask
+
+    @property
     def boundary_mask(self):
         return self._boundary_mask
+
+    @property
+    def centroids(self):
+        return self._centroids
+
+    @property
+    def poly_neighbors(self):
+        return self._poly_neighbors
+
+    @property
+    def vertex_neighbors(self):
+        return self._vertex_neighbors
 
 
 class _MeshPolygons(_Polygons):
     def __init__(self):
+        super().__init__()
+
+    def _build(self):
         self._input_cells = self._read_input_cells()
         self._max_vertices = self._find_max_vertices()
         self._polygon_inds, self._vertices, self._basal_mask = (
             self._make_init_polygons()
         )
-        self._valid_mask = self._find_valid_mask()
         self._free_mask = self._get_free_mask()
-        self._boundary_mask = self._find_boundary_mask()
-        self._centroids = self._calc_centroids()
-        self._poly_neighbors = self._calc_poly_neighbors()
-        self._vertex_neighbors = self._calc_vertex_neighbors()
 
     def _read_input_cells(self):
         input_path = Path('input_cells.json')
@@ -254,6 +269,9 @@ class _MeshPolygons(_Polygons):
 
 class _VoronoiPolygons(_Polygons):
     def __init__(self):
+        super().__init__()
+
+    def _build(self):
         self._radius_x = 12.0
         self._radius_y = 12.0
         self._polygon_area = 3.0
@@ -266,13 +284,8 @@ class _VoronoiPolygons(_Polygons):
         )
         self._max_vertices = self._find_max_vertices()
         self._polygon_inds = self._finalize_polygon_inds()
-        self._valid_mask = self._find_valid_mask()
         self._free_mask = self._get_free_mask()
         self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
-        self._boundary_mask = self._find_boundary_mask()
-        self._centroids = self._calc_centroids()
-        self._poly_neighbors = self._calc_poly_neighbors()
-        self._vertex_neighbors = self._calc_vertex_neighbors()
 
     def _get_generating_shape(self):
         cx, cy = Coords.base_origin
@@ -531,7 +544,6 @@ class _VoronoiPolygons(_Polygons):
 
     def _get_free_mask(self):
         are_fixed = np.isclose(self._vertices[:,1] - Coords.base_origin[1], 0.0)
-        free_mask = np.ones_like(self._vertices)
         free_mask = np.ones(self._vertices.shape, dtype=bool)
         free_mask[are_fixed, 1] = False
         return free_mask
@@ -539,16 +551,14 @@ class _VoronoiPolygons(_Polygons):
 
 class _SinglePolygon(_Polygons):
     def __init__(self):
+        super().__init__()
+
+    def _build(self):
         self._vertices = self._make_init_polygons()
         self._n_vertices = self._vertices.shape[0]
         self._polygon_inds = self._find_polygon_inds()
-        self._valid_mask = self._find_valid_mask()
         self._free_mask = self._get_free_mask()
         self._basal_mask = np.array([True])
-        self._boundary_mask = self._find_boundary_mask()
-        self._centroids = self._calc_centroids()
-        self._poly_neighbors = self._calc_poly_neighbors()
-        self._vertex_neighbors = self._calc_vertex_neighbors()
 
     def _make_init_polygons(self):
         vertices = Coords.base_origin + np.array([
