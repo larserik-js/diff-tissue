@@ -12,7 +12,7 @@ def _get_plotting_data(params):
 
 
 def _plot(growth_evolution, params):
-    output_dir = my_files.OutputDir('growth', params).get_path()
+    output_dir = my_files.OutputDir('growth', params).path
     jax_arrays = my_utils.get_jax_arrays(params)
     figure = my_utils.Figure(growth_evolution[0])
 

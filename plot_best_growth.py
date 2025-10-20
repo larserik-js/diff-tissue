@@ -23,7 +23,7 @@ def main():
     best_goal_aspect_ratios = my_utils.to_jax(df['goal_aspect_ratio'].values)
 
     growth.iterate_and_plot(
-        best_growth_dir.get_path(), best_goal_areas,
+        best_growth_dir.path, best_goal_areas,
         best_goal_aspect_ratios, jax_arrays, params.numerical
     )
 

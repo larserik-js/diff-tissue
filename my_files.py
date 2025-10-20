@@ -49,9 +49,6 @@ class _Output:
         param_path = self._output_type_dir / param_path_str
         return param_path
 
-    def get_output_type_dir(self):
-        return self._output_type_dir
-
 
 class OutputDir(_Output):
     def __init__(self, output_type_dir, params):
@@ -61,7 +58,8 @@ class OutputDir(_Output):
     def _make(self):
         self._param_path.mkdir(exist_ok=True)
 
-    def get_path(self):
+    @property
+    def path(self):
         return self._param_path
 
 
@@ -70,13 +68,14 @@ class OutputFile(_Output):
         super().__init__(output_type_dir, params)
         self._path = self._param_path.with_name(self._param_path.name + suffix)
 
-    def get_path(self):
+    @property
+    def path(self):
         return self._path
 
 
 class DataHandler:
     def __init__(self, file):
-        self._file_path = file.get_path()
+        self._file_path = file.path
 
     def _load_pkl(self):
         with open(self._file_path, 'rb') as f:
@@ -102,4 +101,4 @@ class DataHandler:
 
 
 def get_output_params_file(params):
-    return OutputFile('output_params', '.txt', params).get_path()
+    return OutputFile('output_params', '.txt', params).path

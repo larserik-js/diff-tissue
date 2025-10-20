@@ -154,8 +154,7 @@ def _iterate_towards_shape(jax_arrays, all_params):
 
         if shape_step % 100 == 0:
             figure.plot(
-                final_tissues_dir.get_path(), final_vertices, jax_arrays,
-                shape_step
+                final_tissues_dir.path, final_vertices, jax_arrays, shape_step
             )
 
     _save_output_params(

@@ -94,7 +94,7 @@ def _main():
     jax_arrays = my_utils._make_jax_arrays(new_arrays)
 
     growth.iterate_and_plot(
-        learned_growth_dir.get_path(), resulting_areas,
+        learned_growth_dir.path, resulting_areas,
         resulting_aspect_ratios, jax_arrays, params.numerical
     )
 

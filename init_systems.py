@@ -64,24 +64,6 @@ class _Polygons:
 
         return boundary_mask
 
-    def _calc_vertex_neighbors(self):
-        vertex_neighbors = defaultdict(set)
-        for polygon in self._polygon_inds:
-            for i in range(len(polygon) - 1):
-                vertex_idx, vertex_neighbor_idx = (
-                    int(polygon[i]), int(polygon[i+1])
-                )
-
-                if not vertex_neighbor_idx == -1:
-                    vertex_neighbors[vertex_idx].add(int(vertex_neighbor_idx))
-                    vertex_neighbors[vertex_neighbor_idx].add(int(vertex_idx))
-
-        vertex_neighbors = [
-            list(neighbors_set) for neighbors_set in vertex_neighbors.values()
-        ]
-
-        return vertex_neighbors
-
     def _calc_centroids(self):
         polygons = self._vertices[self._polygon_inds]
         mask = self._valid_mask[..., None].repeat(2, axis=2)
@@ -112,28 +94,54 @@ class _Polygons:
 
         return neighbors
 
-    def get_polygon_inds(self):
+    def _calc_vertex_neighbors(self):
+        vertex_neighbors = defaultdict(set)
+        for polygon in self._polygon_inds:
+            for i in range(len(polygon) - 1):
+                vertex_idx, vertex_neighbor_idx = (
+                    int(polygon[i]), int(polygon[i+1])
+                )
+
+                if not vertex_neighbor_idx == -1:
+                    vertex_neighbors[vertex_idx].add(int(vertex_neighbor_idx))
+                    vertex_neighbors[vertex_neighbor_idx].add(int(vertex_idx))
+
+        vertex_neighbors = [
+            list(neighbors_set) for neighbors_set in vertex_neighbors.values()
+        ]
+
+        return vertex_neighbors
+
+    @property
+    def polygon_inds(self):
         return self._polygon_inds
 
-    def get_valid_mask(self):
+    @property
+    def valid_mask(self):
         return self._valid_mask
 
-    def get_vertices(self):
+    @property
+    def vertices(self):
         return self._vertices
 
-    def get_centroids(self):
+    @property
+    def centroids(self):
         return self._centroids
 
-    def get_poly_neighbors(self):
+    @property
+    def poly_neighbors(self):
         return self._poly_neighbors
 
-    def get_free_mask(self):
+    @property
+    def free_mask(self):
         return self._free_mask
 
-    def get_basal_mask(self):
+    @property
+    def basal_mask(self):
         return self._basal_mask
 
-    def get_boundary_mask(self):
+    @property
+    def boundary_mask(self):
         return self._boundary_mask
 
 
@@ -568,10 +576,12 @@ class _AbstractFactory(ABC):
     def _make_params_and_polygons(self):
         pass
 
-    def get_polygons(self):
+    @property
+    def polygons(self):
         return self._polygons
 
-    def get_outer_shape(self):
+    @property
+    def outer_shape(self):
         return self._outer_shape
 
 
@@ -724,9 +734,9 @@ class _PetalFactory(_AbstractFactory):
         h = 60.0 * scale
 
         n_base_vertices = (
-            np.isclose(self._polygons.get_free_mask()[:,1], 0.0).sum()
+            np.isclose(self._polygons.free_mask[:,1], 0.0).sum()
         )
-        n_boundary_vertices = self._polygons.get_boundary_mask().sum()
+        n_boundary_vertices = self._polygons.boundary_mask.sum()
         n_non_base_vertices = n_boundary_vertices - n_base_vertices + 2
 
         xs = np.linspace(-rx, rx, n_non_base_vertices)
