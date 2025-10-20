@@ -109,8 +109,8 @@ class _Polygons:
     def get_neighbors(self):
         return self._neighbors
 
-    def get_fixed_mask(self):
-        return self._fixed_mask
+    def get_free_mask(self):
+        return self._free_mask
 
     def get_basal_mask(self):
         return self._basal_mask
@@ -127,7 +127,7 @@ class _MeshPolygons(_Polygons):
             self._make_init_polygons()
         )
         self._valid_mask = self._find_valid_mask()
-        self._fixed_mask = self._get_fixed_mask()
+        self._free_mask = self._get_free_mask()
         self._boundary_mask = self._find_boundary_mask()
         self._centroids = self._calc_centroids()
         self._neighbors = self._calc_neighbors()
@@ -218,11 +218,11 @@ class _MeshPolygons(_Polygons):
         ]
         return fixed_inds
 
-    def _get_fixed_mask(self):
+    def _get_free_mask(self):
         fixed_inds = self._get_fixed_inds()
-        fixed_mask = np.ones_like(self._vertices)
-        fixed_mask[fixed_inds] = 0.0
-        return fixed_mask
+        free_mask = np.ones(self._vertices.shape, dtype=bool)
+        free_mask[fixed_inds] = False
+        return free_mask
 
 
 class _VoronoiPolygons(_Polygons):
@@ -240,7 +240,7 @@ class _VoronoiPolygons(_Polygons):
         self._max_vertices = self._find_max_vertices()
         self._polygon_inds = self._finalize_polygon_inds()
         self._valid_mask = self._find_valid_mask()
-        self._fixed_mask = self._get_fixed_mask()
+        self._free_mask = self._get_free_mask()
         self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
         self._boundary_mask = self._find_boundary_mask()
         self._centroids = self._calc_centroids()
@@ -501,13 +501,12 @@ class _VoronoiPolygons(_Polygons):
         all_polygon_inds = np.stack(all_polygon_inds)
         return all_polygon_inds
 
-    def _get_fixed_mask(self):
-        are_fixed = np.isclose(
-            self._vertices[:,1] - Coords.base_origin[1], 0.0
-        )
-        fixed_mask = np.ones_like(self._vertices)
-        fixed_mask[are_fixed, 1] = 0.0
-        return fixed_mask
+    def _get_free_mask(self):
+        are_fixed = np.isclose(self._vertices[:,1] - Coords.base_origin[1], 0.0)
+        free_mask = np.ones_like(self._vertices)
+        free_mask = np.ones(self._vertices.shape, dtype=bool)
+        free_mask[are_fixed, 1] = False
+        return free_mask
 
 
 class _SinglePolygon(_Polygons):
@@ -516,7 +515,7 @@ class _SinglePolygon(_Polygons):
         self._n_vertices = self._vertices.shape[0]
         self._polygon_inds = self._find_polygon_inds()
         self._valid_mask = self._find_valid_mask()
-        self._fixed_mask = self._get_fixed_mask()
+        self._free_mask = self._get_free_mask()
         self._basal_mask = np.array([True])
         self._boundary_mask = self._find_boundary_mask()
         self._centroids = self._calc_centroids()
@@ -537,10 +536,10 @@ class _SinglePolygon(_Polygons):
         polygon_inds = _extend(polygon_inds)
         return np.array(polygon_inds).reshape(1, -1)
 
-    def _get_fixed_mask(self):
-        fixed_mask = np.ones_like(self._vertices)
-        fixed_mask[:3,1] = 0.0
-        return fixed_mask
+    def _get_free_mask(self):
+        free_mask = np.ones(self._vertices.shape, dtype=bool)
+        free_mask[:3,1] = False
+        return free_mask
 
 
 class _AbstractFactory(ABC):
@@ -704,7 +703,7 @@ class _PetalFactory(_AbstractFactory):
         h = 60.0 * scale
 
         n_base_vertices = (
-            np.isclose(self._polygons.get_fixed_mask()[:,1], 0.0).sum()
+            np.isclose(self._polygons.get_free_mask()[:,1], 0.0).sum()
         )
         n_boundary_vertices = self._polygons.get_boundary_mask().sum()
         n_non_base_vertices = n_boundary_vertices - n_base_vertices + 2

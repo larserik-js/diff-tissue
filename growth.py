@@ -105,7 +105,7 @@ def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
         jax_arrays, params
     )
     vertices -= (
-        params['growth_learning_rate'] * grads * jax_arrays['fixed_mask']
+        params['growth_learning_rate'] * grads * jax_arrays['free_mask']
     )
 
     return vertices
