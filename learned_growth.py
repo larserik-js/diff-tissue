@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from shapely.geometry import Polygon
 
-import growth, my_utils
+import growth, my_files, my_utils
 
 
 def _make_poly_idx_lists(jax_arrays):
@@ -68,13 +68,12 @@ def _main():
 
     np.random.seed(params.numerical['seed'])
 
-    learned_growth_dir = my_utils.OutputDir('learned_growth', params)
-    learned_growth_dir.make()
+    learned_growth_dir = my_files.OutputDir('learned_growth', params)
 
     arrays = my_utils.get_arrays(params)
     old_polygons = _build_polygons(arrays)
 
-    input_file = my_utils.get_output_params_file(params)
+    input_file = my_files.get_output_params_file(params)
     df = pd.read_csv(input_file, sep='\t', index_col=0)
     
     goal_areas = df['goal_area'].values
@@ -95,7 +94,7 @@ def _main():
     jax_arrays = my_utils._make_jax_arrays(new_arrays)
 
     growth.iterate_and_plot(
-        learned_growth_dir.get_param_path(), resulting_areas,
+        learned_growth_dir.path, resulting_areas,
         resulting_aspect_ratios, jax_arrays, params.numerical
     )
 

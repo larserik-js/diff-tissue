@@ -1,6 +1,4 @@
 import argparse
-import os
-from pathlib import Path
 import timeit
 
 import jax
@@ -9,67 +7,6 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 import init_systems
-
-
-class Paths:
-    _formats = {'bool': '',
-                'int': 'd',
-                'float': '.7f',
-                'float64': '.7f',
-                'str': ''}
-
-    def __init__(self, output_type_dir, params):
-        self._project_dir = self._get_project_dir()
-        self._output_dir = self._project_dir / 'output'
-        self._output_type_dir = self._output_dir / output_type_dir
-        self._params = params
-        self._param_path = self._make_param_path()
-
-    def _get_project_dir(self):
-        project_dir = os.path.abspath(os.path.dirname(__file__))
-        return Path(project_dir)
-
-    @staticmethod
-    def _get_val_type(val):
-        type_ = type(val)
-        type_str = type_.__name__
-        return type_str
-
-    def _format_param_val_str(self, name, val):
-        val_type = self._get_val_type(val)
-        format_ = self._formats[val_type]
-        param_name_val = name + '=' + format(val, format_)
-        if val_type == 'float' or val_type == 'float64':
-            param_name_val = param_name_val.rstrip('0').rstrip('.')
-        return param_name_val
-
-    def _concatenate_param_val_pairs(self):
-        param_name_vals = []
-        for name, val in self._params.all.items():
-            param_name_val = self._format_param_val_str(name, val)
-            param_name_vals.append(param_name_val)
-
-        param_path_str = '_'.join(param_name_vals)
-        return param_path_str
-
-    def _make_param_path(self):
-        param_path_str = self._concatenate_param_val_pairs()
-        param_path = self._output_type_dir / param_path_str
-        return param_path
-
-    def get_output_type_dir(self):
-        return self._output_type_dir
-
-    def get_param_path(self):
-        return self._param_path
-
-    def get_param_path_with_suffix(self, suffix):
-        return self._param_path.with_name(self._param_path.name + suffix)
-
-
-class OutputDir(Paths):
-    def make(self):
-        self._param_path.mkdir(exist_ok=True)
 
 
 def timer(func):
@@ -183,14 +120,15 @@ class Params:
 
 def _make_arrays(polygons, outer_shape):
     arrays = {
-        'indices': polygons.get_polygon_inds(),
-        'valid_mask': polygons.get_valid_mask(),
-        'init_vertices': polygons.get_vertices(),
-        'init_centroids': polygons.get_centroids(),
-        'neighbors': polygons.get_neighbors(),
-        'fixed_mask': polygons.get_fixed_mask(),
-        'basal_mask': polygons.get_basal_mask(),
-        'boundary_mask': polygons.get_boundary_mask(),
+        'indices': polygons.polygon_inds,
+        'valid_mask': polygons.valid_mask,
+        'init_vertices': polygons.vertices,
+        'init_centroids': polygons.centroids,
+        'poly_neighbors': polygons.poly_neighbors,
+        'vertex_neighbors': polygons.vertex_neighbors,
+        'free_mask': polygons.free_mask,
+        'basal_mask': polygons.basal_mask,
+        'boundary_mask': polygons.boundary_mask,
         'outer_shape': outer_shape
     }
     return arrays
@@ -215,8 +153,8 @@ def _make_jax_arrays(arrays):
 
 def get_arrays(params):
     factory = init_systems.get_factory(params.shape, params.system)
-    polygons = factory.get_polygons()
-    outer_shape = factory.get_outer_shape()
+    polygons = factory.polygons
+    outer_shape = factory.outer_shape
     arrays = _make_arrays(polygons, outer_shape)
     return arrays
 
@@ -243,13 +181,6 @@ def calc_all_areas(all_cells, valid_mask):
     areas = 0.5 * (first_term - second_term)
 
     return areas
-
-
-def get_output_params_file(params):
-    output_params_file = (
-        Paths('output_params', params).get_param_path_with_suffix('.txt')
-    )
-    return output_params_file
 
 
 class Figure:

@@ -1,12 +1,12 @@
-import numpy as np
 import jax
 import jax.numpy as jnp
+import numpy as np
 
-import my_utils
+import my_files, my_utils
 
 
-def _calc_optimal_angles(mask):
-    n_vertices = mask.sum(axis=1) - 2
+def _calc_optimal_angles(valid_mask):
+    n_vertices = valid_mask.sum(axis=1) - 2
     interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
     optimal_angles = jnp.pi - interior_angles
     optimal_angles = optimal_angles[:, None]
@@ -105,7 +105,7 @@ def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
         jax_arrays, params
     )
     vertices -= (
-        params['growth_learning_rate'] * grads * jax_arrays['fixed_mask']
+        params['growth_learning_rate'] * grads * jax_arrays['free_mask']
     )
 
     return vertices
@@ -136,44 +136,23 @@ def iterate(goal_areas, goal_aspect_ratios, jax_arrays, params):
             goal_aspect_ratios
         )
 
-        return carry, None
+        return carry, vertices
 
     init_carry = (
         jax_arrays['init_vertices'], init_areas, init_aspect_ratios,
         goal_areas, goal_aspect_ratios
     )
-    final_carry, _ = jax.lax.scan(
+    _, growth_evolution = jax.lax.scan(
         update_step, init_carry, jnp.arange(params['n_growth_steps'])
     )
-    final_vertices, _, _, _, _ = final_carry
 
-    return final_vertices
+    return growth_evolution
 
 
-def iterate_and_plot(output_dir, goal_areas, goal_aspect_ratios, jax_arrays,
-                     params):
-    vertices = jax_arrays['init_vertices']
-    all_cells = vertices[jax_arrays['indices']]
-    init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    init_aspect_ratios = _calc_aspect_ratios(
-        all_cells, jax_arrays['valid_mask']
-    )
-    optimal_angles = _calc_optimal_angles(jax_arrays['valid_mask'])
-
-    _calc_loss_and_grads = jax.value_and_grad(_calc_growth_loss)
-
-    figure = my_utils.Figure(vertices)
-    figure.plot(output_dir, vertices, jax_arrays, step=0)
-
-    for t in jnp.arange(params['n_growth_steps']):
-        vertices = _update_vertices(
-            vertices, t, init_areas, goal_areas, init_aspect_ratios,
-            goal_aspect_ratios, optimal_angles, jax_arrays,
-            _calc_loss_and_grads, params
-        )
-
-        if (t + 1) % 2 == 0:
-            figure.plot(output_dir, vertices, jax_arrays, step=t + 1)
+def _save_growth_evolution(growth_evolution, params):
+    output_file = my_files.OutputFile('growth', '.pkl', params)
+    data_handler = my_files.DataHandler(output_file)
+    data_handler.save(growth_evolution)
 
 
 @my_utils.timer
@@ -196,13 +175,11 @@ def _main():
     )
     goal_aspect_ratios = 0.5 * jnp.ones_like(init_areas)
 
-    output_dir = my_utils.OutputDir('growth', params)
-    output_dir.make()
-
-    iterate_and_plot(
-        output_dir.get_param_path(), goal_areas, goal_aspect_ratios, jax_arrays,
-        params.numerical
+    growth_evolution = iterate(
+        goal_areas, goal_aspect_ratios, jax_arrays, params.numerical
     )
+
+    _save_growth_evolution(growth_evolution, params)
 
 
 if __name__ == '__main__':

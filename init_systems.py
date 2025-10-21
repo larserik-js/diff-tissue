@@ -35,7 +35,24 @@ def _extend(indices):
     return indices
 
 
-class _Polygons:
+class _Polygons(ABC):
+    def __init__(self):
+        self._build()
+
+        self._valid_mask = self._find_valid_mask()
+        self._boundary_mask = self._find_boundary_mask()
+        self._centroids = self._calc_centroids()
+        self._poly_neighbors = self._calc_poly_neighbors()
+        self._vertex_neighbors = self._calc_vertex_neighbors()
+
+    @abstractmethod
+    def _build(self):
+        pass
+
+    def _find_valid_mask(self):
+        valid_mask = (self._polygon_inds != -1)
+        return valid_mask
+
     def _find_boundary_mask(self):
         all_edges = set()
         interior_edges = set()
@@ -67,66 +84,104 @@ class _Polygons:
         centroids = np.nanmean(polygons, axis=1)
         return centroids
 
-    def _calc_neighbors(self):
-        neighbors_ = []
+    @staticmethod
+    def _list_of_ints_to_padded_array(all_neighbors):
+        max_n_neighbors = max([
+            len(neighbors_list) for neighbors_list in all_neighbors
+        ])
+        padded_neighbors = -1 * np.ones(
+            (len(all_neighbors), max_n_neighbors), dtype=int
+        )
+        for i, neighbors in enumerate(all_neighbors):
+            n_poly_neighbors = len(neighbors)
+            padded_neighbors[i,:n_poly_neighbors] = neighbors
+
+        return padded_neighbors
+
+    def _calc_poly_neighbors(self):
+        neighbors = []
         max_n_neighbors = 0
-        n_polygons = self._polygon_inds.shape[0]
 
         for idx, vertex_inds_ in enumerate(self._polygon_inds):
             vertex_inds = vertex_inds_[vertex_inds_ != -1]
             poly_neighbors = np.isin(self._polygon_inds, vertex_inds)
             poly_neighbors = np.where(np.any(poly_neighbors, axis=1))[0]
             poly_neighbors = poly_neighbors[poly_neighbors != idx]
-            neighbors_.append(poly_neighbors)
+            neighbors.append(poly_neighbors)
 
             n_neighbors = len(poly_neighbors)
             if n_neighbors > max_n_neighbors:
                 max_n_neighbors = n_neighbors
 
-        neighbors = -1 * np.ones((n_polygons, max_n_neighbors), dtype=int)
-        for i, poly_neighbors in enumerate(neighbors_):
-            n_poly_neighbors = len(poly_neighbors)
-            neighbors[i,:n_poly_neighbors] = poly_neighbors
-
+        neighbors = self._list_of_ints_to_padded_array(neighbors)
         return neighbors
 
-    def get_polygon_inds(self):
-        return self._polygon_inds
+    def _calc_vertex_neighbors(self):
+        vertex_neighbors = defaultdict(set)
+        for polygon in self._polygon_inds:
+            for i in range(len(polygon) - 1):
+                vertex_idx, vertex_neighbor_idx = (
+                    int(polygon[i]), int(polygon[i+1])
+                )
 
-    def get_valid_mask(self):
-        return self._valid_mask
+                if not vertex_neighbor_idx == -1:
+                    vertex_neighbors[vertex_idx].add(int(vertex_neighbor_idx))
+                    vertex_neighbors[vertex_neighbor_idx].add(int(vertex_idx))
 
-    def get_vertices(self):
+        vertex_neighbors = [
+            list(neighbors_set) for neighbors_set in vertex_neighbors.values()
+        ]
+        vertex_neighbors = self._list_of_ints_to_padded_array(vertex_neighbors)
+        return vertex_neighbors
+
+    @property
+    def vertices(self):
         return self._vertices
 
-    def get_centroids(self):
-        return self._centroids
+    @property
+    def polygon_inds(self):
+        return self._polygon_inds
 
-    def get_neighbors(self):
-        return self._neighbors
+    @property
+    def free_mask(self):
+        return self._free_mask
 
-    def get_fixed_mask(self):
-        return self._fixed_mask
-
-    def get_basal_mask(self):
+    @property
+    def basal_mask(self):
         return self._basal_mask
 
-    def get_boundary_mask(self):
+    @property
+    def valid_mask(self):
+        return self._valid_mask
+
+    @property
+    def boundary_mask(self):
         return self._boundary_mask
+
+    @property
+    def centroids(self):
+        return self._centroids
+
+    @property
+    def poly_neighbors(self):
+        return self._poly_neighbors
+
+    @property
+    def vertex_neighbors(self):
+        return self._vertex_neighbors
 
 
 class _MeshPolygons(_Polygons):
     def __init__(self):
+        super().__init__()
+
+    def _build(self):
         self._input_cells = self._read_input_cells()
         self._max_vertices = self._find_max_vertices()
         self._polygon_inds, self._vertices, self._basal_mask = (
             self._make_init_polygons()
         )
-        self._valid_mask = (self._polygon_inds != -1)
-        self._fixed_mask = self._get_fixed_mask()
-        self._boundary_mask = self._find_boundary_mask()
-        self._centroids = self._calc_centroids()
-        self._neighbors = self._calc_neighbors()
+        self._free_mask = self._get_free_mask()
 
     def _read_input_cells(self):
         input_path = Path('input_cells.json')
@@ -214,15 +269,18 @@ class _MeshPolygons(_Polygons):
         ]
         return fixed_inds
 
-    def _get_fixed_mask(self):
+    def _get_free_mask(self):
         fixed_inds = self._get_fixed_inds()
-        fixed_mask = np.ones_like(self._vertices)
-        fixed_mask[fixed_inds] = 0.0
-        return fixed_mask
+        free_mask = np.ones(self._vertices.shape, dtype=bool)
+        free_mask[fixed_inds] = False
+        return free_mask
 
 
 class _VoronoiPolygons(_Polygons):
     def __init__(self):
+        super().__init__()
+
+    def _build(self):
         self._radius_x = 12.0
         self._radius_y = 12.0
         self._polygon_area = 3.0
@@ -235,18 +293,8 @@ class _VoronoiPolygons(_Polygons):
         )
         self._max_vertices = self._find_max_vertices()
         self._polygon_inds = self._finalize_polygon_inds()
-        self._valid_mask = (self._polygon_inds != -1)
-
-        self._fixed_mask = np.ones_like(self._vertices)
-        base_vertices = np.where(
-            self._vertices[:,1] < (Coords.base_origin[1] + 0.5)
-        )[0]
-        self._fixed_mask[base_vertices, 1] = 0.0
-
+        self._free_mask = self._get_free_mask()
         self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
-        self._boundary_mask = self._find_boundary_mask()
-        self._centroids = self._calc_centroids()
-        self._neighbors = self._calc_neighbors()
 
     def _get_generating_shape(self):
         cx, cy = Coords.base_origin
@@ -494,7 +542,7 @@ class _VoronoiPolygons(_Polygons):
         all_polygon_inds = []
         for vertex_inds in self._all_polygon_inds:
             n_padding_values = self._max_vertices - len(vertex_inds)
-            padding_array = np.full((n_padding_values,), -1, dtype=np.long)
+            padding_array = np.full((n_padding_values,), -1, dtype=np.int64)
             polygon_inds = np.concatenate(
                 [np.array(vertex_inds), padding_array]
             )
@@ -503,31 +551,29 @@ class _VoronoiPolygons(_Polygons):
         all_polygon_inds = np.stack(all_polygon_inds)
         return all_polygon_inds
 
+    def _get_free_mask(self):
+        are_fixed = np.isclose(self._vertices[:,1] - Coords.base_origin[1], 0.0)
+        free_mask = np.ones(self._vertices.shape, dtype=bool)
+        free_mask[are_fixed, 1] = False
+        return free_mask
+
 
 class _SinglePolygon(_Polygons):
     def __init__(self):
-        self._n_vertices = 8
+        super().__init__()
+
+    def _build(self):
         self._vertices = self._make_init_polygons()
+        self._n_vertices = self._vertices.shape[0]
         self._polygon_inds = self._find_polygon_inds()
-        self._valid_mask = (self._polygon_inds != -1)
-        self._fixed_mask = np.array([1.0])
+        self._free_mask = self._get_free_mask()
         self._basal_mask = np.array([True])
-        self._boundary_mask = self._find_boundary_mask()
-        self._centroids = self._calc_centroids()
-        self._neighbors = self._calc_neighbors()
 
     def _make_init_polygons(self):
-        if self._n_vertices < 3:
-            raise ValueError('A polygon must have at least 3 vertices.')
-
-        radius = 15.0
-
-        angle_steps = np.linspace(0, 2*np.pi, self._n_vertices, endpoint=False)
-
-        xs = Coords.shape_origin[0] + radius * np.cos(angle_steps)
-        ys = Coords.shape_origin[1] + radius * np.sin(angle_steps)
-        vertices = np.column_stack((xs, ys))
-
+        vertices = Coords.base_origin + np.array([
+            [-1.0, 0.0], [0.0, 0.0], [1.0, 0.0], [2.0, 1.5], [1.0, 3.0],
+            [-1.0, 3.0], [-2.0, 1.5]
+        ])
         return vertices
 
     def _find_polygon_inds(self):
@@ -538,16 +584,23 @@ class _SinglePolygon(_Polygons):
         polygon_inds = _extend(polygon_inds)
         return np.array(polygon_inds).reshape(1, -1)
 
+    def _get_free_mask(self):
+        free_mask = np.ones(self._vertices.shape, dtype=bool)
+        free_mask[:3,1] = False
+        return free_mask
+
 
 class _AbstractFactory(ABC):
     @abstractmethod
     def _make_params_and_polygons(self):
         pass
 
-    def get_polygons(self):
+    @property
+    def polygons(self):
         return self._polygons
 
-    def get_outer_shape(self):
+    @property
+    def outer_shape(self):
         return self._outer_shape
 
 
@@ -699,13 +752,13 @@ class _PetalFactory(_AbstractFactory):
         rx = 20.0 * scale
         h = 60.0 * scale
 
-        # Values are presently hard-coded, but
-        # should be based on the Voronoi tissue
-        n_base_vertices = 22
-        n_boundary_vertices = 52
-        n_vertices = n_boundary_vertices - n_base_vertices + 2
+        n_base_vertices = (
+            np.isclose(self._polygons.free_mask[:,1], 0.0).sum()
+        )
+        n_boundary_vertices = self._polygons.boundary_mask.sum()
+        n_non_base_vertices = n_boundary_vertices - n_base_vertices + 2
 
-        xs = np.linspace(-rx, rx, n_vertices)
+        xs = np.linspace(-rx, rx, n_non_base_vertices)
         ys = h * np.sqrt(1 - (xs / rx)**2)
 
         stretch_strength = 2.0
