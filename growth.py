@@ -94,18 +94,31 @@ def _update_targets(init_targets, goals, t_frac):
 
 def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
                      goal_aspect_ratios, optimal_angles, jax_arrays,
-                     calc_loss_and_grads, params):
+                     grad_loss, hess_loss, params):
     t_frac = t / params['n_growth_steps']
     target_areas = _update_targets(init_areas, goal_areas, t_frac)
     target_aspect_ratios = _update_targets(
         init_aspect_ratios, goal_aspect_ratios, t_frac
     )
-    _, grads = calc_loss_and_grads(
+    grads = grad_loss(
         vertices, target_areas, target_aspect_ratios, optimal_angles,
         jax_arrays, params
     )
-    vertices -= (
-        params['growth_learning_rate'] * grads * jax_arrays['free_mask']
+    H = hess_loss(
+        vertices, target_areas, target_aspect_ratios, optimal_angles,
+        jax_arrays, params
+    )
+    H = 0.5 * (H + jnp.transpose(H, (2,3,0,1)))
+    lam = 1e-6
+    # Reshape Hessian to (492,492) and grad to (492,)
+    H_mat = H.reshape(-1, H.shape[0] * H.shape[1])   # (492,492)
+    g_vec = grads.reshape(-1)                            # (492,)
+    delta_vec = jnp.linalg.solve(H_mat + lam * jnp.eye(g_vec.shape[0]), g_vec)
+    # Reshape back to (246,2)
+    delta = delta_vec.reshape(vertices.shape)
+    vertices = (
+        vertices - params['growth_learning_rate'] * delta *
+        jax_arrays['free_mask']
     )
 
     return vertices
@@ -119,7 +132,8 @@ def iterate(goal_areas, goal_aspect_ratios, jax_arrays, params):
     )
     optimal_angles = _calc_optimal_angles(jax_arrays['valid_mask'])
 
-    _calc_loss_and_grads = jax.jit(jax.value_and_grad(_calc_growth_loss))
+    grad_loss = jax.grad(_calc_growth_loss, argnums=0)
+    hess_loss = jax.hessian(_calc_growth_loss, argnums=0)
 
     def update_step(carry, t):
         (vertices, init_areas, init_aspect_ratios, goal_areas,
@@ -128,7 +142,7 @@ def iterate(goal_areas, goal_aspect_ratios, jax_arrays, params):
         vertices = _update_vertices(
             vertices, t, init_areas, goal_areas, init_aspect_ratios,
             goal_aspect_ratios, optimal_angles, jax_arrays,
-            _calc_loss_and_grads, params
+            grad_loss, hess_loss, params
         )
 
         carry = (
