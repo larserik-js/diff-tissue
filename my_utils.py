@@ -205,6 +205,14 @@ def calc_aspect_ratios(all_cells, valid_mask):
     return aspect_ratios
 
 
+def calc_optimal_angles(valid_mask):
+    n_vertices = valid_mask.sum(axis=1) - 2
+    interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
+    optimal_angles = jnp.pi - interior_angles
+    optimal_angles = optimal_angles[:, None]
+    return optimal_angles
+
+
 class Figure:
     def __init__(self, vertices):
         self._fig, self._ax = plt.subplots(figsize=(10, 10))
