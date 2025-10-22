@@ -1,16 +1,10 @@
+from functools import partial
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 
 import my_files, my_utils
-
-
-def _calc_optimal_angles(valid_mask):
-    n_vertices = valid_mask.sum(axis=1) - 2
-    interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
-    optimal_angles = jnp.pi - interior_angles
-    optimal_angles = optimal_angles[:, None]
-    return optimal_angles
 
 
 def _calc_all_angles_loss(edges, valid_mask, optimal_angles):
@@ -31,28 +25,6 @@ def _calc_all_angles_loss(edges, valid_mask, optimal_angles):
     return angles_loss
 
 
-def _masked_min(values, mask):
-    masked_values = jnp.where(mask, values, jnp.inf)
-    return jnp.min(masked_values, axis=1)
-
-
-def _masked_max(values, mask):
-    masked_values = jnp.where(mask, values, -jnp.inf)
-    return jnp.max(masked_values, axis=1)
-
-
-def _calc_aspect_ratios(all_cells, valid_mask):
-    min_xys = _masked_min(all_cells, valid_mask[:, :, None])
-    max_xys = _masked_max(all_cells, valid_mask[:, :, None])
-
-    widths = max_xys[:,0] - min_xys[:,0]
-    heights = max_xys[:,1] - min_xys[:,1]
-
-    aspect_ratios = widths / (heights + widths)
-
-    return aspect_ratios
-
-
 def _calc_aspect_ratios_loss(target_aspect_ratios, aspect_ratios, basal_mask):
     aspect_ratio_diffs = target_aspect_ratios - aspect_ratios
     aspect_ratios_loss = jnp.sum(jnp.square(basal_mask * aspect_ratio_diffs))
@@ -65,7 +37,9 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
     edges = all_cells[:, 1:] - all_cells[:, :-1]
 
     areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    aspect_ratios = _calc_aspect_ratios(all_cells, jax_arrays['valid_mask'])
+    aspect_ratios = my_utils.calc_aspect_ratios(
+        all_cells, jax_arrays['valid_mask']
+    )
 
     areas_loss = params['areas_loss_weight'] * jnp.sum(
         (target_areas - areas)**2
@@ -84,7 +58,6 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
     return loss
 
 
-@jax.jit
 def _update_targets(init_targets, goals, t_frac):
     targets = (
         init_targets + (goals - init_targets) * jnp.sin(0.5 * jnp.pi * t_frac)
@@ -93,9 +66,9 @@ def _update_targets(init_targets, goals, t_frac):
 
 
 def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
-                     goal_aspect_ratios, optimal_angles, jax_arrays,
+                     goal_aspect_ratios, optimal_angles, n_steps, jax_arrays,
                      grad_loss, hess_loss, params):
-    t_frac = t / params['n_growth_steps']
+    t_frac = t / n_steps
     target_areas = _update_targets(init_areas, goal_areas, t_frac)
     target_aspect_ratios = _update_targets(
         init_aspect_ratios, goal_aspect_ratios, t_frac
@@ -116,48 +89,40 @@ def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
     delta_vec = jnp.linalg.solve(H_mat + lam * jnp.eye(g_vec.shape[0]), g_vec)
     # Reshape back to (246,2)
     delta = delta_vec.reshape(vertices.shape)
-    vertices = (
-        vertices - params['growth_learning_rate'] * delta *
-        jax_arrays['free_mask']
+    vertices = vertices - (
+        params['growth_learning_rate'] * delta * jax_arrays['free_mask']
     )
 
     return vertices
 
 
-def iterate(goal_areas, goal_aspect_ratios, jax_arrays, params):
-    all_cells = jax_arrays['init_vertices'][jax_arrays['indices']]
-    init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    init_aspect_ratios = _calc_aspect_ratios(
-        all_cells, jax_arrays['valid_mask']
-    )
-    optimal_angles = _calc_optimal_angles(jax_arrays['valid_mask'])
-
+@partial(jax.jit, static_argnames=['n_steps'])
+def iterate(goal_areas, goal_aspect_ratios, areas, aspect_ratios,
+            optimal_angles, n_steps, jax_arrays, params):
     grad_loss = jax.grad(_calc_growth_loss, argnums=0)
     hess_loss = jax.hessian(_calc_growth_loss, argnums=0)
 
     def update_step(carry, t):
-        (vertices, init_areas, init_aspect_ratios, goal_areas,
+        (vertices, areas, aspect_ratios, goal_areas,
          goal_aspect_ratios) = carry
 
         vertices = _update_vertices(
-            vertices, t, init_areas, goal_areas, init_aspect_ratios,
-            goal_aspect_ratios, optimal_angles, jax_arrays,
-            grad_loss, hess_loss, params
+            vertices, t, areas, goal_areas, aspect_ratios, goal_aspect_ratios,
+            optimal_angles, n_steps, jax_arrays, grad_loss, hess_loss, params
         )
 
         carry = (
-            vertices, init_areas, init_aspect_ratios, goal_areas,
-            goal_aspect_ratios
+            vertices, areas, aspect_ratios, goal_areas, goal_aspect_ratios
         )
 
         return carry, vertices
 
     init_carry = (
-        jax_arrays['init_vertices'], init_areas, init_aspect_ratios,
-        goal_areas, goal_aspect_ratios
+        jax_arrays['init_vertices'], areas, aspect_ratios, goal_areas,
+        goal_aspect_ratios
     )
     _, growth_evolution = jax.lax.scan(
-        update_step, init_carry, jnp.arange(params['n_growth_steps'])
+        update_step, init_carry, jnp.arange(n_steps)
     )
 
     return growth_evolution
@@ -183,6 +148,10 @@ def _main():
     all_cells = init_vertices[jax_arrays['indices']]
 
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
+    init_aspect_ratios = my_utils.calc_aspect_ratios(
+        all_cells, jax_arrays['valid_mask']
+    )
+    optimal_angles = my_utils.calc_optimal_angles(jax_arrays['valid_mask'])
 
     goal_areas = (
         params.numerical['max_area_scaling'] * init_areas.mean()
@@ -190,7 +159,9 @@ def _main():
     goal_aspect_ratios = 0.5 * jnp.ones_like(init_areas)
 
     growth_evolution = iterate(
-        goal_areas, goal_aspect_ratios, jax_arrays, params.numerical
+        goal_areas, goal_aspect_ratios, init_areas, init_aspect_ratios,
+        optimal_angles, params.numerical['n_growth_steps'], jax_arrays,
+        params.numerical
     )
 
     _save_growth_evolution(growth_evolution, params)
