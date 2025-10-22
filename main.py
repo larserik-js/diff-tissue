@@ -93,6 +93,9 @@ def _iterate_towards_shape(jax_arrays, all_params):
     init_vertices = jax_arrays['init_vertices']
     all_cells = init_vertices[jax_arrays['indices']]
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
+    init_aspect_ratios = my_utils.calc_aspect_ratios(
+        all_cells, jax_arrays['valid_mask']
+    )
 
     def shape_loss_func(ar_logits, as_logits):
         goal_areas = _calc_goal_areas(
@@ -101,7 +104,8 @@ def _iterate_towards_shape(jax_arrays, all_params):
         goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
         growth_evolution = growth.iterate(
-            goal_areas, goal_aspect_ratios, jax_arrays, params
+            goal_areas, goal_aspect_ratios, init_areas, init_aspect_ratios,
+            jax_arrays, params
         )
         final_vertices = growth_evolution[-1]
 
