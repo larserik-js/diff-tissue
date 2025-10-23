@@ -17,7 +17,7 @@ def _plot(growth_evolution, params):
     figure = my_utils.Figure(growth_evolution[0])
 
     for t, vertices in enumerate(growth_evolution):
-        if t%10 == 0:
+        if t%20 == 0:
             figure.plot(output_dir, vertices, jax_arrays, step=t)
 
 

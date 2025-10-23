@@ -1,7 +1,8 @@
-from functools import partial
+import functools
 
 import jax
 import jax.numpy as jnp
+from jaxopt import LBFGS
 import numpy as np
 
 import my_files, my_utils
@@ -95,6 +96,23 @@ def _calc_newton_delta(vertices, target_areas, target_aspect_ratios,
     return delta
 
 
+def _lbfgs_solve(vertices, target_areas, target_aspect_ratios, optimal_angles,
+                jax_arrays, params):
+    loss_f = functools.partial(
+        _calc_growth_loss,
+        target_areas=target_areas,
+        target_aspect_ratios=target_aspect_ratios,
+        optimal_angles=optimal_angles,
+        jax_arrays=jax_arrays,
+        params=params
+    )
+    solver = LBFGS(fun=loss_f, maxiter=200)
+    result = solver.run(init_params=vertices)
+    updated_vertices = result.params
+
+    return updated_vertices
+
+
 def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
                      goal_aspect_ratios, optimal_angles, n_steps, jax_arrays,
                      params):
@@ -104,17 +122,18 @@ def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
         init_aspect_ratios, goal_aspect_ratios, t_frac
     )
 
-    delta = _calc_newton_delta(
+    updated_vertices = _lbfgs_solve(
         vertices, target_areas, target_aspect_ratios, optimal_angles,
         jax_arrays, params
     )
-
-    vertices = vertices - delta * jax_arrays['free_mask']
+    updated_vertices = jnp.where(
+        jax_arrays['free_mask'], updated_vertices, jax_arrays['init_vertices']
+    )
 
     return vertices
 
 
-@partial(jax.jit, static_argnames=['n_steps'])
+@functools.partial(jax.jit, static_argnames=['n_steps'])
 def iterate(goal_areas, goal_aspect_ratios, areas, aspect_ratios,
             optimal_angles, n_steps, jax_arrays, params):
     def update_step(carry, t):
