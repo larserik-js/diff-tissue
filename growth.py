@@ -58,6 +58,10 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
     return loss
 
 
+_grad_loss = jax.grad(_calc_growth_loss)
+_hess_loss = jax.hessian(_calc_growth_loss)
+
+
 def _update_targets(init_targets, goals, t_frac):
     targets = (
         init_targets + (goals - init_targets) * jnp.sin(0.5 * jnp.pi * t_frac)
@@ -65,33 +69,47 @@ def _update_targets(init_targets, goals, t_frac):
     return targets
 
 
+def _calc_newton_delta(vertices, target_areas, target_aspect_ratios,
+                       optimal_angles, jax_arrays, params):
+    # (n_vertices, 2)
+    grads = _grad_loss(
+        vertices, target_areas, target_aspect_ratios, optimal_angles,
+        jax_arrays, params
+    )
+    # (n_vertices, 2, n_vertices, 2)
+    H = _hess_loss(
+        vertices, target_areas, target_aspect_ratios, optimal_angles,
+        jax_arrays, params
+    )
+
+    # Symmetrize
+    H = 0.5 * (H + jnp.transpose(H, (2,3,0,1)))
+    lam = 1e-6
+    # Reshape Hessian to (492,492) and grad to (492,)
+    H_mat = H.reshape(-1, H.shape[0] * H.shape[1])
+    g_vec = grads.reshape(-1)
+    delta_vec = jnp.linalg.solve(H_mat + lam * jnp.eye(g_vec.shape[0]), g_vec)
+
+    # Reshape back to (246,2)
+    delta = delta_vec.reshape(vertices.shape)
+    return delta
+
+
 def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
                      goal_aspect_ratios, optimal_angles, n_steps, jax_arrays,
-                     grad_loss, hess_loss, params):
+                     params):
     t_frac = t / n_steps
     target_areas = _update_targets(init_areas, goal_areas, t_frac)
     target_aspect_ratios = _update_targets(
         init_aspect_ratios, goal_aspect_ratios, t_frac
     )
-    grads = grad_loss(
+
+    delta = _calc_newton_delta(
         vertices, target_areas, target_aspect_ratios, optimal_angles,
         jax_arrays, params
     )
-    H = hess_loss(
-        vertices, target_areas, target_aspect_ratios, optimal_angles,
-        jax_arrays, params
-    )
-    H = 0.5 * (H + jnp.transpose(H, (2,3,0,1)))
-    lam = 1e-6
-    # Reshape Hessian to (492,492) and grad to (492,)
-    H_mat = H.reshape(-1, H.shape[0] * H.shape[1])   # (492,492)
-    g_vec = grads.reshape(-1)                            # (492,)
-    delta_vec = jnp.linalg.solve(H_mat + lam * jnp.eye(g_vec.shape[0]), g_vec)
-    # Reshape back to (246,2)
-    delta = delta_vec.reshape(vertices.shape)
-    vertices = vertices - (
-        params['growth_learning_rate'] * delta * jax_arrays['free_mask']
-    )
+
+    vertices = vertices - delta * jax_arrays['free_mask']
 
     return vertices
 
@@ -99,16 +117,13 @@ def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
 @partial(jax.jit, static_argnames=['n_steps'])
 def iterate(goal_areas, goal_aspect_ratios, areas, aspect_ratios,
             optimal_angles, n_steps, jax_arrays, params):
-    grad_loss = jax.grad(_calc_growth_loss, argnums=0)
-    hess_loss = jax.hessian(_calc_growth_loss, argnums=0)
-
     def update_step(carry, t):
         (vertices, areas, aspect_ratios, goal_areas,
          goal_aspect_ratios) = carry
 
         vertices = _update_vertices(
             vertices, t, areas, goal_areas, aspect_ratios, goal_aspect_ratios,
-            optimal_angles, n_steps, jax_arrays, grad_loss, hess_loss, params
+            optimal_angles, n_steps, jax_arrays, params
         )
 
         carry = (
