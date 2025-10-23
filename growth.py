@@ -130,7 +130,7 @@ def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
         jax_arrays['free_mask'], updated_vertices, jax_arrays['init_vertices']
     )
 
-    return vertices
+    return updated_vertices
 
 
 @functools.partial(jax.jit, static_argnames=['n_steps'])
