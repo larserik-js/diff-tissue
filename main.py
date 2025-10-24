@@ -101,7 +101,8 @@ def _iterate_towards_shape(jax_arrays, all_params):
         goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
         growth_evolution = growth.iterate(
-            goal_areas, goal_aspect_ratios, jax_arrays, params
+            goal_areas, goal_aspect_ratios, params['n_growth_steps'],
+            jax_arrays, params
         )
         final_vertices = growth_evolution[-1]
 
