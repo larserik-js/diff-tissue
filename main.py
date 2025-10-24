@@ -44,6 +44,32 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
     return shape_loss
 
 
+def _shape_loss_f(ar_logits, as_logits, init_areas, n_growth_steps, jax_arrays,
+                 params):
+    goal_areas = _calc_goal_areas(
+        init_areas, params['max_area_scaling'], ar_logits
+    )
+    goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
+
+    growth_evolution = growth.iterate(
+        goal_areas, goal_aspect_ratios, n_growth_steps, jax_arrays, params
+    )
+    final_vertices = growth_evolution[-1]
+
+    shape_loss = _calc_shape_loss(
+        final_vertices, jax_arrays['boundary_mask'],
+        jax_arrays['outer_shape']
+    )
+
+    return shape_loss, final_vertices
+
+
+_calc_shape_loss_val_grads = jax.jit(
+    jax.value_and_grad(_shape_loss_f, has_aux=True, argnums=(0, 1)),
+    static_argnames=['n_growth_steps']
+)
+
+
 class _MyOptimizer:
     def __init__(self, ar_logits, as_logits):
         self._lr_schedule = optax.cosine_decay_schedule(
@@ -94,29 +120,6 @@ def _iterate_towards_shape(jax_arrays, all_params):
     all_cells = init_vertices[jax_arrays['indices']]
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
-    def shape_loss_f(ar_logits, as_logits):
-        goal_areas = _calc_goal_areas(
-            init_areas, params['max_area_scaling'], ar_logits
-        )
-        goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
-
-        growth_evolution = growth.iterate(
-            goal_areas, goal_aspect_ratios, params['n_growth_steps'],
-            jax_arrays, params
-        )
-        final_vertices = growth_evolution[-1]
-
-        shape_loss = _calc_shape_loss(
-            final_vertices, jax_arrays['boundary_mask'],
-            jax_arrays['outer_shape']
-        )
-
-        return shape_loss, final_vertices
-
-    _calc_shape_loss_val_grads = jax.jit(
-        jax.value_and_grad(shape_loss_f, has_aux=True, argnums=(0, 1))
-    )
-
     # Initialize parameters
     ar_logits = jnp.zeros_like(init_areas)
     as_logits = jnp.zeros_like(init_areas)
@@ -131,7 +134,10 @@ def _iterate_towards_shape(jax_arrays, all_params):
 
     for shape_step in range(params['n_shape_steps']):
         (new_shape_loss, final_vertices), (ar_grads, as_grads) = (
-            _calc_shape_loss_val_grads(ar_logits, as_logits)
+            _calc_shape_loss_val_grads(
+                ar_logits, as_logits, init_areas, params['n_growth_steps'],
+                jax_arrays, params
+            )
         )
         ar_logits, as_logits = (
             optimizer.update(ar_logits, as_logits, ar_grads, as_grads)
