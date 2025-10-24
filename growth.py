@@ -13,24 +13,6 @@ def _calc_optimal_angles(valid_mask):
     return optimal_angles
 
 
-def _calc_all_angles_loss(edges, valid_mask, optimal_angles):
-    epsilon = 1e-7
-    norms = jnp.linalg.norm(edges + epsilon, axis=2)
-    dot_products = jnp.sum(edges[:, :-1] * edges[:, 1:], axis=2)
-
-    cosines = dot_products / (epsilon + norms[:, :-1] * norms[:, 1:])
-    clip_value = 1.0 - epsilon
-    cosines = jnp.clip(cosines, -clip_value, clip_value)
-
-    optimal_cosines = jnp.cos(optimal_angles)
-    valid = valid_mask[:, 1:] & valid_mask[:, :-1]
-    valid = valid[:, 1:] & valid[:, :-1]
-
-    angles_loss = jnp.sum((cosines - optimal_cosines)**2 * valid)
-
-    return angles_loss
-
-
 def _masked_min(values, mask):
     masked_values = jnp.where(mask, values, jnp.inf)
     return jnp.min(masked_values, axis=1)
@@ -51,6 +33,24 @@ def _calc_aspect_ratios(all_cells, valid_mask):
     aspect_ratios = widths / (heights + widths)
 
     return aspect_ratios
+
+
+def _calc_all_angles_loss(edges, valid_mask, optimal_angles):
+    epsilon = 1e-7
+    norms = jnp.linalg.norm(edges + epsilon, axis=2)
+    dot_products = jnp.sum(edges[:, :-1] * edges[:, 1:], axis=2)
+
+    cosines = dot_products / (epsilon + norms[:, :-1] * norms[:, 1:])
+    clip_value = 1.0 - epsilon
+    cosines = jnp.clip(cosines, -clip_value, clip_value)
+
+    optimal_cosines = jnp.cos(optimal_angles)
+    valid = valid_mask[:, 1:] & valid_mask[:, :-1]
+    valid = valid[:, 1:] & valid[:, :-1]
+
+    angles_loss = jnp.sum((cosines - optimal_cosines)**2 * valid)
+
+    return angles_loss
 
 
 def _calc_aspect_ratios_loss(target_aspect_ratios, aspect_ratios, basal_mask):

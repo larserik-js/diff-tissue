@@ -94,7 +94,7 @@ def _iterate_towards_shape(jax_arrays, all_params):
     all_cells = init_vertices[jax_arrays['indices']]
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
-    def shape_loss_func(ar_logits, as_logits):
+    def shape_loss_f(ar_logits, as_logits):
         goal_areas = _calc_goal_areas(
             init_areas, params['max_area_scaling'], ar_logits
         )
@@ -113,8 +113,8 @@ def _iterate_towards_shape(jax_arrays, all_params):
 
         return shape_loss, final_vertices
 
-    val_grad_loss = jax.jit(
-        jax.value_and_grad(shape_loss_func, has_aux=True, argnums=(0, 1))
+    _calc_shape_loss_val_grads = jax.jit(
+        jax.value_and_grad(shape_loss_f, has_aux=True, argnums=(0, 1))
     )
 
     # Initialize parameters
@@ -131,7 +131,7 @@ def _iterate_towards_shape(jax_arrays, all_params):
 
     for shape_step in range(params['n_shape_steps']):
         (new_shape_loss, final_vertices), (ar_grads, as_grads) = (
-            val_grad_loss(ar_logits, as_logits)
+            _calc_shape_loss_val_grads(ar_logits, as_logits)
         )
         ar_logits, as_logits = (
             optimizer.update(ar_logits, as_logits, ar_grads, as_grads)
