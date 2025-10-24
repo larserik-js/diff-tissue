@@ -87,41 +87,11 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
     return loss
 
 
-_grad_loss = jax.grad(_calc_growth_loss)
-_hess_loss = jax.hessian(_calc_growth_loss)
-
-
 def _update_targets(init_targets, goals, t_frac):
     targets = (
         init_targets + (goals - init_targets) * jnp.sin(0.5 * jnp.pi * t_frac)
     )
     return targets
-
-
-def _calc_newton_delta(vertices, target_areas, target_aspect_ratios,
-                       optimal_angles, jax_arrays, params):
-    # (n_vertices, 2)
-    grads = _grad_loss(
-        vertices, target_areas, target_aspect_ratios, optimal_angles,
-        jax_arrays, params
-    )
-    # (n_vertices, 2, n_vertices, 2)
-    H = _hess_loss(
-        vertices, target_areas, target_aspect_ratios, optimal_angles,
-        jax_arrays, params
-    )
-
-    # Symmetrize
-    H = 0.5 * (H + jnp.transpose(H, (2,3,0,1)))
-    lam = 1e-6
-    # Reshape Hessian to (492,492) and grad to (492,)
-    H_mat = H.reshape(-1, H.shape[0] * H.shape[1])
-    g_vec = grads.reshape(-1)
-    delta_vec = jnp.linalg.solve(H_mat + lam * jnp.eye(g_vec.shape[0]), g_vec)
-
-    # Reshape back to (246,2)
-    delta = delta_vec.reshape(vertices.shape)
-    return delta
 
 
 def _lbfgs_solve(vertices, target_areas, target_aspect_ratios, optimal_angles,
