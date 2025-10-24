@@ -98,16 +98,11 @@ def _calc_newton_delta(vertices, target_areas, target_aspect_ratios,
 
 def _lbfgs_solve(vertices, target_areas, target_aspect_ratios, optimal_angles,
                 jax_arrays, params):
-    loss_f = functools.partial(
-        _calc_growth_loss,
-        target_areas=target_areas,
-        target_aspect_ratios=target_aspect_ratios,
-        optimal_angles=optimal_angles,
-        jax_arrays=jax_arrays,
-        params=params
+    solver = LBFGS(fun=_calc_growth_loss, maxiter=200)
+    result = solver.run(
+        vertices, target_areas, target_aspect_ratios, optimal_angles,
+        jax_arrays, params
     )
-    solver = LBFGS(fun=loss_f, maxiter=200)
-    result = solver.run(init_params=vertices)
     updated_vertices = result.params
 
     return updated_vertices
