@@ -4,7 +4,7 @@ import numpy as np
 import optax
 import pandas as pd
 
-import growth, my_files, my_utils
+import diffeomorphism, growth, my_files, my_utils
 
 
 def _calc_scaling(min_scaling, max_scaling, logits):
@@ -14,14 +14,30 @@ def _calc_scaling(min_scaling, max_scaling, logits):
     return scaling
 
 
+def _calc_inverse_scaling(min_scaling, max_scaling, scalings):
+    s = (scalings - min_scaling) / (max_scaling - min_scaling)
+    logits = jnp.log(s / (1 - s))
+    return logits
+
+
 def _calc_area_scaling(max_scaling, logits):
     area_scaling = _calc_scaling(0.0, max_scaling, logits)
     return area_scaling
 
 
+def _calc_inverse_area_scaling(max_scaling, area_scalings):
+    logits = _calc_inverse_scaling(0.0, max_scaling, area_scalings)
+    return logits
+
+
 def _calc_aspect_ratio_scaling(logits):
     aspect_ratio_scaling = _calc_scaling(0.0, 1.0, logits)
     return aspect_ratio_scaling
+
+
+def _calc_inverse_aspect_ratio_scaling(aspect_ratio_scalings):
+    logits = _calc_inverse_scaling(0.0, 1.0, aspect_ratio_scalings)
+    return logits
 
 
 def _calc_goal_areas(init_areas, max_area_scaling, logits):
@@ -70,6 +86,30 @@ _calc_shape_loss_val_grads = jax.jit(
 )
 
 
+def _get_init_logits(jax_arrays, params):
+    mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
+    all_mapped_cells = mapped_vertices[jax_arrays['indices']]
+    mapped_areas = my_utils.calc_all_areas(
+        all_mapped_cells, jax_arrays['valid_mask']
+    )
+    all_cells = jax_arrays['init_vertices'][jax_arrays['indices']]
+    init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
+    mapped_area_scalings = mapped_areas / init_areas
+    mapped_aspect_ratios = my_utils.calc_aspect_ratios(
+        all_mapped_cells, jax_arrays['valid_mask']
+    )
+
+    init_logits = {
+        'area_scalings': _calc_inverse_area_scaling(
+            params.numerical['max_area_scaling'], mapped_area_scalings)
+        ,
+        'aspect_ratios': _calc_inverse_aspect_ratio_scaling(
+            mapped_aspect_ratios
+        )
+    }
+    return init_logits
+
+
 class _MyOptimizer:
     def __init__(self, ar_logits, as_logits):
         self._lr_schedule = optax.cosine_decay_schedule(
@@ -113,7 +153,7 @@ def _save_output_params(init_centroids, init_areas, best_goal_areas_scalings,
     df.to_csv(output_file, sep='\t', index=True, header=True)
 
 
-def _iterate_towards_shape(jax_arrays, all_params):
+def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     params = all_params.numerical
 
     init_vertices = jax_arrays['init_vertices']
@@ -121,8 +161,8 @@ def _iterate_towards_shape(jax_arrays, all_params):
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
     # Initialize parameters
-    ar_logits = jnp.zeros_like(init_areas)
-    as_logits = jnp.zeros_like(init_areas)
+    ar_logits = init_logits['area_scalings']
+    as_logits = init_logits['aspect_ratios']
 
     optimizer = _MyOptimizer(ar_logits, as_logits)
 
@@ -180,7 +220,9 @@ def _main():
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    _iterate_towards_shape(jax_arrays, params)
+    init_logits = _get_init_logits(jax_arrays, params)
+
+    _iterate_towards_shape(init_logits, jax_arrays, params)
 
 
 if __name__ == '__main__':

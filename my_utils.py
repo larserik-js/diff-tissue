@@ -165,6 +165,14 @@ def get_jax_arrays(params):
     return jax_arrays
 
 
+def calc_optimal_angles(valid_mask):
+    n_vertices = valid_mask.sum(axis=1) - 2
+    interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
+    optimal_angles = jnp.pi - interior_angles
+    optimal_angles = optimal_angles[:, None]
+    return optimal_angles
+
+
 def calc_all_areas(all_cells, valid_mask):
     xs = all_cells[:, 1:-1, 0]
     y_plus_ones = all_cells[:, 2:, 1]
@@ -181,6 +189,28 @@ def calc_all_areas(all_cells, valid_mask):
     areas = 0.5 * (first_term - second_term)
 
     return areas
+
+
+def _masked_min(values, mask):
+    masked_values = jnp.where(mask, values, jnp.inf)
+    return jnp.min(masked_values, axis=1)
+
+
+def _masked_max(values, mask):
+    masked_values = jnp.where(mask, values, -jnp.inf)
+    return jnp.max(masked_values, axis=1)
+
+
+def calc_aspect_ratios(all_cells, valid_mask):
+    min_xys = _masked_min(all_cells, valid_mask[:, :, None])
+    max_xys = _masked_max(all_cells, valid_mask[:, :, None])
+
+    widths = max_xys[:,0] - min_xys[:,0]
+    heights = max_xys[:,1] - min_xys[:,1]
+
+    aspect_ratios = widths / (heights + widths)
+
+    return aspect_ratios
 
 
 class Figure:

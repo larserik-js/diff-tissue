@@ -18,7 +18,7 @@ class Coords:
     full_mesh_base = np.array([40.0, 18.635])
 
 
-def _sort_counterclockwise(indices, vertices):
+def sort_counterclockwise(indices, vertices):
     centroid = vertices.mean(axis=0)
     angles = np.arctan2(
         vertices[:,1] - centroid[1], vertices[:,0] - centroid[0]
@@ -241,7 +241,7 @@ class _MeshPolygons(_Polygons):
                 is_basal *= self._is_basal(vertex)
 
             indices = self._remove_duplicates(indices)
-            indices = _sort_counterclockwise(
+            indices = sort_counterclockwise(
                 indices, all_vertices[indices]
             )
             # For efficiency
@@ -433,7 +433,7 @@ class _VoronoiPolygons(_Polygons):
                 unsorted_vertices = np.array(
                     [new_vertices[idx] for idx in new_poly_inds]
                 )
-                sorted_poly_inds = _sort_counterclockwise(
+                sorted_poly_inds = sort_counterclockwise(
                     new_poly_inds, unsorted_vertices
                 )
                 all_polygon_inds.append(sorted_poly_inds)
@@ -500,7 +500,7 @@ class _VoronoiPolygons(_Polygons):
         all_sorted_poly_inds = []
         for poly_inds in all_poly_inds:
             vertices = all_vertices[poly_inds]
-            sorted_inds = _sort_counterclockwise(
+            sorted_inds = sort_counterclockwise(
                 poly_inds, vertices
             )
             all_sorted_poly_inds.append(sorted_inds)
@@ -578,7 +578,7 @@ class _SinglePolygon(_Polygons):
 
     def _find_polygon_inds(self):
         polygon_inds = np.arange(self._n_vertices)
-        polygon_inds = _sort_counterclockwise(
+        polygon_inds = sort_counterclockwise(
             polygon_inds, self._vertices
         )
         polygon_inds = _extend(polygon_inds)
