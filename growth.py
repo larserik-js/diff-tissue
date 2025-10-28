@@ -5,36 +5,6 @@ import numpy as np
 import my_files, my_utils
 
 
-def _calc_optimal_angles(valid_mask):
-    n_vertices = valid_mask.sum(axis=1) - 2
-    interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
-    optimal_angles = jnp.pi - interior_angles
-    optimal_angles = optimal_angles[:, None]
-    return optimal_angles
-
-
-def _masked_min(values, mask):
-    masked_values = jnp.where(mask, values, jnp.inf)
-    return jnp.min(masked_values, axis=1)
-
-
-def _masked_max(values, mask):
-    masked_values = jnp.where(mask, values, -jnp.inf)
-    return jnp.max(masked_values, axis=1)
-
-
-def _calc_aspect_ratios(all_cells, valid_mask):
-    min_xys = _masked_min(all_cells, valid_mask[:, :, None])
-    max_xys = _masked_max(all_cells, valid_mask[:, :, None])
-
-    widths = max_xys[:,0] - min_xys[:,0]
-    heights = max_xys[:,1] - min_xys[:,1]
-
-    aspect_ratios = widths / (heights + widths)
-
-    return aspect_ratios
-
-
 def _calc_all_angles_loss(edges, valid_mask, optimal_angles):
     epsilon = 1e-7
     norms = jnp.linalg.norm(edges + epsilon, axis=2)
@@ -65,7 +35,9 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
     edges = all_cells[:, 1:] - all_cells[:, :-1]
 
     areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    aspect_ratios = _calc_aspect_ratios(all_cells, jax_arrays['valid_mask'])
+    aspect_ratios = my_utils.calc_aspect_ratios(
+        all_cells, jax_arrays['valid_mask']
+    )
 
     areas_loss = params['areas_loss_weight'] * jnp.sum(
         (target_areas - areas)**2
@@ -115,10 +87,10 @@ def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
 def iterate(goal_areas, goal_aspect_ratios, n_steps, jax_arrays, params):
     all_cells = jax_arrays['init_vertices'][jax_arrays['indices']]
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    init_aspect_ratios = _calc_aspect_ratios(
+    init_aspect_ratios = my_utils.calc_aspect_ratios(
         all_cells, jax_arrays['valid_mask']
     )
-    optimal_angles = _calc_optimal_angles(jax_arrays['valid_mask'])
+    optimal_angles = my_utils.calc_optimal_angles(jax_arrays['valid_mask'])
 
     def update_step(carry, t):
         (vertices, init_areas, init_aspect_ratios, goal_areas,
