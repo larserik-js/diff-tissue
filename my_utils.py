@@ -69,7 +69,7 @@ class Params:
         parser.add_argument(
             '--gsteps',
             type=int,
-            default=500,
+            default=100,
             help='Number of growth steps.'
         )
 
@@ -83,7 +83,7 @@ class Params:
         parser.add_argument(
             '--arlw',
             type=float,
-            default=100.0,
+            default=500.0,
             help='Areas loss weight.'
         )
 
@@ -97,14 +97,14 @@ class Params:
         parser.add_argument(
             '--aslw',
             type=float,
-            default=1000.0,
+            default=5000.0,
             help='Aspect ratio loss weight.'
         )
 
         parser.add_argument(
             '--marsc',
             type=float,
-            default=3.0,
+            default=9.0,
             help='Maximal area scaling.'
         )
 

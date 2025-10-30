@@ -66,7 +66,7 @@ def _update_targets(init_targets, goals, t_frac):
 
 def _lbfgs_solve(vertices, target_areas, target_aspect_ratios, optimal_angles,
                  jax_arrays, params):
-    solver = LBFGS(fun=_calc_growth_loss, maxiter=200)
+    solver = LBFGS(fun=_calc_growth_loss, maxiter=50)
     result = solver.run(
         vertices, target_areas, target_aspect_ratios, optimal_angles,
         jax_arrays, params

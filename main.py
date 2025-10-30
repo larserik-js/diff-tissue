@@ -4,7 +4,7 @@ import numpy as np
 import optax
 import pandas as pd
 
-import diffeomorphism, growth, my_files, my_utils
+import diffeomorphism, growth, init_systems, my_files, my_utils
 
 
 def _calc_scaling(min_scaling, max_scaling, logits):
@@ -52,16 +52,18 @@ def _calc_goal_aspect_ratios(as_logits):
     return goal_aspect_ratios
 
 
-def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
+def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
     diff_vectors = final_vertices[:,None] - outer_shape
     dists = jnp.linalg.norm(diff_vectors, axis=2)
-    min_sq_dists = jnp.min(dists**2, axis=1)
-    shape_loss = jnp.sum(min_sq_dists * boundary_mask)
+    dists_cubed = dists**3
+    masked_dists = jnp.where(min_dist_mask, dists_cubed, jnp.inf)
+    min_cubed_dists = jnp.min(masked_dists, axis=1)
+    shape_loss = jnp.sum(min_cubed_dists * boundary_mask)
     return shape_loss
 
 
-def _shape_loss_f(ar_logits, as_logits, init_areas, n_growth_steps, jax_arrays,
-                 params):
+def _shape_loss_f(ar_logits, as_logits, init_areas, min_dist_mask,
+                  n_growth_steps, jax_arrays, params):
     goal_areas = _calc_goal_areas(
         init_areas, params['max_area_scaling'], ar_logits
     )
@@ -74,7 +76,7 @@ def _shape_loss_f(ar_logits, as_logits, init_areas, n_growth_steps, jax_arrays,
 
     shape_loss = _calc_shape_loss(
         final_vertices, jax_arrays['boundary_mask'],
-        jax_arrays['outer_shape']
+        jax_arrays['outer_shape'], min_dist_mask
     )
 
     return shape_loss, final_vertices
@@ -113,7 +115,7 @@ def _get_init_logits(jax_arrays, params):
 class _MyOptimizer:
     def __init__(self, ar_logits, as_logits):
         self._lr_schedule = optax.cosine_decay_schedule(
-            init_value=0.02, decay_steps=500, alpha=0.1
+            init_value=0.02, decay_steps=500, alpha=1e-5
         )
 
         self._optimizer = optax.chain(
@@ -153,6 +155,21 @@ def _save_output_params(init_centroids, init_areas, best_goal_areas_scalings,
     df.to_csv(output_file, sep='\t', index=True, header=True)
 
 
+def _make_min_dist_mask(jax_arrays):
+    min_dist_mask = np.ones(
+        (jax_arrays['init_vertices'].shape[0],
+         jax_arrays['outer_shape'].shape[0]),
+         dtype=bool
+    )
+    fixed_mask = jnp.any(~jax_arrays['free_mask'], axis=1)
+
+    outer_shape_basal_mask = np.isclose(
+        jax_arrays['outer_shape'][:,1], init_systems.Coords.base_origin[1]
+    )
+    min_dist_mask[fixed_mask] = outer_shape_basal_mask
+    return jnp.array(min_dist_mask)
+
+
 def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     params = all_params.numerical
 
@@ -163,6 +180,8 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     # Initialize parameters
     ar_logits = init_logits['area_scalings']
     as_logits = init_logits['aspect_ratios']
+
+    min_dist_mask = _make_min_dist_mask(jax_arrays)
 
     optimizer = _MyOptimizer(ar_logits, as_logits)
 
@@ -175,8 +194,8 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     for shape_step in range(params['n_shape_steps']):
         (new_shape_loss, final_vertices), (ar_grads, as_grads) = (
             _calc_shape_loss_val_grads(
-                ar_logits, as_logits, init_areas, params['n_growth_steps'],
-                jax_arrays, params
+                ar_logits, as_logits, init_areas, min_dist_mask,
+                params['n_growth_steps'], jax_arrays, params
             )
         )
         ar_logits, as_logits = (
@@ -199,7 +218,7 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
             print(f'(Stored params with new best shape loss.)')
             print('')
 
-        if shape_step % 100 == 0:
+        if shape_step % 10 == 0:
             figure.plot(
                 final_tissues_dir.path, final_vertices, jax_arrays, shape_step
             )
