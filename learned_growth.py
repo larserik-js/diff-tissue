@@ -76,7 +76,7 @@ def _main():
     input_file = my_files.get_output_params_file(params)
     df = pd.read_csv(input_file, sep='\t', index_col=0)
     
-    goal_areas = df['goal_area'].values
+    goal_areas = df['best_goal_area'].values
     goal_aspect_ratios = df['goal_aspect_ratio'].values
 
     # Regenerate new system

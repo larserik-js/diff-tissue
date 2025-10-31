@@ -173,6 +173,11 @@ def calc_optimal_angles(valid_mask):
     return optimal_angles
 
 
+def get_all_cells(vertices, indices):
+    all_cells = vertices[indices]
+    return all_cells
+
+
 def calc_all_areas(all_cells, valid_mask):
     xs = all_cells[:, 1:-1, 0]
     y_plus_ones = all_cells[:, 2:, 1]

@@ -17,8 +17,10 @@ def main():
     input_file = my_files.get_output_params_file(params)
     df = pd.read_csv(input_file, sep='\t', index_col=0)
     
-    best_goal_areas = my_utils.to_jax(df['goal_area'].values)
-    best_goal_aspect_ratios = my_utils.to_jax(df['goal_aspect_ratio'].values)
+    best_goal_areas = my_utils.to_jax(df['best_goal_area'].values)
+    best_goal_aspect_ratios = my_utils.to_jax(
+        df['best_goal_aspect_ratio'].values
+    )
 
     growth_evolution = growth.iterate(
         best_goal_areas, best_goal_aspect_ratios,

@@ -32,7 +32,7 @@ def _calc_aspect_ratios_loss(target_aspect_ratios, aspect_ratios, basal_mask):
 
 def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
                       optimal_angles, jax_arrays, params):
-    all_cells = vertices[jax_arrays['indices']]
+    all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
     edges = all_cells[:, 1:] - all_cells[:, :-1]
 
     areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
@@ -96,7 +96,9 @@ def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
 
 
 def iterate(goal_areas, goal_aspect_ratios, n_steps, jax_arrays, params):
-    all_cells = jax_arrays['init_vertices'][jax_arrays['indices']]
+    init_vertices = jax_arrays['init_vertices']
+
+    all_cells = my_utils.get_all_cells(init_vertices, jax_arrays['indices'])
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
     init_aspect_ratios = my_utils.calc_aspect_ratios(
         all_cells, jax_arrays['valid_mask']
@@ -120,7 +122,7 @@ def iterate(goal_areas, goal_aspect_ratios, n_steps, jax_arrays, params):
         return carry, vertices
 
     init_carry = (
-        jax_arrays['init_vertices'], init_areas, init_aspect_ratios, goal_areas,
+        init_vertices, init_areas, init_aspect_ratios, goal_areas,
         goal_aspect_ratios
     )
     _, growth_evolution = jax.lax.scan(
@@ -147,8 +149,7 @@ def _main():
     jax_arrays = my_utils.get_jax_arrays(params)
 
     init_vertices = jax_arrays['init_vertices']
-    all_cells = init_vertices[jax_arrays['indices']]
-
+    all_cells = my_utils.get_all_cells(init_vertices, jax_arrays['indices'])
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
     goal_areas = (
