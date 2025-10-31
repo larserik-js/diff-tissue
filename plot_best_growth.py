@@ -2,7 +2,7 @@ import jax
 import numpy as np
 import pandas as pd
 
-import growth, my_files, my_utils
+import growth, my_files, my_utils, plot_growth
 
 
 def main():
@@ -12,8 +12,6 @@ def main():
 
     np.random.seed(params.numerical['seed'])
 
-    best_growth_dir = my_files.OutputDir('best_growth', params)
-
     jax_arrays = my_utils.get_jax_arrays(params)
 
     input_file = my_files.get_output_params_file(params)
@@ -22,10 +20,15 @@ def main():
     best_goal_areas = my_utils.to_jax(df['goal_area'].values)
     best_goal_aspect_ratios = my_utils.to_jax(df['goal_aspect_ratio'].values)
 
-    growth.iterate_and_plot(
-        best_growth_dir.path, best_goal_areas,
-        best_goal_aspect_ratios, jax_arrays, params.numerical
+    growth_evolution = growth.iterate(
+        best_goal_areas, best_goal_aspect_ratios,
+        params.numerical['n_growth_steps'], jax_arrays, params.numerical
     )
+
+    output_dir = my_files.OutputDir('best_growth', params).path
+
+    np.random.seed(params.numerical['seed'])
+    plot_growth.plot(growth_evolution, output_dir, params)
 
 
 if __name__ == '__main__':
