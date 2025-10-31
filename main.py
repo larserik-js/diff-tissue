@@ -193,21 +193,21 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
                 final_tissues_dir.path, final_vertices, jax_arrays, shape_step
             )
 
-        # Calculate output params
-        all_cells = final_vertices[jax_arrays['indices']]
-        final_areas = my_utils.calc_all_areas(
-            all_cells, jax_arrays['valid_mask']
-        )
-        final_aspect_ratios = my_utils.calc_aspect_ratios(
-            all_cells, jax_arrays['valid_mask']
-        )
-        final_goal_areas_scalings = _calc_area_scaling(
-            params['max_area_scaling'], ar_logits
-        )
-        final_goal_areas = _calc_goal_areas(
-            init_areas, params['max_area_scaling'], ar_logits
-        )
-        final_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
+    # Calculate output params
+    all_cells = final_vertices[jax_arrays['indices']]
+    final_areas = my_utils.calc_all_areas(
+        all_cells, jax_arrays['valid_mask']
+    )
+    final_aspect_ratios = my_utils.calc_aspect_ratios(
+        all_cells, jax_arrays['valid_mask']
+    )
+    final_goal_areas_scalings = _calc_area_scaling(
+        params['max_area_scaling'], ar_logits
+    )
+    final_goal_areas = _calc_goal_areas(
+        init_areas, params['max_area_scaling'], ar_logits
+    )
+    final_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
     param_dict = {
         'init_centroid_x': jax_arrays['init_centroids'][:,0],
