@@ -92,7 +92,9 @@ def _get_init_logits(jax_arrays, params):
     mapped_areas = my_utils.calc_all_areas(
         all_mapped_cells, jax_arrays['valid_mask']
     )
-    all_cells = jax_arrays['init_vertices'][jax_arrays['indices']]
+    all_cells = my_utils.get_all_cells(
+        jax_arrays['init_vertices'], jax_arrays['indices']
+    )
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
     mapped_area_scalings = mapped_areas / init_areas
     mapped_aspect_ratios = my_utils.calc_aspect_ratios(
@@ -146,7 +148,7 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     params = all_params.numerical
 
     init_vertices = jax_arrays['init_vertices']
-    all_cells = init_vertices[jax_arrays['indices']]
+    all_cells = my_utils.get_all_cells(init_vertices, jax_arrays['indices'])
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
     # Initialize parameters
@@ -194,7 +196,7 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
             )
 
     # Calculate output params
-    all_cells = final_vertices[jax_arrays['indices']]
+    all_cells = my_utils.get_all_cells(final_vertices, jax_arrays['indices'])
     final_areas = my_utils.calc_all_areas(
         all_cells, jax_arrays['valid_mask']
     )
