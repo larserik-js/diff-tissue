@@ -142,9 +142,9 @@ def _save_output_params(init_centroids, init_areas, best_goal_areas_scalings,
         'init_centroid_x': init_centroids[:,0],
         'init_centroid_y': init_centroids[:,1],
         'init_area': init_areas,
-        'goal_area_scaling': best_goal_areas_scalings,
-        'goal_area': best_goal_areas,
-        'goal_aspect_ratio': best_goal_aspect_ratios
+        'best_goal_area_scaling': best_goal_areas_scalings,
+        'best_goal_area': best_goal_areas,
+        'best_goal_aspect_ratio': best_goal_aspect_ratios
     }
 
     df = pd.DataFrame(param_dict)
