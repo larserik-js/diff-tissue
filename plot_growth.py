@@ -11,8 +11,7 @@ def _get_plotting_data(params):
     return growth_evolution
 
 
-def _plot(growth_evolution, params):
-    output_dir = my_files.OutputDir('growth', params).path
+def plot(growth_evolution, output_dir, params):
     jax_arrays = my_utils.get_jax_arrays(params)
     figure = my_utils.Figure(growth_evolution[0])
 
@@ -30,7 +29,9 @@ def _main():
 
     growth_evolution = _get_plotting_data(params)
 
-    _plot(growth_evolution, params)
+    output_dir = my_files.OutputDir('growth', params).path
+
+    plot(growth_evolution, output_dir, params)
 
 
 if __name__ == '__main__':
