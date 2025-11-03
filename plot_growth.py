@@ -19,6 +19,9 @@ def plot(growth_evolution, output_dir, params):
         if t%20 == 0:
             figure.plot(output_dir, vertices, jax_arrays, step=t)
 
+    # Always plot final state
+    figure.plot(output_dir, vertices, jax_arrays, step=t)
+
 
 def _main():
     jax.config.update('jax_enable_x64', True)
