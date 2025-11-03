@@ -62,7 +62,7 @@ class Params:
         parser.add_argument(
             '--ssteps',
             type=int,
-            default=500,
+            default=100,
             help='Number of shape steps.'
         )
 
