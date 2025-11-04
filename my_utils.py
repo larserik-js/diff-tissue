@@ -127,7 +127,7 @@ def _make_arrays(polygons, outer_shape):
         'poly_neighbors': polygons.poly_neighbors,
         'vertex_neighbors': polygons.vertex_neighbors,
         'free_mask': polygons.free_mask,
-        'basal_mask': polygons.basal_mask,
+        'proximal_mask': polygons.proximal_mask,
         'boundary_mask': polygons.boundary_mask,
         'outer_shape': outer_shape
     }

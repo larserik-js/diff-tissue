@@ -147,8 +147,8 @@ class _Polygons(ABC):
         return self._free_mask
 
     @property
-    def basal_mask(self):
-        return self._basal_mask
+    def proximal_mask(self):
+        return self._proximal_mask
 
     @property
     def valid_mask(self):
@@ -178,7 +178,7 @@ class _MeshPolygons(_Polygons):
     def _build(self):
         self._input_cells = self._read_input_cells()
         self._max_vertices = self._find_max_vertices()
-        self._polygon_inds, self._vertices, self._basal_mask = (
+        self._polygon_inds, self._vertices, self._proximal_mask = (
             self._make_init_polygons()
         )
         self._free_mask = self._get_free_mask()
@@ -199,10 +199,10 @@ class _MeshPolygons(_Polygons):
         max_vertices += 1
         return max_vertices
 
-    def _is_basal(self, vertex):
+    def _is_proximal(self, vertex):
         dist_from_origin = np.linalg.norm(vertex - Coords.full_mesh_origin)
-        basal_radius = np.inf
-        return dist_from_origin < basal_radius
+        proximal_radius = np.inf
+        return dist_from_origin < proximal_radius
 
     @staticmethod
     def _remove_duplicates(lst):
@@ -212,14 +212,14 @@ class _MeshPolygons(_Polygons):
     def _make_init_polygons(self):
         all_vertices = np.zeros((0, 2))
         all_indices = []
-        basal_mask = []
+        proximal_mask = []
         index = 0
         for polygon in self._input_cells:
             if polygon['is_boundary']:
                 continue
             indices = []
             vertices = polygon['edges']
-            is_basal = True
+            is_proximal = True
             for vertex in vertices:
                 are_equal = np.isclose(
                     np.array(vertex) - all_vertices, 0.0, atol=0.5
@@ -237,8 +237,8 @@ class _MeshPolygons(_Polygons):
                 else:
                     raise ValueError('Multiple indices found')
 
-                # True if all vertices are basal
-                is_basal *= self._is_basal(vertex)
+                # True if all vertices are proximal
+                is_proximal *= self._is_proximal(vertex)
 
             indices = self._remove_duplicates(indices)
             indices = sort_counterclockwise(
@@ -252,15 +252,15 @@ class _MeshPolygons(_Polygons):
             indices.extend([-1] * (self._max_vertices - len(indices)))
 
             all_indices.append(indices)
-            basal_mask.append(is_basal)
+            proximal_mask.append(is_proximal)
 
         all_indices = np.array(all_indices)
-        basal_mask = np.array(basal_mask)
+        proximal_mask = np.array(proximal_mask)
 
         # Transform coordinates
         all_vertices -= Coords.full_mesh_base
 
-        return all_indices, all_vertices, basal_mask
+        return all_indices, all_vertices, proximal_mask
 
     def _get_fixed_inds(self):
         fixed_inds = [
@@ -294,7 +294,7 @@ class _VoronoiPolygons(_Polygons):
         self._max_vertices = self._find_max_vertices()
         self._polygon_inds = self._finalize_polygon_inds()
         self._free_mask = self._get_free_mask()
-        self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
+        self._proximal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
 
     def _get_generating_shape(self):
         cx, cy = Coords.base_origin
@@ -576,7 +576,7 @@ class _SinglePolygon(_Polygons):
         self._n_vertices = self._vertices.shape[0]
         self._polygon_inds = self._find_polygon_inds()
         self._free_mask = self._get_free_mask()
-        self._basal_mask = np.array([True])
+        self._proximal_mask = np.array([True])
 
     def _make_init_polygons(self):
         vertices = Coords.base_origin + np.array([
@@ -600,8 +600,91 @@ class _SinglePolygon(_Polygons):
 
 
 class _AbstractFactory(ABC):
+    def __init__(self, system):
+        self._system = system
+        self._shape_params, self._polygons = self._make_params_and_polygons()
+        self._vertex_numbers = self._find_vertex_numbers()
+        self._outer_shape = self._make_outer_shape()
+
     @abstractmethod
     def _make_params_and_polygons(self):
+        pass
+
+    def _find_vertex_numbers(self):
+        n_basal_vertices = (
+            np.isclose(self._polygons.free_mask[:,1], 0.0).sum()
+        )
+        n_boundary_vertices = self._polygons.boundary_mask.sum()
+        n_non_basal_vertices = n_boundary_vertices - n_basal_vertices + 2
+        vertex_numbers = {
+            'basal': n_basal_vertices,
+            'boundary': n_boundary_vertices,
+            'non_basal': n_non_basal_vertices
+        }
+        return vertex_numbers
+
+    @staticmethod
+    def _resample_curve(points, n_points, spacing=None):
+        points = np.asarray(points)
+        diffs = np.diff(points, axis=0)
+        seg_lengths = np.hypot(diffs[:,0], diffs[:,1])
+        cumulative_lengths = np.insert(np.cumsum(seg_lengths), 0, 0.0)
+        total_length = cumulative_lengths[-1]
+
+        if spacing is not None:
+            n_points = int(np.floor(total_length / spacing)) + 1
+        elif n_points is None:
+            raise ValueError('You must provide either num_points or spacing.')
+
+        target_lengths = np.linspace(0, total_length, n_points)
+
+        resampled = []
+        for t in target_lengths:
+            idx = np.searchsorted(cumulative_lengths, t) - 1
+            idx = min(max(idx, 0), len(points) - 2)
+            t0, t1 = cumulative_lengths[idx], cumulative_lengths[idx+1]
+            p0, p1 = points[idx], points[idx+1]
+            # Handle zero-length segments
+            if t1 == t0:
+                resampled.append(p0)
+            else:
+                alpha = (t - t0) / (t1 - t0)
+                resampled.append((1 - alpha)*p0 + alpha*p1)
+        return np.array(resampled)
+
+    def _make_non_basal_vertices(self, xs, ys):
+        vertices = np.array(
+            [(x, y) for x, y in zip(xs, ys)]
+        )
+        vertices = self._resample_curve(
+            vertices, self._vertex_numbers['non_basal']
+        )
+        return vertices
+
+    def _make_basal_vertices(self, lower_r):
+        basal_xs = np.linspace(
+            -lower_r, lower_r, self._vertex_numbers['basal']
+        )[1:-1]
+        basal_vertices = np.array([(x, 0.0) for x in basal_xs])
+        return basal_vertices
+
+    def _finalize_vertices(self, non_basal_vertices, basal_vertices):
+        vertices = np.concatenate([non_basal_vertices, basal_vertices], axis=0)
+        vertices += Coords.base_origin
+        return vertices
+
+    def _construct_outer_shape(self, non_basal_xs, non_basal_ys, lower_r):
+        non_basal_vertices = self._make_non_basal_vertices(
+            non_basal_xs, non_basal_ys
+        )
+        basal_vertices = self._make_basal_vertices(lower_r)
+        outer_shape = self._finalize_vertices(
+            non_basal_vertices, basal_vertices
+        )
+        return outer_shape
+
+    @abstractmethod
+    def _make_outer_shape(self):
         pass
 
     @property
@@ -615,9 +698,7 @@ class _AbstractFactory(ABC):
 
 class _EllipseFactory(_AbstractFactory):
     def __init__(self, system):
-        self._system = system
-        self._shape_params, self._polygons = self._make_params_and_polygons()
-        self._outer_shape = self._make_outer_shape()
+        super().__init__(system)
 
     def _make_params_and_polygons(self):
         match self._system:
@@ -654,9 +735,7 @@ class _EllipseFactory(_AbstractFactory):
 
 class _TrapzeoidFactory(_AbstractFactory):
     def __init__(self, system):
-        self._system = system
-        self._shape_params, self._polygons = self._make_params_and_polygons()
-        self._outer_shape = self._make_outer_shape()
+        super().__init__(system)
 
     def _make_params_and_polygons(self):
         match self._system:
@@ -680,29 +759,26 @@ class _TrapzeoidFactory(_AbstractFactory):
         return shape_params, polygons
 
     def _make_outer_shape(self):
-        height = 3.5
-        xs = (
-            np.array([-1.5, 1.5, 2.0, -2.0, -1.5]) * self._shape_params['scale']
-            + self._shape_params['origin'][0]
-        )
-        ys = (
-            np.array([0.0, 0.0, height, height, 0.0]) *
-            self._shape_params['scale']
-            + self._shape_params['origin'][1]
-        )
-        triangle = np.stack([xs, ys], axis=1)
+        height = 3.5 * self._shape_params['scale']
+        lower_r = 1.5 * self._shape_params['scale']
+        upper_r = 2.0 * self._shape_params['scale']
 
-        area = (xs[2] - xs[0]) * ys[2]
+        non_basal_xs = np.array([lower_r, upper_r, -upper_r, -lower_r])
+        non_basal_ys = np.array([0.0, height, height, 0.0])
+
+        outer_shape = self._construct_outer_shape(
+            non_basal_xs, non_basal_ys, lower_r
+        )
+
+        area = height * (lower_r + upper_r)
         print(f'Outer shape area = {area:.3f}')
 
-        return triangle
+        return outer_shape
 
 
 class _PetalFactory(_AbstractFactory):
     def __init__(self, system):
-        self._system = system
-        self._shape_params, self._polygons = self._make_params_and_polygons()
-        self._outer_shape = self._make_outer_shape()
+        super().__init__(system)
 
     def _make_params_and_polygons(self):
         match self._system:
@@ -732,69 +808,26 @@ class _PetalFactory(_AbstractFactory):
         }
         return shape_params, polygons
 
-    @staticmethod
-    def _resample_curve(points, num_points=None, spacing=None):
-        points = np.asarray(points)
-        diffs = np.diff(points, axis=0)
-        seg_lengths = np.hypot(diffs[:,0], diffs[:,1])
-        cumulative_lengths = np.insert(np.cumsum(seg_lengths), 0, 0.0)
-        total_length = cumulative_lengths[-1]
-
-        if spacing is not None:
-            num_points = int(np.floor(total_length / spacing)) + 1
-        elif num_points is None:
-            raise ValueError('You must provide either num_points or spacing.')
-
-        target_lengths = np.linspace(0, total_length, num_points)
-
-        resampled = []
-        for t in target_lengths:
-            idx = np.searchsorted(cumulative_lengths, t) - 1
-            idx = min(max(idx, 0), len(points) - 2)
-            t0, t1 = cumulative_lengths[idx], cumulative_lengths[idx+1]
-            p0, p1 = points[idx], points[idx+1]
-            # Handle zero-length segments
-            if t1 == t0:
-                resampled.append(p0)
-            else:
-                alpha = (t - t0) / (t1 - t0)
-                resampled.append((1 - alpha)*p0 + alpha*p1)
-        return np.array(resampled)
-
     def _make_outer_shape(self):
         scale = 0.254
-        rx = 20.0 * scale
+        lower_r = 20.0 * scale
         h = 60.0 * scale
 
-        n_base_vertices = (
-            np.isclose(self._polygons.free_mask[:,1], 0.0).sum()
-        )
-        n_boundary_vertices = self._polygons.boundary_mask.sum()
-        n_non_base_vertices = n_boundary_vertices - n_base_vertices + 2
-
-        xs = np.linspace(-rx, rx, n_non_base_vertices)
-        ys = h * np.sqrt(1 - (xs / rx)**2)
+        xs = np.linspace(-lower_r, lower_r, self._vertex_numbers['non_basal'])
+        non_basal_ys = h * np.sqrt(1 - (xs / lower_r)**2)
 
         stretch_strength = 2.0
+        factor = 1 + stretch_strength * (non_basal_ys / h)
+        non_basal_xs = xs * factor
 
-        factor = 1 + stretch_strength * (ys / h)
-        xs = xs * factor
-
-        petal_vertices = np.array([(x, y) for x, y in zip(xs, ys)])
-        petal_vertices = self._resample_curve(
-            petal_vertices, num_points=len(petal_vertices)
+        outer_shape = self._construct_outer_shape(
+            non_basal_xs, non_basal_ys, lower_r
         )
 
-        base_xs = np.linspace(-rx, rx, n_base_vertices)[1:-1]
-        base_vertices = np.array([(x, 0.0) for x in base_xs])
-
-        vertices = np.concatenate([petal_vertices, base_vertices], axis=0)
-        vertices += Coords.base_origin
-
-        area = rx * h * (np.pi / 2 + 2 * stretch_strength / 3)
+        area = lower_r * h * (np.pi / 2 + 2 * stretch_strength / 3)
         print(f'Outer shape area = {area:.3f}')
 
-        return vertices
+        return outer_shape
 
 
 def get_factory(shape, system):
