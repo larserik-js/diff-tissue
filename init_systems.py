@@ -665,8 +665,9 @@ class _TrapzeoidFactory(_AbstractFactory):
                 origin = Coords.shape_origin + (0.0, 15.0)
                 polygons = _MeshPolygons()
             case 'voronoi':
-                a = 12.0
-                origin = Coords.shape_origin + (0.0, -22.0)
+                A_mesh = 225.0 # Manually insert for now
+                a = np.sqrt(A_mesh / 3.5**2)
+                origin = Coords.base_origin
                 polygons = _VoronoiPolygons()
             case 'single':
                 a = 10.0
@@ -690,6 +691,10 @@ class _TrapzeoidFactory(_AbstractFactory):
             + self._shape_params['origin'][1]
         )
         triangle = np.stack([xs, ys], axis=1)
+
+        area = (xs[2] - xs[0]) * ys[2]
+        print(f'Outer shape area = {area:.3f}')
+
         return triangle
 
 
