@@ -284,8 +284,8 @@ class _VoronoiPolygons(_Polygons):
         self._radius_x = 12.0
         self._radius_y = 12.0
         self._polygon_area = 3.0
-        self._n_polygons = self._calc_n_polygons()
-        print(f'Tissue area = {self._n_polygons * self._polygon_area}')
+        self._n_polygons_in_full_circle = self._calc_n_polygons_in_full_circle()
+        self._mesh_area = self._calc_mesh_area()
 
         self._generating_shape = self._get_generating_shape()
         self._all_polygon_inds, self._vertices = (
@@ -313,17 +313,26 @@ class _VoronoiPolygons(_Polygons):
         generating_shape = Polygon(coords)
         return generating_shape
 
-    def _calc_n_polygons(self):
+    def _calc_n_polygons_in_full_circle(self):
         n_polygons = int(
             np.pi * self._radius_x * self._radius_y /
             self._polygon_area
         )
         return n_polygons
 
+    def _calc_mesh_area(self):
+        area = 0.5 * self._n_polygons_in_full_circle * self._polygon_area
+        print(f'Voronoi mesh area = {area:.3f}')
+        return area
+
     def _generate_random_points(self):
         bounds = self._generating_shape.bounds
-        xs = np.random.uniform(bounds[0], bounds[2], self._n_polygons)
-        ys = np.random.uniform(bounds[1], bounds[3], self._n_polygons)
+        xs = np.random.uniform(
+            bounds[0], bounds[2], self._n_polygons_in_full_circle
+        )
+        ys = np.random.uniform(
+            bounds[1], bounds[3], self._n_polygons_in_full_circle
+        )
         points_array = np.vstack((xs, ys)).T
         points = shapely.points(points_array)
         inside_mask = shapely.contains(self._generating_shape, points)
@@ -656,8 +665,9 @@ class _TrapzeoidFactory(_AbstractFactory):
                 origin = Coords.shape_origin + (0.0, 15.0)
                 polygons = _MeshPolygons()
             case 'voronoi':
-                a = 12.0
-                origin = Coords.shape_origin + (0.0, -22.0)
+                A_mesh = 225.0 # Manually insert for now
+                a = np.sqrt(A_mesh / 3.5**2)
+                origin = Coords.base_origin
                 polygons = _VoronoiPolygons()
             case 'single':
                 a = 10.0
@@ -681,6 +691,10 @@ class _TrapzeoidFactory(_AbstractFactory):
             + self._shape_params['origin'][1]
         )
         triangle = np.stack([xs, ys], axis=1)
+
+        area = (xs[2] - xs[0]) * ys[2]
+        print(f'Outer shape area = {area:.3f}')
+
         return triangle
 
 
@@ -777,9 +791,8 @@ class _PetalFactory(_AbstractFactory):
         vertices = np.concatenate([petal_vertices, base_vertices], axis=0)
         vertices += Coords.base_origin
 
-        area = 2 * rx * h * (np.pi / 2 + 2 * stretch_strength / 3)
-
-        print(f'Outer shape area = {area}')
+        area = rx * h * (np.pi / 2 + 2 * stretch_strength / 3)
+        print(f'Outer shape area = {area:.3f}')
 
         return vertices
 
