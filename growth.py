@@ -23,9 +23,10 @@ def _calc_all_angles_loss(edges, valid_mask, optimal_angles):
     return angles_loss
 
 
-def _calc_aspect_ratios_loss(target_aspect_ratios, aspect_ratios, basal_mask):
+def _calc_aspect_ratios_loss(target_aspect_ratios, aspect_ratios,
+                             proximal_mask):
     aspect_ratio_diffs = target_aspect_ratios - aspect_ratios
-    aspect_ratios_loss = jnp.sum(jnp.square(basal_mask * aspect_ratio_diffs))
+    aspect_ratios_loss = jnp.sum(jnp.square(proximal_mask * aspect_ratio_diffs))
     return aspect_ratios_loss
 
 
@@ -47,7 +48,7 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
     )
     aspect_ratios_loss = (
         params['aspect_ratio_loss_weight'] * _calc_aspect_ratios_loss(
-            target_aspect_ratios, aspect_ratios, jax_arrays['basal_mask']
+            target_aspect_ratios, aspect_ratios, jax_arrays['proximal_mask']
         )
     )
 

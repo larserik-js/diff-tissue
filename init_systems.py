@@ -147,8 +147,8 @@ class _Polygons(ABC):
         return self._free_mask
 
     @property
-    def basal_mask(self):
-        return self._basal_mask
+    def proximal_mask(self):
+        return self._proximal_mask
 
     @property
     def valid_mask(self):
@@ -178,7 +178,7 @@ class _MeshPolygons(_Polygons):
     def _build(self):
         self._input_cells = self._read_input_cells()
         self._max_vertices = self._find_max_vertices()
-        self._polygon_inds, self._vertices, self._basal_mask = (
+        self._polygon_inds, self._vertices, self._proximal_mask = (
             self._make_init_polygons()
         )
         self._free_mask = self._get_free_mask()
@@ -199,10 +199,10 @@ class _MeshPolygons(_Polygons):
         max_vertices += 1
         return max_vertices
 
-    def _is_basal(self, vertex):
+    def _is_proximal(self, vertex):
         dist_from_origin = np.linalg.norm(vertex - Coords.full_mesh_origin)
-        basal_radius = np.inf
-        return dist_from_origin < basal_radius
+        proximal_radius = np.inf
+        return dist_from_origin < proximal_radius
 
     @staticmethod
     def _remove_duplicates(lst):
@@ -212,14 +212,14 @@ class _MeshPolygons(_Polygons):
     def _make_init_polygons(self):
         all_vertices = np.zeros((0, 2))
         all_indices = []
-        basal_mask = []
+        proximal_mask = []
         index = 0
         for polygon in self._input_cells:
             if polygon['is_boundary']:
                 continue
             indices = []
             vertices = polygon['edges']
-            is_basal = True
+            is_proximal = True
             for vertex in vertices:
                 are_equal = np.isclose(
                     np.array(vertex) - all_vertices, 0.0, atol=0.5
@@ -237,8 +237,8 @@ class _MeshPolygons(_Polygons):
                 else:
                     raise ValueError('Multiple indices found')
 
-                # True if all vertices are basal
-                is_basal *= self._is_basal(vertex)
+                # True if all vertices are proximal
+                is_proximal *= self._is_proximal(vertex)
 
             indices = self._remove_duplicates(indices)
             indices = sort_counterclockwise(
@@ -252,15 +252,15 @@ class _MeshPolygons(_Polygons):
             indices.extend([-1] * (self._max_vertices - len(indices)))
 
             all_indices.append(indices)
-            basal_mask.append(is_basal)
+            proximal_mask.append(is_proximal)
 
         all_indices = np.array(all_indices)
-        basal_mask = np.array(basal_mask)
+        proximal_mask = np.array(proximal_mask)
 
         # Transform coordinates
         all_vertices -= Coords.full_mesh_base
 
-        return all_indices, all_vertices, basal_mask
+        return all_indices, all_vertices, proximal_mask
 
     def _get_fixed_inds(self):
         fixed_inds = [
@@ -294,7 +294,7 @@ class _VoronoiPolygons(_Polygons):
         self._max_vertices = self._find_max_vertices()
         self._polygon_inds = self._finalize_polygon_inds()
         self._free_mask = self._get_free_mask()
-        self._basal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
+        self._proximal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
 
     def _get_generating_shape(self):
         cx, cy = Coords.base_origin
@@ -576,7 +576,7 @@ class _SinglePolygon(_Polygons):
         self._n_vertices = self._vertices.shape[0]
         self._polygon_inds = self._find_polygon_inds()
         self._free_mask = self._get_free_mask()
-        self._basal_mask = np.array([True])
+        self._proximal_mask = np.array([True])
 
     def _make_init_polygons(self):
         vertices = Coords.base_origin + np.array([
