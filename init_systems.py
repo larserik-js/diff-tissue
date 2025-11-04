@@ -623,6 +623,66 @@ class _AbstractFactory(ABC):
         }
         return vertex_numbers
 
+    @staticmethod
+    def _resample_curve(points, n_points, spacing=None):
+        points = np.asarray(points)
+        diffs = np.diff(points, axis=0)
+        seg_lengths = np.hypot(diffs[:,0], diffs[:,1])
+        cumulative_lengths = np.insert(np.cumsum(seg_lengths), 0, 0.0)
+        total_length = cumulative_lengths[-1]
+
+        if spacing is not None:
+            n_points = int(np.floor(total_length / spacing)) + 1
+        elif n_points is None:
+            raise ValueError('You must provide either num_points or spacing.')
+
+        target_lengths = np.linspace(0, total_length, n_points)
+
+        resampled = []
+        for t in target_lengths:
+            idx = np.searchsorted(cumulative_lengths, t) - 1
+            idx = min(max(idx, 0), len(points) - 2)
+            t0, t1 = cumulative_lengths[idx], cumulative_lengths[idx+1]
+            p0, p1 = points[idx], points[idx+1]
+            # Handle zero-length segments
+            if t1 == t0:
+                resampled.append(p0)
+            else:
+                alpha = (t - t0) / (t1 - t0)
+                resampled.append((1 - alpha)*p0 + alpha*p1)
+        return np.array(resampled)
+
+    def _make_non_basal_vertices(self, xs, ys):
+        vertices = np.array(
+            [(x, y) for x, y in zip(xs, ys)]
+        )
+        vertices = self._resample_curve(
+            vertices, self._vertex_numbers['non_basal']
+        )
+        return vertices
+
+    def _make_basal_vertices(self, lower_r):
+        basal_xs = np.linspace(
+            -lower_r, lower_r, self._vertex_numbers['basal']
+        )[1:-1]
+        basal_vertices = np.array([(x, 0.0) for x in basal_xs])
+        return basal_vertices
+
+    def _finalize_vertices(self, non_basal_vertices, basal_vertices):
+        vertices = np.concatenate([non_basal_vertices, basal_vertices], axis=0)
+        vertices += Coords.base_origin
+        return vertices
+
+    def _construct_outer_shape(self, non_basal_xs, non_basal_ys, lower_r):
+        non_basal_vertices = self._make_non_basal_vertices(
+            non_basal_xs, non_basal_ys
+        )
+        basal_vertices = self._make_basal_vertices(lower_r)
+        outer_shape = self._finalize_vertices(
+            non_basal_vertices, basal_vertices
+        )
+        return outer_shape
+
     @abstractmethod
     def _make_outer_shape(self):
         pass
@@ -699,22 +759,21 @@ class _TrapzeoidFactory(_AbstractFactory):
         return shape_params, polygons
 
     def _make_outer_shape(self):
-        height = 3.5
-        xs = (
-            np.array([-1.5, 1.5, 2.0, -2.0, -1.5]) * self._shape_params['scale']
-            + self._shape_params['origin'][0]
-        )
-        ys = (
-            np.array([0.0, 0.0, height, height, 0.0]) *
-            self._shape_params['scale']
-            + self._shape_params['origin'][1]
-        )
-        triangle = np.stack([xs, ys], axis=1)
+        height = 3.5 * self._shape_params['scale']
+        lower_r = 1.5 * self._shape_params['scale']
+        upper_r = 2.0 * self._shape_params['scale']
 
-        area = (xs[2] - xs[0]) * ys[2]
+        non_basal_xs = np.array([lower_r, upper_r, -upper_r, -lower_r])
+        non_basal_ys = np.array([0.0, height, height, 0.0])
+
+        outer_shape = self._construct_outer_shape(
+            non_basal_xs, non_basal_ys, lower_r
+        )
+
+        area = height * (lower_r + upper_r)
         print(f'Outer shape area = {area:.3f}')
 
-        return triangle
+        return outer_shape
 
 
 class _PetalFactory(_AbstractFactory):
@@ -749,63 +808,26 @@ class _PetalFactory(_AbstractFactory):
         }
         return shape_params, polygons
 
-    @staticmethod
-    def _resample_curve(points, num_points=None, spacing=None):
-        points = np.asarray(points)
-        diffs = np.diff(points, axis=0)
-        seg_lengths = np.hypot(diffs[:,0], diffs[:,1])
-        cumulative_lengths = np.insert(np.cumsum(seg_lengths), 0, 0.0)
-        total_length = cumulative_lengths[-1]
-
-        if spacing is not None:
-            num_points = int(np.floor(total_length / spacing)) + 1
-        elif num_points is None:
-            raise ValueError('You must provide either num_points or spacing.')
-
-        target_lengths = np.linspace(0, total_length, num_points)
-
-        resampled = []
-        for t in target_lengths:
-            idx = np.searchsorted(cumulative_lengths, t) - 1
-            idx = min(max(idx, 0), len(points) - 2)
-            t0, t1 = cumulative_lengths[idx], cumulative_lengths[idx+1]
-            p0, p1 = points[idx], points[idx+1]
-            # Handle zero-length segments
-            if t1 == t0:
-                resampled.append(p0)
-            else:
-                alpha = (t - t0) / (t1 - t0)
-                resampled.append((1 - alpha)*p0 + alpha*p1)
-        return np.array(resampled)
-
     def _make_outer_shape(self):
         scale = 0.254
-        rx = 20.0 * scale
+        lower_r = 20.0 * scale
         h = 60.0 * scale
 
-        xs = np.linspace(-rx, rx, self._vertex_numbers['non_basal'])
-        ys = h * np.sqrt(1 - (xs / rx)**2)
+        xs = np.linspace(-lower_r, lower_r, self._vertex_numbers['non_basal'])
+        non_basal_ys = h * np.sqrt(1 - (xs / lower_r)**2)
 
         stretch_strength = 2.0
+        factor = 1 + stretch_strength * (non_basal_ys / h)
+        non_basal_xs = xs * factor
 
-        factor = 1 + stretch_strength * (ys / h)
-        xs = xs * factor
-
-        petal_vertices = np.array([(x, y) for x, y in zip(xs, ys)])
-        petal_vertices = self._resample_curve(
-            petal_vertices, num_points=len(petal_vertices)
+        outer_shape = self._construct_outer_shape(
+            non_basal_xs, non_basal_ys, lower_r
         )
 
-        base_xs = np.linspace(-rx, rx, self._vertex_numbers['basal'])[1:-1]
-        base_vertices = np.array([(x, 0.0) for x in base_xs])
-
-        vertices = np.concatenate([petal_vertices, base_vertices], axis=0)
-        vertices += Coords.base_origin
-
-        area = rx * h * (np.pi / 2 + 2 * stretch_strength / 3)
+        area = lower_r * h * (np.pi / 2 + 2 * stretch_strength / 3)
         print(f'Outer shape area = {area:.3f}')
 
-        return vertices
+        return outer_shape
 
 
 def get_factory(shape, system):
