@@ -600,8 +600,31 @@ class _SinglePolygon(_Polygons):
 
 
 class _AbstractFactory(ABC):
+    def __init__(self, system):
+        self._system = system
+        self._shape_params, self._polygons = self._make_params_and_polygons()
+        self._vertex_numbers = self._find_vertex_numbers()
+        self._outer_shape = self._make_outer_shape()
+
     @abstractmethod
     def _make_params_and_polygons(self):
+        pass
+
+    def _find_vertex_numbers(self):
+        n_basal_vertices = (
+            np.isclose(self._polygons.free_mask[:,1], 0.0).sum()
+        )
+        n_boundary_vertices = self._polygons.boundary_mask.sum()
+        n_non_basal_vertices = n_boundary_vertices - n_basal_vertices + 2
+        vertex_numbers = {
+            'basal': n_basal_vertices,
+            'boundary': n_boundary_vertices,
+            'non_basal': n_non_basal_vertices
+        }
+        return vertex_numbers
+
+    @abstractmethod
+    def _make_outer_shape(self):
         pass
 
     @property
@@ -615,9 +638,7 @@ class _AbstractFactory(ABC):
 
 class _EllipseFactory(_AbstractFactory):
     def __init__(self, system):
-        self._system = system
-        self._shape_params, self._polygons = self._make_params_and_polygons()
-        self._outer_shape = self._make_outer_shape()
+        super().__init__(system)
 
     def _make_params_and_polygons(self):
         match self._system:
@@ -654,9 +675,7 @@ class _EllipseFactory(_AbstractFactory):
 
 class _TrapzeoidFactory(_AbstractFactory):
     def __init__(self, system):
-        self._system = system
-        self._shape_params, self._polygons = self._make_params_and_polygons()
-        self._outer_shape = self._make_outer_shape()
+        super().__init__(system)
 
     def _make_params_and_polygons(self):
         match self._system:
@@ -700,9 +719,7 @@ class _TrapzeoidFactory(_AbstractFactory):
 
 class _PetalFactory(_AbstractFactory):
     def __init__(self, system):
-        self._system = system
-        self._shape_params, self._polygons = self._make_params_and_polygons()
-        self._outer_shape = self._make_outer_shape()
+        super().__init__(system)
 
     def _make_params_and_polygons(self):
         match self._system:
@@ -766,13 +783,7 @@ class _PetalFactory(_AbstractFactory):
         rx = 20.0 * scale
         h = 60.0 * scale
 
-        n_base_vertices = (
-            np.isclose(self._polygons.free_mask[:,1], 0.0).sum()
-        )
-        n_boundary_vertices = self._polygons.boundary_mask.sum()
-        n_non_base_vertices = n_boundary_vertices - n_base_vertices + 2
-
-        xs = np.linspace(-rx, rx, n_non_base_vertices)
+        xs = np.linspace(-rx, rx, self._vertex_numbers['non_basal'])
         ys = h * np.sqrt(1 - (xs / rx)**2)
 
         stretch_strength = 2.0
@@ -785,7 +796,7 @@ class _PetalFactory(_AbstractFactory):
             petal_vertices, num_points=len(petal_vertices)
         )
 
-        base_xs = np.linspace(-rx, rx, n_base_vertices)[1:-1]
+        base_xs = np.linspace(-rx, rx, self._vertex_numbers['basal'])[1:-1]
         base_vertices = np.array([(x, 0.0) for x in base_xs])
 
         vertices = np.concatenate([petal_vertices, base_vertices], axis=0)
