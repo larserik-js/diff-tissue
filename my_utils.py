@@ -241,8 +241,9 @@ class Figure:
         self._ax.set_aspect('equal')
 
     def _add_baselines(self):
+        base_y = init_systems.Coords.base_origin[1]
         baseline = np.block(
-            [[self._ax_lims['x']], [init_systems.Coords.base_origin]]
+            [[self._ax_lims['x']], [base_y, base_y]]
         )
 
         self._ax.plot(baseline[0,:], baseline[1,:], 'k', lw=0.7)
