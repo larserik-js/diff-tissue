@@ -219,18 +219,19 @@ def calc_aspect_ratios(all_cells, valid_mask):
 
 
 class Figure:
-    def __init__(self, vertices):
+    def __init__(self, init_vertices):
         self._fig, self._ax = plt.subplots(figsize=(10, 10))
-        self._ax_lims = self._get_ax_lims(vertices)
+        self._init_vertices = np.array(init_vertices)
+        self._ax_lims = self._get_ax_lims()
 
-    def _get_ax_lims(self, vertices):
-        minvals = vertices.min(axis=0)
-        maxvals = vertices.max(axis=0)
+    def _get_ax_lims(self):
+        minvals = self._init_vertices.min(axis=0)
+        maxvals = self._init_vertices.max(axis=0)
         center = init_systems.Coords.base_origin
         ranges = (maxvals - minvals)
         dims = np.array([0.8, 1.5]) * ranges
-        xlim = center[0] + jnp.array([-1.0, 1.0]) * dims[0]
-        ylim = center[1] + jnp.array([-1.0, dims[1]])
+        xlim = center[0] + np.array([-1.0, 1.0]) * dims[0]
+        ylim = center[1] + np.array([-1.0, dims[1]])
         ax_lims = {'x': xlim, 'y': ylim}
         return ax_lims
 
