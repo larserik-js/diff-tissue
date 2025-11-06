@@ -11,8 +11,7 @@ def _get_plotting_data(params):
     return growth_evolution
 
 
-def plot(growth_evolution, output_dir, params):
-    jax_arrays = my_utils.get_jax_arrays(params)
+def _plot(growth_evolution, output_dir, jax_arrays):
     figure = my_utils.Figure(growth_evolution[0])
 
     for t, vertices in enumerate(growth_evolution):
@@ -30,11 +29,13 @@ def _main():
 
     np.random.seed(params.numerical['seed'])
 
+    jax_arrays = my_utils.get_jax_arrays(params)
+
     growth_evolution = _get_plotting_data(params)
 
     output_dir = my_files.OutputDir('growth', params).path
 
-    plot(growth_evolution, output_dir, params)
+    _plot(growth_evolution, output_dir, jax_arrays)
 
 
 if __name__ == '__main__':

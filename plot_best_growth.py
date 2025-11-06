@@ -2,7 +2,21 @@ import jax
 import numpy as np
 import pandas as pd
 
-import growth, my_files, my_utils, plot_growth
+import growth, my_files, my_utils
+
+
+def _plot(growth_evolution, output_dir, jax_arrays, params):
+    figure = my_utils.MorphGrowthFigure(
+        growth_evolution[0], jax_arrays['outer_shape'], scale=5.0,
+        total_steps=params.numerical['n_growth_steps']
+    )
+
+    for t, vertices in enumerate(growth_evolution):
+        if t%10 == 0:
+            figure.plot(output_dir, vertices, jax_arrays, step=t)
+
+    # Always plot final state
+    figure.plot(output_dir, vertices, jax_arrays, step=t)
 
 
 def main():
@@ -29,8 +43,7 @@ def main():
 
     output_dir = my_files.OutputDir('best_growth', params).path
 
-    np.random.seed(params.numerical['seed'])
-    plot_growth.plot(growth_evolution, output_dir, params)
+    _plot(growth_evolution, output_dir, jax_arrays, params)
 
 
 if __name__ == '__main__':

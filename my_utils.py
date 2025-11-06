@@ -282,3 +282,86 @@ class Figure:
         self._format()
         self._add_artists(vertices, jax_arrays)
         self._save(output_dir, step)
+
+
+class MorphGrowthFigure:
+    def __init__(self, init_vertices, outer_shape, scale, total_steps):
+        self._fig, self._axs = plt.subplots(2, figsize=(10, 10))
+        self._init_vertices = init_vertices
+        self._scale = scale
+        self._total_steps = total_steps
+        self._ax_lims = self._get_ax_lims(self._init_vertices)
+        self._scaled_ax_lims = self._get_ax_lims(
+            self._scale * self._init_vertices
+        )
+        self._scaled_outer_shape = self._scale * outer_shape
+
+    def _get_ax_lims(self, vertices):
+        minvals = vertices.min(axis=0)
+        maxvals = vertices.max(axis=0)
+        center = init_systems.Coords.base_origin
+        ranges = (maxvals - minvals)
+        dims = np.array([0.8, 1.5]) * ranges
+        xlim = center[0] + np.array([-1.0, 1.0]) * dims[0]
+        ylim = center[1] + np.array([-1.0, dims[1]])
+        ax_lims = {'x': xlim, 'y': ylim}
+        return ax_lims
+
+    def _format(self, ax, ax_lims):
+        ax.clear()
+        ax.set_xlim(ax_lims['x'])
+        ax.set_ylim(ax_lims['y'])
+        ax.set_aspect('equal')
+
+    def _add_baselines(self, ax, ax_lims):
+        base_y = init_systems.Coords.base_origin[1]
+        baseline = np.block([[ax_lims['x']], [base_y, base_y]])
+
+        ax.plot(baseline[0,:], baseline[1,:], 'k', lw=0.7)
+
+    def _add_artists(self, ax, ax_lims, vertices, outer_shape, jax_arrays):
+        indices = jax_arrays['indices']
+        for i in range(indices.shape[0]):
+            vertex_inds = indices[i][jax_arrays['valid_mask'][i]]
+            polygon = vertices[vertex_inds]
+            ax.scatter(
+                polygon[:, 0], polygon[:, 1], s=2.0, color='green', zorder=1
+            )
+            ax.plot(
+                polygon[:, 0], polygon[:, 1], lw=0.7, color='black', zorder=2
+            )
+
+        self._add_baselines(ax, ax_lims)
+
+        boundary_vertices = vertices[jax_arrays['boundary_mask']]
+        ax.scatter(
+            boundary_vertices[:, 0], boundary_vertices[:, 1], s=20.0, color='g',
+            marker='s', zorder=3
+        )
+
+        ax.plot(
+            outer_shape[:, 0], outer_shape[:, 1],
+            'ro-', markersize=3, label='Outer shape'
+        )
+
+    def _save(self, output_dir, step):
+        fig_path = output_dir / f'step={step}.png'
+        self._fig.savefig(fig_path, dpi=100)
+
+    def plot(self, output_dir, vertices, jax_arrays, step):
+        ax = self._axs[0]
+        self._format(ax, self._ax_lims)
+        self._add_artists(
+            ax, self._ax_lims, vertices, jax_arrays['outer_shape'], jax_arrays
+        )
+
+        ax = self._axs[1]
+        self._format(ax, self._scaled_ax_lims)
+        partial_scale = (self._scale - 1) * step / self._total_steps + 1.0
+        scaled_vertices = vertices * partial_scale
+        self._add_artists(
+            ax, self._scaled_ax_lims, scaled_vertices, self._scaled_outer_shape,
+            jax_arrays
+        )
+
+        self._save(output_dir, step)
