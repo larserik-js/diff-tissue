@@ -2,7 +2,7 @@ import jax
 import numpy as np
 import pandas as pd
 
-import growth, my_files, my_utils
+import morph, my_files, my_utils
 
 
 def _plot(growth_evolution, output_dir, jax_arrays, total_steps):
@@ -35,7 +35,7 @@ def main():
         df['best_goal_aspect_ratio'].values
     )
 
-    growth_evolution = growth.iterate(
+    growth_evolution = morph.iterate(
         best_goal_areas, best_goal_aspect_ratios,
         params.numerical['n_growth_steps'], jax_arrays, params.numerical
     )

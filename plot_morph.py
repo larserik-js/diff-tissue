@@ -5,7 +5,7 @@ import my_files, my_utils
 
 
 def _get_plotting_data(params):
-    input_file = my_files.OutputFile('growth', '.pkl', params)
+    input_file = my_files.OutputFile('morph', '.pkl', params)
     data_handler = my_files.DataHandler(input_file)
     growth_evolution = data_handler.load()
     return growth_evolution
@@ -31,7 +31,7 @@ def _main():
 
     growth_evolution = _get_plotting_data(params)
 
-    output_dir = my_files.OutputDir('growth', params).path
+    output_dir = my_files.OutputDir('morph', params).path
 
     _plot(growth_evolution, output_dir, jax_arrays)
 

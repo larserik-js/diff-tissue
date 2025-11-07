@@ -123,7 +123,7 @@ def iterate(goal_areas, goal_aspect_ratios, n_steps, jax_arrays, params):
 
 
 def _save_growth_evolution(growth_evolution, params):
-    output_file = my_files.OutputFile('growth', '.pkl', params)
+    output_file = my_files.OutputFile('morph', '.pkl', params)
     data_handler = my_files.DataHandler(output_file)
     data_handler.save(growth_evolution)
 

@@ -4,7 +4,7 @@ import numpy as np
 import optax
 import pandas as pd
 
-import diffeomorphism, growth, my_files, my_utils
+import diffeomorphism, morph, my_files, my_utils
 
 
 def _calc_scaling(min_scaling, max_scaling, logits):
@@ -67,7 +67,7 @@ def _shape_loss_f(ar_logits, as_logits, init_areas, n_growth_steps, jax_arrays,
     )
     goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
-    growth_evolution = growth.iterate(
+    growth_evolution = morph.iterate(
         goal_areas, goal_aspect_ratios, n_growth_steps, jax_arrays, params
     )
     final_vertices = growth_evolution[-1]
