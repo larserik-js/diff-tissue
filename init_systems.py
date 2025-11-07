@@ -35,6 +35,38 @@ def _extend(indices):
     return indices
 
 
+def _calc_segment_area(d, r):
+    segment_area = r**2 * np.arccos(d / r) - d * np.sqrt(r**2 - d**2)
+    return segment_area
+
+
+def _get_full_mesh_area():
+    big_r = 40.0
+    big_circle_area = np.pi * big_r**2
+    center_to_base_line_dist = big_r - Coords.full_mesh_base[1]
+    big_circle_segment = _calc_segment_area(center_to_base_line_dist, big_r)
+
+    small_r = 33.0
+    center_to_base_line_dist = Coords.full_mesh_base[1]
+    small_circle_segment = _calc_segment_area(
+        center_to_base_line_dist, small_r
+    )
+    full_mesh_area = big_circle_area - big_circle_segment - small_circle_segment
+    print(f'Full mesh area = {full_mesh_area:.3f}')
+    return full_mesh_area
+
+
+def _calc_single_poly_area(vertices):
+    xs = vertices[:,0]
+    ys = vertices[:,1]
+
+    area = 0.5 * np.abs(
+        np.dot(xs, np.roll(ys, -1)) - np.dot(ys, np.roll(xs, -1))
+    )
+    print(f'Single polygon area = {area:.3f}')
+    return area
+
+
 class _Polygons(ABC):
     def __init__(self):
         self._build()
@@ -601,10 +633,15 @@ class _SinglePolygon(_Polygons):
 
 class _AbstractFactory(ABC):
     def __init__(self, system):
+        self._build()
         self._system = system
         self._shape_params, self._polygons = self._make_params_and_polygons()
         self._vertex_numbers = self._find_vertex_numbers()
         self._outer_shape = self._make_outer_shape()
+
+    @abstractmethod
+    def _build(self):
+        pass
 
     @abstractmethod
     def _make_params_and_polygons(self):
@@ -696,66 +733,34 @@ class _AbstractFactory(ABC):
         return self._outer_shape
 
 
-class _EllipseFactory(_AbstractFactory):
-    def __init__(self, system):
-        super().__init__(system)
-
-    def _make_params_and_polygons(self):
-        match self._system:
-            case 'full':
-                a = 40.0
-                b = a * 1.5
-                origin = Coords.shape_origin + (0.0, 25.0)
-                polygons = _MeshPolygons()
-            case 'voronoi':
-                a = 23.0
-                b = a * 1.2
-                origin = Coords.shape_origin
-                polygons = _VoronoiPolygons()
-            case 'single':
-                a = 15.0
-                b = a * 1.5
-                origin = Coords.shape_origin
-                polygons = _SinglePolygon()
-            case _:
-                raise ValueError('Invalid initial system!')
-
-        shape_params = {'a': a, 'b': b, 'origin': origin}
-        return shape_params, polygons
-
-    def _make_outer_shape(self):
-        angles = np.linspace(0, 2 * np.pi, 50, endpoint=True)
-        xs = (self._shape_params['origin'][0] +
-             self._shape_params['a'] * np.cos(angles))
-        ys = (self._shape_params['origin'][1] +
-             self._shape_params['b'] * np.sin(angles))
-        ellipse = np.stack([xs, ys], axis=1)
-        return ellipse
-
-
 class _TrapzeoidFactory(_AbstractFactory):
     def __init__(self, system):
         super().__init__(system)
 
+    def _build(self):
+        pass
+
+    @staticmethod
+    def _calc_scale(mesh_area):
+        scale = np.sqrt(mesh_area / 3.5**2)
+        return scale
+
     def _make_params_and_polygons(self):
         match self._system:
             case 'full':
-                a = 2500.0
-                origin = Coords.shape_origin + (0.0, 15.0)
+                mesh_area = _get_full_mesh_area()
+                scale = self._calc_scale(mesh_area)
                 polygons = _MeshPolygons()
             case 'voronoi':
-                A_mesh = 225.0 # Manually insert for now
-                a = np.sqrt(A_mesh / 3.5**2)
-                origin = Coords.base_origin
+                mesh_area = 225.0 # Manually insert for now
+                scale = np.sqrt(mesh_area / 3.5**2)
                 polygons = _VoronoiPolygons()
             case 'single':
-                a = 10.0
-                origin = Coords.shape_origin
-                polygons = _SinglePolygon()
+                raise NotImplementedError
             case _:
                 raise ValueError('Invalid initial system!')
 
-        shape_params = {'scale': a, 'origin': origin}
+        shape_params = {'scale': scale}
         return shape_params, polygons
 
     def _make_outer_shape(self):
@@ -780,51 +785,59 @@ class _PetalFactory(_AbstractFactory):
     def __init__(self, system):
         super().__init__(system)
 
+    def _build(self):
+        self._x_dim = 20.0
+        self._y_dim = 60.0
+        self._stretch_strength = 2.0
+
+    def _calc_scale(self, mesh_area):
+        scale = np.sqrt(
+            mesh_area / ((self._x_dim * self._y_dim) *
+            (np.pi / 2 + 2 * self._stretch_strength / 3))
+        )
+        return scale
+
     def _make_params_and_polygons(self):
         match self._system:
             case 'full':
-                a = 2500.0
-                origin = Coords.shape_origin + (0.0, 15.0)
+                mesh_area = _get_full_mesh_area()
+                scale = self._calc_scale(mesh_area)
                 polygons = _MeshPolygons()
             case 'voronoi':
-                a = 700.0
-                origin = Coords.shape_origin + (0.0, 1.0)
+                mesh_area = 225.0 # Manually insert for now
+                scale = self._calc_scale(mesh_area)
                 polygons = _VoronoiPolygons()
             case 'single':
-                a = 700.0
-                origin = Coords.shape_origin + (0.0, 1.0)
                 polygons = _SinglePolygon()
+                vertices = polygons.vertices
+                mesh_area = _calc_single_poly_area(vertices)
+                scale = self._calc_scale(mesh_area)
             case _:
                 raise ValueError('Invalid initial system!')
 
-        b = 1.0 * a
-        m = 3.0
-        n1 = 30.0
-        n2 = 15.0
-        n3 = 15.0
-        shape_params = {
-            'a': a, 'b': b, 'm': m, 'n1': n1, 'n2': n2, 'n3': n3,
-            'origin': origin
-        }
+        shape_params = {'scale': scale}
         return shape_params, polygons
 
     def _make_outer_shape(self):
-        scale = 0.254
-        lower_r = 20.0 * scale
-        h = 60.0 * scale
+        lower_r = self._x_dim * self._shape_params['scale']
+        height = self._y_dim * self._shape_params['scale']
 
-        xs = np.linspace(-lower_r, lower_r, self._vertex_numbers['non_basal'])
-        non_basal_ys = h * np.sqrt(1 - (xs / lower_r)**2)
+        xs = np.linspace(
+            -lower_r, lower_r, self._vertex_numbers['non_basal']
+        )
+        non_basal_ys = height * np.sqrt(1 - (xs / lower_r)**2)
 
-        stretch_strength = 2.0
-        factor = 1 + stretch_strength * (non_basal_ys / h)
+        factor = 1 + self._stretch_strength * (non_basal_ys / height)
         non_basal_xs = xs * factor
 
         outer_shape = self._construct_outer_shape(
             non_basal_xs, non_basal_ys, lower_r
         )
 
-        area = lower_r * h * (np.pi / 2 + 2 * stretch_strength / 3)
+        area = (
+            lower_r * height *
+            (np.pi / 2 + 2 * self._stretch_strength / 3)
+        )
         print(f'Outer shape area = {area:.3f}')
 
         return outer_shape
@@ -832,8 +845,6 @@ class _PetalFactory(_AbstractFactory):
 
 def get_factory(shape, system):
     match shape:
-        case 'ellipse':
-            factory = _EllipseFactory(system)
         case 'trapezoid':
             factory = _TrapzeoidFactory(system)
         case 'petal':
