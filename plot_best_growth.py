@@ -2,7 +2,20 @@ import jax
 import numpy as np
 import pandas as pd
 
-import growth, my_files, my_utils, plot_growth
+import morph, my_files, my_utils
+
+
+def _plot(growth_evolution, output_dir, jax_arrays, total_steps):
+    figure = my_utils.MorphGrowthFigure(
+        output_dir, jax_arrays, total_steps, scale=5.0
+    )
+
+    for t, vertices in enumerate(growth_evolution):
+        if t%10 == 0:
+            figure.save_plot(vertices, step=t)
+
+    # Always plot final state
+    figure.save_plot(vertices, step=t)
 
 
 def main():
@@ -22,15 +35,17 @@ def main():
         df['best_goal_aspect_ratio'].values
     )
 
-    growth_evolution = growth.iterate(
+    growth_evolution = morph.iterate(
         best_goal_areas, best_goal_aspect_ratios,
         params.numerical['n_growth_steps'], jax_arrays, params.numerical
     )
 
     output_dir = my_files.OutputDir('best_growth', params).path
 
-    np.random.seed(params.numerical['seed'])
-    plot_growth.plot(growth_evolution, output_dir, params)
+    _plot(
+        growth_evolution, output_dir, jax_arrays,
+        params.numerical['n_growth_steps']
+    )
 
 
 if __name__ == '__main__':

@@ -4,7 +4,7 @@ import numpy as np
 import optax
 import pandas as pd
 
-import diffeomorphism, growth, init_systems, my_files, my_utils
+import diffeomorphism, morph, init_systems, my_files, my_utils
 
 
 def _calc_scaling(min_scaling, max_scaling, logits):
@@ -69,7 +69,7 @@ def _shape_loss_f(ar_logits, as_logits, init_areas, min_dist_mask,
     )
     goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
-    growth_evolution = growth.iterate(
+    growth_evolution = morph.iterate(
         goal_areas, goal_aspect_ratios, n_growth_steps, jax_arrays, params
     )
     final_vertices = growth_evolution[-1]
@@ -176,9 +176,9 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
 
     optimizer = _MyOptimizer(ar_logits, as_logits)
 
-    figure = my_utils.Figure(init_vertices)
-
     final_tissues_dir = my_files.OutputDir('final_tissues', all_params)
+
+    figure = my_utils.MorphFigure(final_tissues_dir.path, jax_arrays)
 
     shape_loss = jnp.inf
 
@@ -209,10 +209,9 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
             print(f'(Stored params with new best shape loss.)')
             print('')
 
-        if shape_step % 10 == 0:
-            figure.plot(
-                final_tissues_dir.path, final_vertices, jax_arrays, shape_step
-            )
+        if shape_step % 100 == 0:
+            figure.save_plot(final_vertices, shape_step)
+    figure.save_plot(final_vertices, shape_step)
 
     # Calculate output params
     all_cells = my_utils.get_all_cells(final_vertices, jax_arrays['indices'])

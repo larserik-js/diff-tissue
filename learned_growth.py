@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from shapely.geometry import Polygon
 
-import growth, my_files, my_utils
+import morph, my_files, my_utils
 
 
 def _make_poly_idx_lists(jax_arrays):
@@ -93,7 +93,7 @@ def _main():
 
     jax_arrays = my_utils._make_jax_arrays(new_arrays)
 
-    growth.iterate_and_plot(
+    morph.iterate_and_plot(
         learned_growth_dir.path, resulting_areas,
         resulting_aspect_ratios, jax_arrays, params.numerical
     )
