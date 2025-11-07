@@ -11,7 +11,7 @@ def _plot(growth_evolution, output_dir, jax_arrays, total_steps):
     )
 
     for t, vertices in enumerate(growth_evolution):
-        if t%10 == 0:
+        if t%2 == 0:
             figure.save_plot(vertices, step=t)
 
     # Always plot final state
