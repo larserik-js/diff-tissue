@@ -35,6 +35,27 @@ def _extend(indices):
     return indices
 
 
+def _calc_segment_area(d, r):
+    segment_area = r**2 * np.arccos(d / r) - d * np.sqrt(r**2 - d**2)
+    return segment_area
+
+
+def _get_full_mesh_area():
+    big_r = 40.0
+    big_circle_area = np.pi * big_r**2
+    center_to_base_line_dist = big_r - Coords.full_mesh_base[1]
+    big_circle_segment = _calc_segment_area(center_to_base_line_dist, big_r)
+
+    small_r = 33.0
+    center_to_base_line_dist = Coords.full_mesh_base[1]
+    small_circle_segment = _calc_segment_area(
+        center_to_base_line_dist, small_r
+    )
+    full_mesh_area = big_circle_area - big_circle_segment - small_circle_segment
+    print(f'Full mesh area = {full_mesh_area:.3f}')
+    return full_mesh_area
+
+
 class _Polygons(ABC):
     def __init__(self):
         self._build()
@@ -700,22 +721,27 @@ class _TrapzeoidFactory(_AbstractFactory):
     def __init__(self, system):
         super().__init__(system)
 
+    @staticmethod
+    def _calc_trapezoid_scale(mesh_area):
+        scale = np.sqrt(mesh_area / 3.5**2)
+        return scale
+
     def _make_params_and_polygons(self):
         match self._system:
             case 'full':
-                a = 2500.0
+                mesh_area = _get_full_mesh_area()
+                scale = self._calc_trapezoid_scale(mesh_area)
                 polygons = _MeshPolygons()
             case 'voronoi':
-                A_mesh = 225.0 # Manually insert for now
-                a = np.sqrt(A_mesh / 3.5**2)
+                mesh_area = 225.0 # Manually insert for now
+                scale = np.sqrt(mesh_area / 3.5**2)
                 polygons = _VoronoiPolygons()
             case 'single':
-                a = 10.0
-                polygons = _SinglePolygon()
+                raise NotImplementedError
             case _:
                 raise ValueError('Invalid initial system!')
 
-        shape_params = {'scale': a}
+        shape_params = {'scale': scale}
         return shape_params, polygons
 
     def _make_outer_shape(self):
