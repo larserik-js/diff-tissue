@@ -696,43 +696,6 @@ class _AbstractFactory(ABC):
         return self._outer_shape
 
 
-class _EllipseFactory(_AbstractFactory):
-    def __init__(self, system):
-        super().__init__(system)
-
-    def _make_params_and_polygons(self):
-        match self._system:
-            case 'full':
-                a = 40.0
-                b = a * 1.5
-                origin = Coords.shape_origin + (0.0, 25.0)
-                polygons = _MeshPolygons()
-            case 'voronoi':
-                a = 23.0
-                b = a * 1.2
-                origin = Coords.shape_origin
-                polygons = _VoronoiPolygons()
-            case 'single':
-                a = 15.0
-                b = a * 1.5
-                origin = Coords.shape_origin
-                polygons = _SinglePolygon()
-            case _:
-                raise ValueError('Invalid initial system!')
-
-        shape_params = {'a': a, 'b': b, 'origin': origin}
-        return shape_params, polygons
-
-    def _make_outer_shape(self):
-        angles = np.linspace(0, 2 * np.pi, 50, endpoint=True)
-        xs = (self._shape_params['origin'][0] +
-             self._shape_params['a'] * np.cos(angles))
-        ys = (self._shape_params['origin'][1] +
-             self._shape_params['b'] * np.sin(angles))
-        ellipse = np.stack([xs, ys], axis=1)
-        return ellipse
-
-
 class _TrapzeoidFactory(_AbstractFactory):
     def __init__(self, system):
         super().__init__(system)
@@ -832,8 +795,6 @@ class _PetalFactory(_AbstractFactory):
 
 def get_factory(shape, system):
     match shape:
-        case 'ellipse':
-            factory = _EllipseFactory(system)
         case 'trapezoid':
             factory = _TrapzeoidFactory(system)
         case 'petal':
