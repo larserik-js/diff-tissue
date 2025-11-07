@@ -12,14 +12,12 @@ def _get_plotting_data(params):
 
 
 def _plot(growth_evolution, output_dir, jax_arrays):
-    figure = my_utils.Figure(growth_evolution[0])
+    figure = my_utils.MorphFigure(output_dir, jax_arrays)
 
     for t, vertices in enumerate(growth_evolution):
         if t%10 == 0:
-            figure.plot(output_dir, vertices, jax_arrays, step=t)
-
-    # Always plot final state
-    figure.plot(output_dir, vertices, jax_arrays, step=t)
+            figure.save_plot(vertices, t)
+    figure.save_plot(vertices, t)
 
 
 def _main():

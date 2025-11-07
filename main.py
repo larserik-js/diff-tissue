@@ -157,9 +157,9 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
 
     optimizer = _MyOptimizer(ar_logits, as_logits)
 
-    figure = my_utils.Figure(init_vertices)
-
     final_tissues_dir = my_files.OutputDir('final_tissues', all_params)
+
+    figure = my_utils.MorphFigure(final_tissues_dir.path, jax_arrays)
 
     shape_loss = jnp.inf
 
@@ -191,9 +191,8 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
             print('')
 
         if shape_step % 100 == 0:
-            figure.plot(
-                final_tissues_dir.path, final_vertices, jax_arrays, shape_step
-            )
+            figure.save_plot(final_vertices, shape_step)
+    figure.save_plot(final_vertices, shape_step)
 
     # Calculate output params
     all_cells = my_utils.get_all_cells(final_vertices, jax_arrays['indices'])

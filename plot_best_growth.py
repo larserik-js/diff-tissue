@@ -5,18 +5,17 @@ import pandas as pd
 import growth, my_files, my_utils
 
 
-def _plot(growth_evolution, output_dir, jax_arrays, params):
+def _plot(growth_evolution, output_dir, jax_arrays, total_steps):
     figure = my_utils.MorphGrowthFigure(
-        growth_evolution[0], jax_arrays['outer_shape'], scale=5.0,
-        total_steps=params.numerical['n_growth_steps']
+        output_dir, jax_arrays, total_steps, scale=5.0
     )
 
     for t, vertices in enumerate(growth_evolution):
         if t%10 == 0:
-            figure.plot(output_dir, vertices, jax_arrays, step=t)
+            figure.save_plot(vertices, step=t)
 
     # Always plot final state
-    figure.plot(output_dir, vertices, jax_arrays, step=t)
+    figure.save_plot(vertices, step=t)
 
 
 def main():
@@ -43,7 +42,10 @@ def main():
 
     output_dir = my_files.OutputDir('best_growth', params).path
 
-    _plot(growth_evolution, output_dir, jax_arrays, params)
+    _plot(
+        growth_evolution, output_dir, jax_arrays,
+        params.numerical['n_growth_steps']
+    )
 
 
 if __name__ == '__main__':
