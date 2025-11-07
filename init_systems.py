@@ -704,21 +704,18 @@ class _TrapzeoidFactory(_AbstractFactory):
         match self._system:
             case 'full':
                 a = 2500.0
-                origin = Coords.shape_origin + (0.0, 15.0)
                 polygons = _MeshPolygons()
             case 'voronoi':
                 A_mesh = 225.0 # Manually insert for now
                 a = np.sqrt(A_mesh / 3.5**2)
-                origin = Coords.base_origin
                 polygons = _VoronoiPolygons()
             case 'single':
                 a = 10.0
-                origin = Coords.shape_origin
                 polygons = _SinglePolygon()
             case _:
                 raise ValueError('Invalid initial system!')
 
-        shape_params = {'scale': a, 'origin': origin}
+        shape_params = {'scale': a}
         return shape_params, polygons
 
     def _make_outer_shape(self):
@@ -747,15 +744,12 @@ class _PetalFactory(_AbstractFactory):
         match self._system:
             case 'full':
                 a = 2500.0
-                origin = Coords.shape_origin + (0.0, 15.0)
                 polygons = _MeshPolygons()
             case 'voronoi':
                 a = 700.0
-                origin = Coords.shape_origin + (0.0, 1.0)
                 polygons = _VoronoiPolygons()
             case 'single':
                 a = 700.0
-                origin = Coords.shape_origin + (0.0, 1.0)
                 polygons = _SinglePolygon()
             case _:
                 raise ValueError('Invalid initial system!')
@@ -766,8 +760,7 @@ class _PetalFactory(_AbstractFactory):
         n2 = 15.0
         n3 = 15.0
         shape_params = {
-            'a': a, 'b': b, 'm': m, 'n1': n1, 'n2': n2, 'n3': n3,
-            'origin': origin
+            'a': a, 'b': b, 'm': m, 'n1': n1, 'n2': n2, 'n3': n3
         }
         return shape_params, polygons
 
