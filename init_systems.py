@@ -738,11 +738,12 @@ class _TrapzeoidFactory(_AbstractFactory):
         super().__init__(system)
 
     def _build(self):
-        pass
+        self._height = 3.5
+        self._lower_r = 1.5
+        self._upper_r = 2.0
 
-    @staticmethod
-    def _calc_scale(mesh_area):
-        scale = np.sqrt(mesh_area / 3.5**2)
+    def _calc_scale(self, mesh_area):
+        scale = np.sqrt(mesh_area / self._height**2)
         return scale
 
     def _make_params_and_polygons(self):
@@ -753,7 +754,7 @@ class _TrapzeoidFactory(_AbstractFactory):
                 polygons = _MeshPolygons()
             case 'voronoi':
                 mesh_area = 225.0 # Manually insert for now
-                scale = np.sqrt(mesh_area / 3.5**2)
+                scale = self._calc_scale(mesh_area)
                 polygons = _VoronoiPolygons()
             case 'single':
                 raise NotImplementedError
@@ -764,18 +765,20 @@ class _TrapzeoidFactory(_AbstractFactory):
         return shape_params, polygons
 
     def _make_outer_shape(self):
-        height = 3.5 * self._shape_params['scale']
-        lower_r = 1.5 * self._shape_params['scale']
-        upper_r = 2.0 * self._shape_params['scale']
+        scaled_height = self._height * self._shape_params['scale']
+        scaled_lower_r = self._lower_r * self._shape_params['scale']
+        scaled_upper_r = self._upper_r * self._shape_params['scale']
 
-        non_basal_xs = np.array([lower_r, upper_r, -upper_r, -lower_r])
-        non_basal_ys = np.array([0.0, height, height, 0.0])
+        non_basal_xs = np.array(
+            [scaled_lower_r, scaled_upper_r, -scaled_upper_r, -scaled_lower_r]
+        )
+        non_basal_ys = np.array([0.0, scaled_height, scaled_height, 0.0])
 
         outer_shape = self._construct_outer_shape(
-            non_basal_xs, non_basal_ys, lower_r
+            non_basal_xs, non_basal_ys, scaled_lower_r
         )
 
-        area = height * (lower_r + upper_r)
+        area = scaled_height * (scaled_lower_r + scaled_upper_r)
         print(f'Outer shape area = {area:.3f}')
 
         return outer_shape
@@ -786,13 +789,13 @@ class _PetalFactory(_AbstractFactory):
         super().__init__(system)
 
     def _build(self):
-        self._x_dim = 20.0
-        self._y_dim = 60.0
+        self._lower_r = 20.0
+        self._height = 60.0
         self._stretch_strength = 2.0
 
     def _calc_scale(self, mesh_area):
         scale = np.sqrt(
-            mesh_area / ((self._x_dim * self._y_dim) *
+            mesh_area / ((self._lower_r * self._height) *
             (np.pi / 2 + 2 * self._stretch_strength / 3))
         )
         return scale
@@ -819,23 +822,23 @@ class _PetalFactory(_AbstractFactory):
         return shape_params, polygons
 
     def _make_outer_shape(self):
-        lower_r = self._x_dim * self._shape_params['scale']
-        height = self._y_dim * self._shape_params['scale']
+        scaled_lower_r = self._lower_r * self._shape_params['scale']
+        scaled_height = self._height * self._shape_params['scale']
 
         xs = np.linspace(
-            -lower_r, lower_r, self._vertex_numbers['non_basal']
+            -scaled_lower_r, scaled_lower_r, self._vertex_numbers['non_basal']
         )
-        non_basal_ys = height * np.sqrt(1 - (xs / lower_r)**2)
+        non_basal_ys = scaled_height * np.sqrt(1 - (xs / scaled_lower_r)**2)
 
-        factor = 1 + self._stretch_strength * (non_basal_ys / height)
+        factor = 1 + self._stretch_strength * (non_basal_ys / scaled_height)
         non_basal_xs = xs * factor
 
         outer_shape = self._construct_outer_shape(
-            non_basal_xs, non_basal_ys, lower_r
+            non_basal_xs, non_basal_ys, scaled_lower_r
         )
 
         area = (
-            lower_r * height *
+            scaled_lower_r * scaled_height *
             (np.pi / 2 + 2 * self._stretch_strength / 3)
         )
         print(f'Outer shape area = {area:.3f}')
