@@ -784,6 +784,53 @@ class _TrapzeoidFactory(_AbstractFactory):
         return outer_shape
 
 
+class _TriangleFactory(_AbstractFactory):
+    def __init__(self, system):
+        super().__init__(system)
+
+    def _build(self):
+        self._height = 2.5
+        self._lower_r = 1.5
+
+    def _calc_scale(self, mesh_area):
+        scale = np.sqrt(mesh_area / (self._height * self._lower_r))
+        return scale
+
+    def _make_params_and_polygons(self):
+        match self._system:
+            case 'full':
+                mesh_area = _get_full_mesh_area()
+                scale = self._calc_scale(mesh_area)
+                polygons = _MeshPolygons()
+            case 'voronoi':
+                mesh_area = 225.0 # Manually insert for now
+                scale = self._calc_scale(mesh_area)
+                polygons = _VoronoiPolygons()
+            case 'single':
+                raise NotImplementedError
+            case _:
+                raise ValueError('Invalid initial system!')
+
+        shape_params = {'scale': scale}
+        return shape_params, polygons
+
+    def _make_outer_shape(self):
+        scaled_height = self._height * self._shape_params['scale']
+        scaled_lower_r = self._lower_r * self._shape_params['scale']
+
+        non_basal_xs = np.array([scaled_lower_r, 0.0, -scaled_lower_r])
+        non_basal_ys = np.array([0.0, scaled_height, 0.0])
+
+        outer_shape = self._construct_outer_shape(
+            non_basal_xs, non_basal_ys, scaled_lower_r
+        )
+
+        area = scaled_height * scaled_lower_r
+        print(f'Outer shape area = {area:.3f}')
+
+        return outer_shape
+
+
 class _PetalFactory(_AbstractFactory):
     def __init__(self, system):
         super().__init__(system)
@@ -850,6 +897,8 @@ def get_factory(shape, system):
     match shape:
         case 'trapezoid':
             factory = _TrapzeoidFactory(system)
+        case 'triangle':
+            factory = _TriangleFactory(system)
         case 'petal':
             factory = _PetalFactory(system)
         case _:

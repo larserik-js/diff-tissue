@@ -54,7 +54,7 @@ class Params:
         parser.add_argument(
             '--shape',
             type=str,
-            choices=['trapezoid', 'petal'],
+            choices=['trapezoid', 'triangle', 'petal'],
             default='petal',
             help='Type of outer shape.'
         )
