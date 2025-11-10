@@ -4,7 +4,7 @@ import numpy as np
 import optax
 import pandas as pd
 
-import growth, my_files, my_utils
+import diffeomorphism, morph, my_files, my_utils
 
 
 def _calc_scaling(min_scaling, max_scaling, logits):
@@ -14,14 +14,30 @@ def _calc_scaling(min_scaling, max_scaling, logits):
     return scaling
 
 
+def _calc_inverse_scaling(min_scaling, max_scaling, scalings):
+    s = (scalings - min_scaling) / (max_scaling - min_scaling)
+    logits = jnp.log(s / (1 - s))
+    return logits
+
+
 def _calc_area_scaling(max_scaling, logits):
     area_scaling = _calc_scaling(0.0, max_scaling, logits)
     return area_scaling
 
 
+def _calc_inverse_area_scaling(max_scaling, area_scalings):
+    logits = _calc_inverse_scaling(0.0, max_scaling, area_scalings)
+    return logits
+
+
 def _calc_aspect_ratio_scaling(logits):
     aspect_ratio_scaling = _calc_scaling(0.0, 1.0, logits)
     return aspect_ratio_scaling
+
+
+def _calc_inverse_aspect_ratio_scaling(aspect_ratio_scalings):
+    logits = _calc_inverse_scaling(0.0, 1.0, aspect_ratio_scalings)
+    return logits
 
 
 def _calc_goal_areas(init_areas, max_area_scaling, logits):
@@ -42,6 +58,58 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape):
     min_sq_dists = jnp.min(dists**2, axis=1)
     shape_loss = jnp.sum(min_sq_dists * boundary_mask)
     return shape_loss
+
+
+def _shape_loss_f(ar_logits, as_logits, init_areas, n_growth_steps, jax_arrays,
+                 params):
+    goal_areas = _calc_goal_areas(
+        init_areas, params['max_area_scaling'], ar_logits
+    )
+    goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
+
+    growth_evolution = morph.iterate(
+        goal_areas, goal_aspect_ratios, n_growth_steps, jax_arrays, params
+    )
+    final_vertices = growth_evolution[-1]
+
+    shape_loss = _calc_shape_loss(
+        final_vertices, jax_arrays['boundary_mask'],
+        jax_arrays['outer_shape']
+    )
+
+    return shape_loss, final_vertices
+
+
+_calc_shape_loss_val_grads = jax.jit(
+    jax.value_and_grad(_shape_loss_f, has_aux=True, argnums=(0, 1)),
+    static_argnames=['n_growth_steps']
+)
+
+
+def _get_init_logits(jax_arrays, params):
+    mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
+    all_mapped_cells = mapped_vertices[jax_arrays['indices']]
+    mapped_areas = my_utils.calc_all_areas(
+        all_mapped_cells, jax_arrays['valid_mask']
+    )
+    all_cells = my_utils.get_all_cells(
+        jax_arrays['init_vertices'], jax_arrays['indices']
+    )
+    init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
+    mapped_area_scalings = mapped_areas / init_areas
+    mapped_aspect_ratios = my_utils.calc_aspect_ratios(
+        all_mapped_cells, jax_arrays['valid_mask']
+    )
+
+    init_logits = {
+        'area_scalings': _calc_inverse_area_scaling(
+            params.numerical['max_area_scaling'], mapped_area_scalings)
+        ,
+        'aspect_ratios': _calc_inverse_aspect_ratio_scaling(
+            mapped_aspect_ratios
+        )
+    }
+    return init_logits
 
 
 class _MyOptimizer:
@@ -70,67 +138,37 @@ class _MyOptimizer:
         return ar_logits, as_logits
 
 
-def _save_output_params(init_centroids, init_areas, best_goal_areas_scalings,
-                        best_goal_areas, best_goal_aspect_ratios, params):
-    param_dict = {
-        'init_centroid_x': init_centroids[:,0],
-        'init_centroid_y': init_centroids[:,1],
-        'init_area': init_areas,
-        'goal_area_scaling': best_goal_areas_scalings,
-        'goal_area': best_goal_areas,
-        'goal_aspect_ratio': best_goal_aspect_ratios
-    }
-
+def _save_output_params(param_dict, params):
     df = pd.DataFrame(param_dict)
-
     output_file = my_files.get_output_params_file(params)
     df.to_csv(output_file, sep='\t', index=True, header=True)
 
 
-def _iterate_towards_shape(jax_arrays, all_params):
+def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     params = all_params.numerical
 
     init_vertices = jax_arrays['init_vertices']
-    all_cells = init_vertices[jax_arrays['indices']]
+    all_cells = my_utils.get_all_cells(init_vertices, jax_arrays['indices'])
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
-    def shape_loss_func(ar_logits, as_logits):
-        goal_areas = _calc_goal_areas(
-            init_areas, params['max_area_scaling'], ar_logits
-        )
-        goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
-
-        growth_evolution = growth.iterate(
-            goal_areas, goal_aspect_ratios, jax_arrays, params
-        )
-        final_vertices = growth_evolution[-1]
-
-        shape_loss = _calc_shape_loss(
-            final_vertices, jax_arrays['boundary_mask'],
-            jax_arrays['outer_shape']
-        )
-
-        return shape_loss, final_vertices
-
-    val_grad_loss = jax.jit(
-        jax.value_and_grad(shape_loss_func, has_aux=True, argnums=(0, 1))
-    )
-
     # Initialize parameters
-    ar_logits = jnp.zeros_like(init_areas)
-    as_logits = jnp.zeros_like(init_areas)
+    ar_logits = init_logits['area_scalings']
+    as_logits = init_logits['aspect_ratios']
 
     optimizer = _MyOptimizer(ar_logits, as_logits)
 
-    figure = my_utils.Figure(init_vertices)
-
     final_tissues_dir = my_files.OutputDir('final_tissues', all_params)
+
+    figure = my_utils.MorphFigure(final_tissues_dir.path, jax_arrays)
 
     shape_loss = jnp.inf
 
     for shape_step in range(params['n_shape_steps']):
         (new_shape_loss, final_vertices), (ar_grads, as_grads) = (
-            val_grad_loss(ar_logits, as_logits)
+            _calc_shape_loss_val_grads(
+                ar_logits, as_logits, init_areas, params['n_growth_steps'],
+                jax_arrays, params
+            )
         )
         ar_logits, as_logits = (
             optimizer.update(ar_logits, as_logits, ar_grads, as_grads)
@@ -139,7 +177,7 @@ def _iterate_towards_shape(jax_arrays, all_params):
         print(f'{shape_step}: Shape loss = {new_shape_loss}')
 
         if new_shape_loss < shape_loss:
-            best_goal_areas_scalings = _calc_area_scaling(
+            best_goal_area_scalings = _calc_area_scaling(
                 params['max_area_scaling'], ar_logits
             )
             best_goal_areas = _calc_goal_areas(
@@ -153,14 +191,40 @@ def _iterate_towards_shape(jax_arrays, all_params):
             print('')
 
         if shape_step % 100 == 0:
-            figure.plot(
-                final_tissues_dir.path, final_vertices, jax_arrays, shape_step
-            )
+            figure.save_plot(final_vertices, shape_step)
+    figure.save_plot(final_vertices, shape_step)
 
-    _save_output_params(
-        jax_arrays['init_centroids'], init_areas, best_goal_areas_scalings,
-        best_goal_areas, best_goal_aspect_ratios, all_params
+    # Calculate output params
+    all_cells = my_utils.get_all_cells(final_vertices, jax_arrays['indices'])
+    final_areas = my_utils.calc_all_areas(
+        all_cells, jax_arrays['valid_mask']
     )
+    final_aspect_ratios = my_utils.calc_aspect_ratios(
+        all_cells, jax_arrays['valid_mask']
+    )
+    final_goal_areas_scalings = _calc_area_scaling(
+        params['max_area_scaling'], ar_logits
+    )
+    final_goal_areas = _calc_goal_areas(
+        init_areas, params['max_area_scaling'], ar_logits
+    )
+    final_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
+
+    param_dict = {
+        'init_centroid_x': jax_arrays['init_centroids'][:,0],
+        'init_centroid_y': jax_arrays['init_centroids'][:,1],
+        'init_area': init_areas,
+        'final_area': final_areas,
+        'final_aspect_ratio': final_aspect_ratios,
+        'best_goal_area_scaling': best_goal_area_scalings,
+        'best_goal_area': best_goal_areas,
+        'best_goal_aspect_ratio': best_goal_aspect_ratios,
+        'final_goal_area_scaling': final_goal_areas_scalings,
+        'final_goal_area': final_goal_areas,
+        'final_goal_aspect_ratio': final_goal_aspect_ratios
+    }
+
+    _save_output_params(param_dict, all_params)
 
 
 @my_utils.timer
@@ -173,7 +237,9 @@ def _main():
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    _iterate_towards_shape(jax_arrays, params)
+    init_logits = _get_init_logits(jax_arrays, params)
+
+    _iterate_towards_shape(init_logits, jax_arrays, params)
 
 
 if __name__ == '__main__':

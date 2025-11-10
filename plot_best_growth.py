@@ -2,7 +2,20 @@ import jax
 import numpy as np
 import pandas as pd
 
-import growth, my_files, my_utils
+import morph, my_files, my_utils
+
+
+def _plot(growth_evolution, output_dir, jax_arrays, total_steps):
+    figure = my_utils.MorphGrowthFigure(
+        output_dir, jax_arrays, total_steps, scale=5.0
+    )
+
+    for t, vertices in enumerate(growth_evolution):
+        if t%2 == 0:
+            figure.save_plot(vertices, step=t)
+
+    # Always plot final state
+    figure.save_plot(vertices, step=t)
 
 
 def main():
@@ -12,19 +25,26 @@ def main():
 
     np.random.seed(params.numerical['seed'])
 
-    best_growth_dir = my_files.OutputDir('best_growth', params)
-
     jax_arrays = my_utils.get_jax_arrays(params)
 
     input_file = my_files.get_output_params_file(params)
     df = pd.read_csv(input_file, sep='\t', index_col=0)
     
-    best_goal_areas = my_utils.to_jax(df['goal_area'].values)
-    best_goal_aspect_ratios = my_utils.to_jax(df['goal_aspect_ratio'].values)
+    best_goal_areas = my_utils.to_jax(df['best_goal_area'].values)
+    best_goal_aspect_ratios = my_utils.to_jax(
+        df['best_goal_aspect_ratio'].values
+    )
 
-    growth.iterate_and_plot(
-        best_growth_dir.path, best_goal_areas,
-        best_goal_aspect_ratios, jax_arrays, params.numerical
+    growth_evolution = morph.iterate(
+        best_goal_areas, best_goal_aspect_ratios,
+        params.numerical['n_growth_steps'], jax_arrays, params.numerical
+    )
+
+    output_dir = my_files.OutputDir('best_growth', params).path
+
+    _plot(
+        growth_evolution, output_dir, jax_arrays,
+        params.numerical['n_growth_steps']
     )
 
 
