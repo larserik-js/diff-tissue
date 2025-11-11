@@ -3,6 +3,7 @@ import timeit
 
 import jax
 import jax.numpy as jnp
+from matplotlib import gridspec
 from matplotlib import pyplot as plt
 import numpy as np
 
@@ -227,25 +228,22 @@ def calc_aspect_ratios(all_cells, valid_mask):
 class _Artists:
     def __init__(self, ax, init_vertices, outer_shape, jax_arrays):
         self._ax = ax
-        self._jax_arrays = jax_arrays
         self._init_vertices = init_vertices
-        self._closed_outer_shape = self._close(outer_shape)
-        self._boundary_mask = jax_arrays['boundary_mask']
+        self._outer_shape = outer_shape
         self._ax_lims = self._get_ax_lims()
-
-    @staticmethod
-    def _close(outer_shape):
-        closed_outer_shape = np.vstack([outer_shape, outer_shape[0]])
-        return closed_outer_shape
+        self._jax_arrays = jax_arrays
+        self._boundary_mask = jax_arrays['boundary_mask']
 
     def _get_ax_lims(self):
-        minvals = self._init_vertices.min(axis=0)
-        maxvals = self._init_vertices.max(axis=0)
+        all_plotted_vertices = np.vstack(
+            [self._init_vertices, self._outer_shape]
+        )
+        minvals = all_plotted_vertices.min(axis=0)
+        maxvals = all_plotted_vertices.max(axis=0)
         center = init_systems.Coords.base_origin
-        ranges = (maxvals - minvals)
-        dims = np.array([0.8, 1.5]) * ranges
-        xlim = center[0] + np.array([-1.0, 1.0]) * dims[0]
-        ylim = center[1] + np.array([-1.0, dims[1]])
+        extrema = np.vstack([minvals, maxvals]) + center
+        xlim = extrema[:,0] + np.array([-3.0, 3.0])
+        ylim = extrema[:,1] + np.array([-2.0, 3.0])
         ax_lims = {'x': xlim, 'y': ylim}
         return ax_lims
 
@@ -264,7 +262,7 @@ class _Artists:
 
     def _add_outer_shape(self):
         self._ax.plot(
-            self._closed_outer_shape[:, 0], self._closed_outer_shape[:, 1],
+            self._outer_shape[:, 0], self._outer_shape[:, 1],
             'ro-', markersize=3, label='Outer shape'
         )
 
@@ -304,6 +302,11 @@ class _Figure:
     def __init__(self, output_dir):
         self._output_dir = output_dir
 
+    @staticmethod
+    def _close(outer_shape):
+        closed_outer_shape = np.vstack([outer_shape, outer_shape[0]])
+        return closed_outer_shape
+
     def _save(self, step):
         fig_path = self._output_dir / f'step={step}.png'
         self._fig.savefig(fig_path, dpi=100)
@@ -313,13 +316,14 @@ class MorphFigure(_Figure):
     def __init__(self, output_dir, jax_arrays):
         super().__init__(output_dir)
         self._fig, ax = plt.subplots(figsize=(10, 10))
-        self._artists = _Artists(
-            ax, jax_arrays['init_vertices'], jax_arrays['outer_shape'],
-            jax_arrays
+        self._init_vertices = jax_arrays['init_vertices']
+        self._closed_outer_shape = self._close(jax_arrays['outer_shape'])
+        self._morph_artists = _Artists(
+            ax, self._init_vertices, self._closed_outer_shape, jax_arrays
         )
 
     def save_plot(self, vertices, step):
-        self._artists.plot(vertices)
+        self._morph_artists.plot(vertices)
         self._save(step)
 
 
@@ -328,14 +332,21 @@ class MorphGrowthFigure(_Figure):
         super().__init__(output_dir)
         self._total_steps = total_steps
         self._scale = scale
-        self._fig, axs = plt.subplots(2, figsize=(10, 10))
-        self._morph_artists = _Artists(
-            axs[0], jax_arrays['init_vertices'], jax_arrays['outer_shape'],
-            jax_arrays
+        self._fig = plt.figure(figsize=(8, 10))
+        self._gs = gridspec.GridSpec(
+            nrows=2, ncols=1, figure=self._fig, height_ratios=[0.8, 1.0]
         )
+        self._init_vertices = jax_arrays['init_vertices']
+        self._closed_outer_shape = self._close(jax_arrays['outer_shape'])
+        self._scaled_outer_shape = self._scale * self._closed_outer_shape
+
+        ax0 = self._fig.add_subplot(self._gs[0])
+        self._morph_artists = _Artists(
+            ax0, self._init_vertices, self._closed_outer_shape, jax_arrays
+        )
+        ax1 = self._fig.add_subplot(self._gs[1:])
         self._growth_artists = _Artists(
-            axs[1], scale * jax_arrays['init_vertices'],
-            scale * jax_arrays['outer_shape'], jax_arrays
+            ax1, self._init_vertices, self._scaled_outer_shape, jax_arrays
         )
 
     def _scale_vertices(self, vertices, step):
