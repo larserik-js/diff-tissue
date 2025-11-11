@@ -7,36 +7,29 @@ import pandas as pd
 import diffeomorphism, morph, init_systems, my_files, my_utils
 
 
-def _calc_scaling(min_scaling, max_scaling, logits):
-    scaling = (
-        min_scaling + (max_scaling - min_scaling) * jax.nn.sigmoid(logits)
-    )
-    return scaling
+def _calc_sigmoid(min_val, max_val, logits):
+    sigmoid_vals = min_val + (max_val - min_val) * jax.nn.sigmoid(logits)
+    return sigmoid_vals
 
 
-def _calc_inverse_scaling(min_scaling, max_scaling, scalings):
-    s = (scalings - min_scaling) / (max_scaling - min_scaling)
+def _calc_inverse_sigmoid(min_val, max_val, sigmoid_vals):
+    s = (sigmoid_vals - min_val) / (max_val - min_val)
     logits = jnp.log(s / (1 - s))
     return logits
 
 
 def _calc_area_scaling(max_scaling, logits):
-    area_scaling = _calc_scaling(0.0, max_scaling, logits)
+    area_scaling = _calc_sigmoid(0.0, max_scaling, logits)
     return area_scaling
 
 
 def _calc_inverse_area_scaling(max_scaling, area_scalings):
-    logits = _calc_inverse_scaling(0.0, max_scaling, area_scalings)
+    logits = _calc_inverse_sigmoid(0.0, max_scaling, area_scalings)
     return logits
 
 
-def _calc_aspect_ratio_scaling(logits):
-    aspect_ratio_scaling = _calc_scaling(0.0, 1.0, logits)
-    return aspect_ratio_scaling
-
-
-def _calc_inverse_aspect_ratio_scaling(aspect_ratio_scalings):
-    logits = _calc_inverse_scaling(0.0, 1.0, aspect_ratio_scalings)
+def _calc_inverse_aspect_ratios(aspect_ratios):
+    logits = _calc_inverse_sigmoid(0.0, 1.0, aspect_ratios)
     return logits
 
 
@@ -48,7 +41,7 @@ def _calc_goal_areas(init_areas, max_area_scaling, logits):
 
 
 def _calc_goal_aspect_ratios(as_logits):
-    goal_aspect_ratios = _calc_aspect_ratio_scaling(as_logits)
+    goal_aspect_ratios = _calc_sigmoid(0.0, 1.0, as_logits)
     return goal_aspect_ratios
 
 
@@ -107,9 +100,7 @@ def _get_init_logits(jax_arrays, params):
         'area_scalings': _calc_inverse_area_scaling(
             params.numerical['max_area_scaling'], mapped_area_scalings)
         ,
-        'aspect_ratios': _calc_inverse_aspect_ratio_scaling(
-            mapped_aspect_ratios
-        )
+        'aspect_ratios': _calc_inverse_aspect_ratios(mapped_aspect_ratios)
     }
     return init_logits
 
