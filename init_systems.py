@@ -757,7 +757,10 @@ class _TrapzeoidFactory(_AbstractFactory):
                 scale = self._calc_scale(mesh_area)
                 polygons = _VoronoiPolygons()
             case 'single':
-                raise NotImplementedError
+                polygons = _SinglePolygon()
+                vertices = polygons.vertices
+                mesh_area = _calc_single_poly_area(vertices)
+                scale = self._calc_scale(mesh_area)
             case _:
                 raise ValueError('Invalid initial system!')
 
@@ -807,7 +810,10 @@ class _TriangleFactory(_AbstractFactory):
                 scale = self._calc_scale(mesh_area)
                 polygons = _VoronoiPolygons()
             case 'single':
-                raise NotImplementedError
+                polygons = _SinglePolygon()
+                vertices = polygons.vertices
+                mesh_area = _calc_single_poly_area(vertices)
+                scale = self._calc_scale(mesh_area)
             case _:
                 raise ValueError('Invalid initial system!')
 
