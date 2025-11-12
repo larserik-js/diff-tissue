@@ -308,7 +308,7 @@ class _Figure:
         return closed_outer_shape
 
     def _save(self, step):
-        fig_path = self._output_dir / f'step={step}.png'
+        fig_path = self._output_dir / f'step={step:03d}.png'
         self._fig.savefig(fig_path, dpi=100)
 
 
