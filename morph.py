@@ -6,6 +6,11 @@ import numpy as np
 import my_files, my_utils
 
 
+def _calc_areas_loss(target_areas, areas):
+    areas_loss = jnp.sum((target_areas - areas)**2)
+    return areas_loss
+
+
 def _calc_all_angles_loss(edges, valid_mask, optimal_angles):
     epsilon = 1e-7
     norms = jnp.linalg.norm(edges + epsilon, axis=2)
@@ -41,8 +46,8 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
         all_cells, jax_arrays['valid_mask']
     )
 
-    areas_loss = params['areas_loss_weight'] * jnp.sum(
-        (target_areas - areas)**2
+    areas_loss = params['areas_loss_weight'] * _calc_areas_loss(
+        target_areas, areas
     )
     angles_loss = params['angles_loss_weight'] * _calc_all_angles_loss(
         edges, jax_arrays['valid_mask'], optimal_angles
