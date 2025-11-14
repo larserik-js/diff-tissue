@@ -32,7 +32,6 @@ class Params:
         self.numerical = {
             'n_shape_steps': self._args.ssteps,
             'n_growth_steps': self._args.gsteps,
-            'growth_learning_rate': self._args.glr,
             'areas_loss_weight': self._args.arlw,
             'angles_loss_weight': self._args.anlw,
             'aspect_ratio_loss_weight': self._args.aslw,
@@ -72,13 +71,6 @@ class Params:
             type=int,
             default=100,
             help='Number of growth steps.'
-        )
-
-        parser.add_argument(
-            '--glr',
-            type=float,
-            default=0.00005,
-            help='Learning rate for growth.'
         )
 
         parser.add_argument(
