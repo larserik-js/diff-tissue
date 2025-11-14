@@ -81,12 +81,23 @@ _calc_shape_loss_val_grads = jax.jit(
 )
 
 
+def _cap_mapped_areas(mapped_areas, max_area_scaling):
+    mask = (mapped_areas > max_area_scaling)
+    mapped_areas = mapped_areas.at[mask].set(max_area_scaling)
+    return mapped_areas
+
+
 def _get_init_logits(jax_arrays, params):
     mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
     all_mapped_cells = mapped_vertices[jax_arrays['indices']]
     mapped_areas = my_utils.calc_all_areas(
         all_mapped_cells, jax_arrays['valid_mask']
     )
+
+    mapped_areas = _cap_mapped_areas(
+        mapped_areas, params.numerical['max_area_scaling']
+    )
+
     all_cells = my_utils.get_all_cells(
         jax_arrays['init_vertices'], jax_arrays['indices']
     )
