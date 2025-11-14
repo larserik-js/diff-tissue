@@ -211,7 +211,7 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
             print(f'(Stored params with new best shape loss.)')
             print('')
 
-        if shape_step % 100 == 0:
+        if shape_step % 10 == 0:
             figure.save_plot(final_vertices, shape_step)
     figure.save_plot(final_vertices, shape_step)
 
