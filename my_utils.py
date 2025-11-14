@@ -76,7 +76,7 @@ class Params:
         parser.add_argument(
             '--arlw',
             type=float,
-            default=500.0,
+            default=2000.0,
             help='Areas loss weight.'
         )
 
