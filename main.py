@@ -81,10 +81,10 @@ _calc_shape_loss_val_grads = jax.jit(
 )
 
 
-def _cap_mapped_areas(mapped_areas, max_area_scaling):
-    mask = (mapped_areas > max_area_scaling)
-    mapped_areas = mapped_areas.at[mask].set(max_area_scaling)
-    return mapped_areas
+def _cap_mapped_area_scalings(mapped_area_scalings, max_area_scaling):
+    mask = (mapped_area_scalings > max_area_scaling)
+    mapped_area_scalings = mapped_area_scalings.at[mask].set(max_area_scaling)
+    return mapped_area_scalings
 
 
 def _get_init_logits(jax_arrays, params):
@@ -94,15 +94,16 @@ def _get_init_logits(jax_arrays, params):
         all_mapped_cells, jax_arrays['valid_mask']
     )
 
-    mapped_areas = _cap_mapped_areas(
-        mapped_areas, params.numerical['max_area_scaling']
-    )
-
     all_cells = my_utils.get_all_cells(
         jax_arrays['init_vertices'], jax_arrays['indices']
     )
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
     mapped_area_scalings = mapped_areas / init_areas
+
+    mapped_area_scalings = _cap_mapped_area_scalings(
+        mapped_area_scalings, params.numerical['max_area_scaling']
+    )
+
     mapped_aspect_ratios = my_utils.calc_aspect_ratios(
         all_mapped_cells, jax_arrays['valid_mask']
     )
