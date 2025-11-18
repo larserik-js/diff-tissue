@@ -5,9 +5,10 @@ import pandas as pd
 import morph, my_files, my_utils
 
 
-def _plot(growth_evolution, output_dir, jax_arrays, total_steps):
+def _plot(growth_evolution, output_dir, jax_arrays, growth_scale,
+          total_steps):
     figure = my_utils.MorphGrowthFigure(
-        output_dir, jax_arrays, total_steps, scale=5.0
+        output_dir, jax_arrays, total_steps, scale=growth_scale
     )
 
     for t, vertices in enumerate(growth_evolution):
@@ -44,7 +45,7 @@ def main():
 
     _plot(
         growth_evolution, output_dir, jax_arrays,
-        params.numerical['n_growth_steps']
+        params.numerical['growth_scale'], params.numerical['n_growth_steps']
     )
 
 

@@ -18,13 +18,13 @@ def _calc_inverse_sigmoid(min_val, max_val, sigmoid_vals):
     return logits
 
 
-def _calc_area_scaling(max_scaling, logits):
-    area_scaling = _calc_sigmoid(0.0, max_scaling, logits)
+def _calc_area_scaling(min_scaling, max_scaling, logits):
+    area_scaling = _calc_sigmoid(min_scaling, max_scaling, logits)
     return area_scaling
 
 
-def _calc_inverse_area_scaling(max_scaling, area_scalings):
-    logits = _calc_inverse_sigmoid(0.0, max_scaling, area_scalings)
+def _calc_inverse_area_scaling(min_scaling, max_scaling, area_scalings):
+    logits = _calc_inverse_sigmoid(min_scaling, max_scaling, area_scalings)
     return logits
 
 
@@ -33,9 +33,9 @@ def _calc_inverse_aspect_ratios(aspect_ratios):
     return logits
 
 
-def _calc_goal_areas(init_areas, max_area_scaling, logits):
+def _calc_goal_areas(init_areas, min_area_scaling, max_area_scaling, logits):
     goal_areas = init_areas.mean() * _calc_area_scaling(
-        max_area_scaling, logits
+        min_area_scaling, max_area_scaling, logits
     )
     return goal_areas
 
@@ -57,8 +57,9 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
 
 def _shape_loss_f(ar_logits, as_logits, init_areas, min_dist_mask,
                   n_growth_steps, jax_arrays, params):
+    min_area_scaling = 1 / params['growth_scale']
     goal_areas = _calc_goal_areas(
-        init_areas, params['max_area_scaling'], ar_logits
+        init_areas, min_area_scaling, params['max_area_scaling'], ar_logits
     )
     goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
@@ -81,12 +82,6 @@ _calc_shape_loss_val_grads = jax.jit(
 )
 
 
-def _cap_mapped_area_scalings(mapped_area_scalings, max_area_scaling):
-    mask = (mapped_area_scalings > max_area_scaling)
-    mapped_area_scalings = mapped_area_scalings.at[mask].set(max_area_scaling)
-    return mapped_area_scalings
-
-
 def _get_init_logits(jax_arrays, params):
     mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
     all_mapped_cells = mapped_vertices[jax_arrays['indices']]
@@ -98,10 +93,13 @@ def _get_init_logits(jax_arrays, params):
         jax_arrays['init_vertices'], jax_arrays['indices']
     )
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
+
     mapped_area_scalings = mapped_areas / init_areas
 
-    mapped_area_scalings = _cap_mapped_area_scalings(
-        mapped_area_scalings, params.numerical['max_area_scaling']
+    min_area_scaling = 1 / params.numerical['growth_scale']
+    max_area_scaling = params.numerical['max_area_scaling']
+    mapped_area_scalings = mapped_area_scalings.clip(
+        min_area_scaling, max_area_scaling
     )
 
     mapped_aspect_ratios = my_utils.calc_aspect_ratios(
@@ -110,8 +108,8 @@ def _get_init_logits(jax_arrays, params):
 
     init_logits = {
         'area_scalings': _calc_inverse_area_scaling(
-            params.numerical['max_area_scaling'], mapped_area_scalings)
-        ,
+            min_area_scaling, max_area_scaling, mapped_area_scalings
+        ),
         'aspect_ratios': _calc_inverse_aspect_ratios(mapped_aspect_ratios)
     }
     return init_logits
@@ -171,6 +169,8 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     all_cells = my_utils.get_all_cells(init_vertices, jax_arrays['indices'])
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
+    min_area_scaling = 1 / params['growth_scale']
+
     # Initialize parameters
     ar_logits = init_logits['area_scalings']
     as_logits = init_logits['aspect_ratios']
@@ -200,10 +200,11 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
 
         if new_shape_loss < shape_loss:
             best_goal_area_scalings = _calc_area_scaling(
-                params['max_area_scaling'], ar_logits
+                min_area_scaling, params['max_area_scaling'], ar_logits
             )
             best_goal_areas = _calc_goal_areas(
-                init_areas, params['max_area_scaling'], ar_logits
+                init_areas, min_area_scaling, params['max_area_scaling'],
+                ar_logits
             )
             best_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
@@ -225,10 +226,10 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
         all_cells, jax_arrays['valid_mask']
     )
     final_goal_areas_scalings = _calc_area_scaling(
-        params['max_area_scaling'], ar_logits
+        min_area_scaling, params['max_area_scaling'], ar_logits
     )
     final_goal_areas = _calc_goal_areas(
-        init_areas, params['max_area_scaling'], ar_logits
+        init_areas, min_area_scaling, params['max_area_scaling'], ar_logits
     )
     final_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 

@@ -36,6 +36,7 @@ class Params:
             'angles_loss_weight': self._args.anlw,
             'aspect_ratio_loss_weight': self._args.aslw,
             'max_area_scaling': self._args.marsc,
+            'growth_scale': self._args.gsc,
             'seed': self._args.seed
         }
         self.all = vars(self._args)
@@ -99,6 +100,13 @@ class Params:
             type=float,
             default=9.0,
             help='Maximal area scaling.'
+        )
+
+        parser.add_argument(
+            '--gsc',
+            type=float,
+            default=5.0,
+            help='Growth scale.'
         )
 
         parser.add_argument(
