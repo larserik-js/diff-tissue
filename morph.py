@@ -163,7 +163,7 @@ def _main():
     )
 
     goal_areas = params.numerical['max_area_scaling'] * init_areas
-    goal_aspect_ratios = 0.5 * jnp.ones_like(init_areas)
+    goal_aspect_ratios = 5.0 * jnp.ones_like(init_areas)
 
     jiterate = jax.jit(iterate, static_argnames=['n_steps'])
 

@@ -77,21 +77,21 @@ class Params:
         parser.add_argument(
             '--arlw',
             type=float,
-            default=2000.0,
+            default=100.0,
             help='Areas loss weight.'
         )
 
         parser.add_argument(
             '--anlw',
             type=float,
-            default=100.0,
+            default=50.0,
             help='Angles loss weight.'
         )
 
         parser.add_argument(
             '--aslw',
             type=float,
-            default=5000.0,
+            default=50.0,
             help='Aspect ratio loss weight.'
         )
 
@@ -203,27 +203,21 @@ def calc_all_areas(all_cells, valid_mask):
     return areas
 
 
-def _masked_min(values, mask):
-    masked_values = jnp.where(mask, values, jnp.inf)
-    return jnp.min(masked_values, axis=1)
-
-
-def _masked_max(values, mask):
-    masked_values = jnp.where(mask, values, -jnp.inf)
-    return jnp.max(masked_values, axis=1)
-
-
 def calc_aspect_ratios(all_cells, valid_mask):
-    min_xys = _masked_min(all_cells, valid_mask[:, :, None])
-    max_xys = _masked_max(all_cells, valid_mask[:, :, None])
+    xs = all_cells[:, 1:-1, 0]
+    ys = all_cells[:, 1:-1, 1]
+    valid = valid_mask[:, 1:-1]
 
-    widths = max_xys[:,0] - min_xys[:,0]
-    heights = max_xys[:,1] - min_xys[:,1]
+    xs_masked = jnp.where(valid, xs, jnp.nan)
+    ys_masked = jnp.where(valid, ys, jnp.nan)
 
-    aspect_ratios = widths / (heights + widths)
+    x_vars = jnp.nanvar(xs_masked, axis=1)
+    y_vars = jnp.nanvar(ys_masked, axis=1)
+
+    eps = 1e-8
+    aspect_ratios = (y_vars + eps) / (x_vars + eps)
 
     return aspect_ratios
-
 
 class _Artists:
     def __init__(self, ax, init_vertices, outer_shape, jax_arrays):
