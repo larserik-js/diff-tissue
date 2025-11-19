@@ -29,7 +29,7 @@ def _calc_inverse_area_scaling(min_scaling, max_scaling, area_scalings):
 
 
 def _calc_inverse_aspect_ratios(aspect_ratios):
-    logits = _calc_inverse_sigmoid(0.0, 10.0, aspect_ratios)
+    logits = _calc_inverse_sigmoid(-1.0, 1.0, aspect_ratios)
     return logits
 
 
@@ -41,7 +41,7 @@ def _calc_goal_areas(init_areas, min_area_scaling, max_area_scaling, logits):
 
 
 def _calc_goal_aspect_ratios(as_logits):
-    goal_aspect_ratios = _calc_sigmoid(0.0, 10.0, as_logits)
+    goal_aspect_ratios = _calc_sigmoid(-1.0, 1.0, as_logits)
     return goal_aspect_ratios
 
 
@@ -81,7 +81,7 @@ def _shape_loss_f(ar_logits, as_logits, init_areas, min_dist_mask,
         jax_arrays['outer_shape'], min_dist_mask
     )
 
-    area_reg_loss = 10.0 * _calc_area_regularization_loss(
+    area_reg_loss = 5.0 * _calc_area_regularization_loss(
         final_vertices, jax_arrays
     )
 
@@ -119,7 +119,6 @@ def _get_init_logits(jax_arrays, params):
     mapped_aspect_ratios = my_utils.calc_aspect_ratios(
         all_mapped_cells, jax_arrays['valid_mask']
     )
-    mapped_aspect_ratios = mapped_aspect_ratios.clip(0.0, 10.0)
 
     init_logits = {
         'area_scalings': _calc_inverse_area_scaling(

@@ -91,7 +91,7 @@ class Params:
         parser.add_argument(
             '--aslw',
             type=float,
-            default=150.0,
+            default=200.0,
             help='Aspect ratio loss weight.'
         )
 
