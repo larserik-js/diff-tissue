@@ -84,14 +84,14 @@ class Params:
         parser.add_argument(
             '--anlw',
             type=float,
-            default=50.0,
+            default=70.0,
             help='Angles loss weight.'
         )
 
         parser.add_argument(
             '--aslw',
             type=float,
-            default=50.0,
+            default=150.0,
             help='Aspect ratio loss weight.'
         )
 
@@ -215,7 +215,7 @@ def calc_aspect_ratios(all_cells, valid_mask):
     y_vars = jnp.nanvar(ys_masked, axis=1)
 
     eps = 1e-8
-    aspect_ratios = (y_vars + eps) / (x_vars + eps)
+    aspect_ratios = (y_vars - x_vars) / (y_vars + x_vars + eps)
 
     return aspect_ratios
 
