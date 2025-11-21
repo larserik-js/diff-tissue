@@ -55,36 +55,32 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
     return shape_loss
 
 
-def _calc_area_regularization_loss(final_vertices, jax_arrays):
-    all_cells = my_utils.get_all_cells(final_vertices, jax_arrays['indices'])
-    final_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    area_reg_loss = jnp.var(final_areas)
-    return area_reg_loss
+def _knots_to_full_shape(array, weights):
+    array = np.sum(array[None, :] * weights, axis=1)
+    return array
 
 
-def _loss_f(ar_logits, as_logits, init_areas, min_dist_mask,
-                  n_growth_steps, jax_arrays, params):
+def _loss_f(ar_logits, as_logits, knot_weights, init_areas, min_dist_mask,
+            n_growth_steps, jax_arrays, params):
+
     min_area_scaling = 1 / params['growth_scale']
     goal_areas = _calc_goal_areas(
         init_areas, min_area_scaling, params['max_area_scaling'], ar_logits
     )
     goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
+    goal_areas = _knots_to_full_shape(goal_areas, knot_weights)
+    goal_aspect_ratios = _knots_to_full_shape(goal_aspect_ratios, knot_weights)
+
     growth_evolution = morph.iterate(
         goal_areas, goal_aspect_ratios, n_growth_steps, jax_arrays, params
     )
     final_vertices = growth_evolution[-1]
 
-    shape_loss = _calc_shape_loss(
+    loss = _calc_shape_loss(
         final_vertices, jax_arrays['boundary_mask'],
         jax_arrays['outer_shape'], min_dist_mask
     )
-
-    area_reg_loss = 5.0 * _calc_area_regularization_loss(
-        final_vertices, jax_arrays
-    )
-
-    loss = shape_loss + area_reg_loss
 
     return loss, final_vertices
 
@@ -95,7 +91,7 @@ _calc_loss_val_grads = jax.jit(
 )
 
 
-def _get_init_logits(jax_arrays, params):
+def _get_init_logits(knot_inds, jax_arrays, params):
     mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
     all_mapped_cells = mapped_vertices[jax_arrays['indices']]
     mapped_areas = my_utils.calc_all_areas(
@@ -119,11 +115,14 @@ def _get_init_logits(jax_arrays, params):
         all_mapped_cells, jax_arrays['valid_mask']
     )
 
+    knot_area_scalings = mapped_area_scalings[knot_inds]
+    knot_aspect_ratios = mapped_aspect_ratios[knot_inds]
+
     init_logits = {
-        'area_scalings': _calc_inverse_area_scaling(
-            min_area_scaling, max_area_scaling, mapped_area_scalings
+        'knot_area_scalings': _calc_inverse_area_scaling(
+            min_area_scaling, max_area_scaling, knot_area_scalings
         ),
-        'aspect_ratios': _calc_inverse_aspect_ratios(mapped_aspect_ratios)
+        'knot_aspect_ratios': _calc_inverse_aspect_ratios(knot_aspect_ratios)
     }
     return init_logits
 
@@ -181,7 +180,22 @@ def _make_min_dist_mask(jax_arrays):
     return min_dist_mask
 
 
-def _iterate_towards_shape(init_logits, jax_arrays, all_params):
+def _calc_knot_weights(centroids, knot_inds):
+    knot_centroids = centroids[knot_inds]
+    dist_vecs = (centroids[:, None] - knot_centroids[None, :])
+    sx = 1.5
+    sy = 1.5
+    knot_weights = (
+        jnp.exp(-dist_vecs[:, :, 0]**2 / (2 * sx**2) -
+                dist_vecs[:, :, 1]**2 /(2 * sy**2))
+    )
+    knot_weights += 1e-8
+    knot_weights = knot_weights / jnp.sum(knot_weights, axis=1)[:, None]
+
+    return knot_weights
+
+
+def _iterate_towards_shape(knot_inds, init_logits, jax_arrays, all_params):
     params = all_params.numerical
 
     vertices = jax_arrays['init_vertices']
@@ -190,9 +204,14 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
 
     min_area_scaling = 1 / params['growth_scale']
 
+    centroids = my_utils.calc_centroids(
+        vertices, jax_arrays['indices'], jax_arrays['valid_mask']
+    )
+    knot_weights = _calc_knot_weights(centroids, knot_inds)
+
     # Initialize parameters
-    ar_logits = init_logits['area_scalings']
-    as_logits = init_logits['aspect_ratios']
+    ar_logits = init_logits['knot_area_scalings']
+    as_logits = init_logits['knot_aspect_ratios']
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
 
@@ -208,7 +227,7 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     for shape_step in range(params['n_shape_steps']):
         (loss, vertices), (ar_grads, as_grads) = (
             _calc_loss_val_grads(
-                ar_logits, as_logits, init_areas, min_dist_mask,
+                ar_logits, as_logits, knot_weights, init_areas, min_dist_mask,
                 params['n_growth_steps'], jax_arrays, params
             )
         )
@@ -243,13 +262,30 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     final_aspect_ratios = my_utils.calc_aspect_ratios(
         all_cells, jax_arrays['valid_mask']
     )
+    best_goal_area_scalings = _knots_to_full_shape(
+        best_goal_area_scalings, knot_weights
+    )
+    best_goal_areas = _knots_to_full_shape(best_goal_areas, knot_weights)
+    best_goal_aspect_ratios = _knots_to_full_shape(
+        best_goal_aspect_ratios, knot_weights
+    )
+
     final_goal_areas_scalings = _calc_area_scaling(
         min_area_scaling, params['max_area_scaling'], ar_logits
+    )
+    final_goal_areas_scalings = _knots_to_full_shape(
+        final_goal_areas_scalings, knot_weights
     )
     final_goal_areas = _calc_goal_areas(
         init_areas, min_area_scaling, params['max_area_scaling'], ar_logits
     )
+    final_goal_areas = _knots_to_full_shape(
+        final_goal_areas, knot_weights
+    )
     final_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
+    final_goal_aspect_ratios = _knots_to_full_shape(
+        final_goal_aspect_ratios, knot_weights
+    )
 
     tabular_output = {
         'init_area': init_areas,
@@ -271,10 +307,11 @@ def _run(params):
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    init_logits = _get_init_logits(jax_arrays, params)
+    knot_inds = jnp.array([89, 45, 10, 20, 53, 51, 73])
+    init_logits = _get_init_logits(knot_inds, jax_arrays, params)
 
     best_loss, final_tissues, tabular_output = _iterate_towards_shape(
-        init_logits, jax_arrays, params
+        knot_inds, init_logits, jax_arrays, params
     )
 
     return best_loss, final_tissues, tabular_output
@@ -285,9 +322,8 @@ def _main():
     jax.config.update('jax_enable_x64', True)
 
     params = my_utils.Params()
-
     _, final_tissues, tabular_output = _run(params)
-
+    
     _save_final_tissues(final_tissues, params)
     _save_output_params(tabular_output, params)
 
