@@ -1,7 +1,7 @@
 import jax
 import numpy as np
 
-import my_files, my_utils
+import my_files, my_utils, plotting
 
 
 def _get_plotting_data(params):
@@ -12,7 +12,7 @@ def _get_plotting_data(params):
 
 
 def _plot(growth_evolution, output_dir, jax_arrays):
-    figure = my_utils.MorphFigure(output_dir, jax_arrays)
+    figure = plotting.MorphFigure(output_dir, jax_arrays)
 
     for t, vertices in enumerate(growth_evolution):
         if t%10 == 0:

@@ -2,12 +2,12 @@ import jax
 import numpy as np
 import pandas as pd
 
-import morph, my_files, my_utils
+import morph, my_files, my_utils, plotting
 
 
 def _plot(growth_evolution, output_dir, jax_arrays, growth_scale,
           total_steps):
-    figure = my_utils.MorphGrowthFigure(
+    figure = plotting.MorphGrowthFigure(
         output_dir, jax_arrays, total_steps, scale=growth_scale
     )
 

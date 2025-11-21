@@ -4,7 +4,7 @@ import numpy as np
 import optax
 import pandas as pd
 
-import diffeomorphism, morph, init_systems, my_files, my_utils
+import diffeomorphism, morph, init_systems, my_files, my_utils, plotting
 
 
 def _calc_sigmoid(min_val, max_val, logits):
@@ -195,7 +195,7 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
 
     final_tissues_dir = my_files.OutputDir('final_tissues', all_params)
 
-    figure = my_utils.MorphFigure(final_tissues_dir.path, jax_arrays)
+    figure = plotting.MorphFigure(final_tissues_dir.path, jax_arrays)
 
     shape_loss = jnp.inf
 
