@@ -248,8 +248,6 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     final_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
     param_dict = {
-        'init_centroid_x': jax_arrays['init_centroids'][:,0],
-        'init_centroid_y': jax_arrays['init_centroids'][:,1],
         'init_area': init_areas,
         'final_area': final_areas,
         'final_aspect_ratio': final_aspect_ratios,

@@ -121,7 +121,6 @@ def _make_arrays(polygons, outer_shape):
         'indices': polygons.polygon_inds,
         'valid_mask': polygons.valid_mask,
         'init_vertices': polygons.vertices,
-        'init_centroids': polygons.centroids,
         'poly_neighbors': polygons.poly_neighbors,
         'vertex_neighbors': polygons.vertex_neighbors,
         'free_mask': polygons.free_mask,
@@ -209,3 +208,11 @@ def calc_aspect_ratios(all_cells, valid_mask):
     aspect_ratios = (y_vars - x_vars) / (y_vars + x_vars + eps)
 
     return aspect_ratios
+
+
+def calc_centroids(vertices, indices, valid_mask):
+    polygons = vertices[indices]
+    mask = valid_mask[..., None].repeat(2, axis=2)
+    polygons = jnp.where(mask, polygons, jnp.nan)
+    centroids = jnp.nanmean(polygons, axis=1)
+    return centroids

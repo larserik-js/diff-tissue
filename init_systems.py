@@ -73,7 +73,6 @@ class _Polygons(ABC):
 
         self._valid_mask = self._find_valid_mask()
         self._boundary_mask = self._find_boundary_mask()
-        self._centroids = self._calc_centroids()
         self._poly_neighbors = self._calc_poly_neighbors()
         self._vertex_neighbors = self._calc_vertex_neighbors()
 
@@ -108,13 +107,6 @@ class _Polygons(ABC):
         boundary_mask[boundary_inds] = True
 
         return boundary_mask
-
-    def _calc_centroids(self):
-        polygons = self._vertices[self._polygon_inds]
-        mask = self._valid_mask[..., None].repeat(2, axis=2)
-        polygons[~mask] = np.nan
-        centroids = np.nanmean(polygons, axis=1)
-        return centroids
 
     @staticmethod
     def _list_of_ints_to_padded_array(all_neighbors):
@@ -189,10 +181,6 @@ class _Polygons(ABC):
     @property
     def boundary_mask(self):
         return self._boundary_mask
-
-    @property
-    def centroids(self):
-        return self._centroids
 
     @property
     def poly_neighbors(self):
