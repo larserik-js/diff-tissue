@@ -62,7 +62,6 @@ def _calc_area_regularization_loss(final_vertices, jax_arrays):
     return area_reg_loss
 
 
-
 def _shape_loss_f(ar_logits, as_logits, init_areas, min_dist_mask,
                   n_growth_steps, jax_arrays, params):
     min_area_scaling = 1 / params['growth_scale']
@@ -179,8 +178,8 @@ def _make_min_dist_mask(jax_arrays):
 def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     params = all_params.numerical
 
-    init_vertices = jax_arrays['init_vertices']
-    all_cells = my_utils.get_all_cells(init_vertices, jax_arrays['indices'])
+    vertices = jax_arrays['init_vertices']
+    all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
     min_area_scaling = 1 / params['growth_scale']
@@ -200,7 +199,7 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     shape_loss = jnp.inf
 
     for shape_step in range(params['n_shape_steps']):
-        (new_shape_loss, final_vertices), (ar_grads, as_grads) = (
+        (new_shape_loss, vertices), (ar_grads, as_grads) = (
             _calc_shape_loss_val_grads(
                 ar_logits, as_logits, init_areas, min_dist_mask,
                 params['n_growth_steps'], jax_arrays, params
@@ -228,11 +227,11 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
             print('')
 
         if shape_step % 10 == 0:
-            figure.save_plot(final_vertices, shape_step)
-    figure.save_plot(final_vertices, shape_step)
+            figure.save_plot(vertices, shape_step)
+    figure.save_plot(vertices, shape_step)
 
     # Calculate output params
-    all_cells = my_utils.get_all_cells(final_vertices, jax_arrays['indices'])
+    all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
     final_areas = my_utils.calc_all_areas(
         all_cells, jax_arrays['valid_mask']
     )
