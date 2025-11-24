@@ -112,7 +112,7 @@ def _get_init_logits(jax_arrays, params):
     min_area_scaling = 1 / params.numerical['growth_scale']
     max_area_scaling = params.numerical['max_area_scaling']
     mapped_area_scalings = mapped_area_scalings.clip(
-        min_area_scaling, max_area_scaling
+        min_area_scaling + 1e-8, max_area_scaling - 1e-8
     )
 
     mapped_aspect_ratios = my_utils.calc_aspect_ratios(
