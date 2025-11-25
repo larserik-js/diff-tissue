@@ -183,6 +183,14 @@ def _make_min_dist_mask(jax_arrays):
     return min_dist_mask
 
 
+def _get_mapped_centroids(jax_arrays):
+    mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
+    mapped_centroids = my_utils.calc_centroids(
+        mapped_vertices, jax_arrays['indices'], jax_arrays['valid_mask']
+    )
+    return mapped_centroids
+
+
 def _flip_around_shape_y(array):
     flipped_array = jnp.empty_like(array)
     shape_x = init_systems.Coords.shape_origin[0]
@@ -197,8 +205,8 @@ def _get_symmetric_knots(left_knots):
     return symmetric_knots
 
 
-def _calc_knot_weights(centroids, knots):
-    dist_vecs = (centroids[:, None] - knots[None, :])
+def _calc_knot_weights(mapped_centroids, knots):
+    dist_vecs = (mapped_centroids[:, None] - knots[None, :])
     sy = 1.0
     knot_weights = jnp.exp(-dist_vecs[:, :, 1]**2 / (2 * sy**2))
     knot_weights += 1e-8
@@ -216,14 +224,11 @@ def _iterate_towards_shape(left_knot_inds, init_logits, jax_arrays, all_params):
 
     min_area_scaling = 1 / params['growth_scale']
 
-    centroids = my_utils.calc_centroids(
-        vertices, jax_arrays['indices'], jax_arrays['valid_mask']
-    )
-
-    left_knots = centroids[left_knot_inds]
+    mapped_centroids = _get_mapped_centroids(jax_arrays)
+    left_knots = mapped_centroids[left_knot_inds]
     knots = _get_symmetric_knots(left_knots)
 
-    knot_weights = _calc_knot_weights(centroids, knots)
+    knot_weights = _calc_knot_weights(mapped_centroids, knots)
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
 
