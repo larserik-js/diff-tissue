@@ -199,12 +199,8 @@ def _get_symmetric_knots(left_knots):
 
 def _calc_knot_weights(centroids, knots):
     dist_vecs = (centroids[:, None] - knots[None, :])
-    sx = 2.0
     sy = 1.0
-    knot_weights = (
-        jnp.exp(-dist_vecs[:, :, 0]**2 / (2 * sx**2) -
-                dist_vecs[:, :, 1]**2 /(2 * sy**2))
-    )
+    knot_weights = jnp.exp(-dist_vecs[:, :, 1]**2 / (2 * sy**2))
     knot_weights += 1e-8
     knot_weights = knot_weights / jnp.sum(knot_weights, axis=1)[:, None]
 
