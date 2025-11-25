@@ -55,22 +55,25 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
     return shape_loss
 
 
-def _knots_to_full_shape(array, weights):
-    array = np.sum(array[None, :] * weights, axis=1)
-    return array
+def _knots_to_full_shape(left_goals, weights):
+    symmetric_goals = jnp.tile(left_goals, 2)
+    all_goals = np.sum(symmetric_goals[None, :] * weights, axis=1)
+    return all_goals
 
 
-def _loss_f(ar_logits, as_logits, knot_weights, init_areas, min_dist_mask,
-            n_growth_steps, jax_arrays, params):
+def _loss_f(ar_logits, as_logits, knot_weights, init_areas,
+            min_dist_mask, n_growth_steps, jax_arrays, params):
 
     min_area_scaling = 1 / params['growth_scale']
-    goal_areas = _calc_goal_areas(
+    left_goal_areas = _calc_goal_areas(
         init_areas, min_area_scaling, params['max_area_scaling'], ar_logits
     )
-    goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
+    left_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
-    goal_areas = _knots_to_full_shape(goal_areas, knot_weights)
-    goal_aspect_ratios = _knots_to_full_shape(goal_aspect_ratios, knot_weights)
+    goal_areas = _knots_to_full_shape(left_goal_areas, knot_weights)
+    goal_aspect_ratios = _knots_to_full_shape(
+        left_goal_aspect_ratios, knot_weights
+    )
 
     growth_evolution = morph.iterate(
         goal_areas, goal_aspect_ratios, n_growth_steps, jax_arrays, params
@@ -91,7 +94,7 @@ _calc_loss_val_grads = jax.jit(
 )
 
 
-def _get_init_logits(knot_inds, jax_arrays, params):
+def _get_init_logits(left_knot_inds, jax_arrays, params):
     mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
     all_mapped_cells = mapped_vertices[jax_arrays['indices']]
     mapped_areas = my_utils.calc_all_areas(
@@ -115,14 +118,14 @@ def _get_init_logits(knot_inds, jax_arrays, params):
         all_mapped_cells, jax_arrays['valid_mask']
     )
 
-    knot_area_scalings = mapped_area_scalings[knot_inds]
-    knot_aspect_ratios = mapped_aspect_ratios[knot_inds]
+    left_area_scalings = mapped_area_scalings[left_knot_inds]
+    left_aspect_ratios = mapped_aspect_ratios[left_knot_inds]
 
     init_logits = {
-        'knot_area_scalings': _calc_inverse_area_scaling(
-            min_area_scaling, max_area_scaling, knot_area_scalings
+        'left_area_scalings': _calc_inverse_area_scaling(
+            min_area_scaling, max_area_scaling, left_area_scalings
         ),
-        'knot_aspect_ratios': _calc_inverse_aspect_ratios(knot_aspect_ratios)
+        'left_aspect_ratios': _calc_inverse_aspect_ratios(left_aspect_ratios)
     }
     return init_logits
 
@@ -180,11 +183,24 @@ def _make_min_dist_mask(jax_arrays):
     return min_dist_mask
 
 
-def _calc_knot_weights(centroids, knot_inds):
-    knot_centroids = centroids[knot_inds]
-    dist_vecs = (centroids[:, None] - knot_centroids[None, :])
-    sx = 1.5
-    sy = 1.5
+def _flip_around_shape_y(array):
+    flipped_array = jnp.empty_like(array)
+    shape_x = init_systems.Coords.shape_origin[0]
+    flipped_array = flipped_array.at[:,0].set(2 * shape_x - array[:,0])
+    flipped_array = flipped_array.at[:,1].set(array[:,1])
+    return flipped_array
+
+
+def _get_symmetric_knots(left_knots):
+    right_knots = _flip_around_shape_y(left_knots)
+    symmetric_knots = jnp.concatenate([left_knots, right_knots], axis=0)
+    return symmetric_knots
+
+
+def _calc_knot_weights(centroids, knots):
+    dist_vecs = (centroids[:, None] - knots[None, :])
+    sx = 2.0
+    sy = 1.0
     knot_weights = (
         jnp.exp(-dist_vecs[:, :, 0]**2 / (2 * sx**2) -
                 dist_vecs[:, :, 1]**2 /(2 * sy**2))
@@ -195,7 +211,7 @@ def _calc_knot_weights(centroids, knot_inds):
     return knot_weights
 
 
-def _iterate_towards_shape(knot_inds, init_logits, jax_arrays, all_params):
+def _iterate_towards_shape(left_knot_inds, init_logits, jax_arrays, all_params):
     params = all_params.numerical
 
     vertices = jax_arrays['init_vertices']
@@ -207,13 +223,17 @@ def _iterate_towards_shape(knot_inds, init_logits, jax_arrays, all_params):
     centroids = my_utils.calc_centroids(
         vertices, jax_arrays['indices'], jax_arrays['valid_mask']
     )
-    knot_weights = _calc_knot_weights(centroids, knot_inds)
 
-    # Initialize parameters
-    ar_logits = init_logits['knot_area_scalings']
-    as_logits = init_logits['knot_aspect_ratios']
+    left_knots = centroids[left_knot_inds]
+    knots = _get_symmetric_knots(left_knots)
+
+    knot_weights = _calc_knot_weights(centroids, knots)
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
+
+    # Initialize parameters
+    ar_logits = init_logits['left_area_scalings']
+    as_logits = init_logits['left_aspect_ratios']
 
     optimizer = _MyOptimizer(ar_logits, as_logits)
 
@@ -227,8 +247,8 @@ def _iterate_towards_shape(knot_inds, init_logits, jax_arrays, all_params):
     for shape_step in range(params['n_shape_steps']):
         (loss, vertices), (ar_grads, as_grads) = (
             _calc_loss_val_grads(
-                ar_logits, as_logits, knot_weights, init_areas, min_dist_mask,
-                params['n_growth_steps'], jax_arrays, params
+                ar_logits, as_logits, knot_weights, init_areas,
+                min_dist_mask, params['n_growth_steps'], jax_arrays, params
             )
         )
         ar_logits, as_logits = (
@@ -307,11 +327,11 @@ def _run(params):
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    knot_inds = jnp.array([89, 45, 10, 20, 53, 51, 73])
-    init_logits = _get_init_logits(knot_inds, jax_arrays, params)
+    left_knot_inds = jnp.array([89, 60, 25, 54, 62, 11, 22])
+    init_logits = _get_init_logits(left_knot_inds, jax_arrays, params)
 
     best_loss, final_tissues, tabular_output = _iterate_towards_shape(
-        knot_inds, init_logits, jax_arrays, params
+        left_knot_inds, init_logits, jax_arrays, params
     )
 
     return best_loss, final_tissues, tabular_output
