@@ -57,7 +57,7 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
 
 def _knots_to_full_shape(left_goals, weights):
     symmetric_goals = jnp.tile(left_goals, 2)
-    all_goals = np.sum(symmetric_goals[None, :] * weights, axis=1)
+    all_goals = jnp.sum(symmetric_goals[None, :] * weights, axis=1)
     return all_goals
 
 
@@ -94,32 +94,77 @@ _calc_loss_val_grads = jax.jit(
 )
 
 
-def _get_init_logits(left_knot_inds, jax_arrays, params):
+def _get_left_knots():
+    x = -2.5
+    left_knots = jnp.array([
+        [x, 1.0], [x, 4.0], [x, 7.0], [x, 10.0], [x, 13.0]
+    ])
+    left_knots = left_knots.at[:,1].add(init_systems.Coords.base_origin[1])
+    return left_knots
+
+
+def _find_closest_vertices(left_knots, mapped_vertices):
+    dist_vecs = left_knots[:,None,:] - mapped_vertices
+    dists = jnp.linalg.norm(dist_vecs, axis=2)
+    closest_vertices = jnp.argmin(dists, axis=1)
+    return closest_vertices
+
+
+def _find_closest_polygons(left_knots, mapped_vertices, vertex_polygons):
+    closest_vertices = _find_closest_vertices(
+        left_knots, mapped_vertices
+    )
+    closest_polygons = vertex_polygons[closest_vertices]
+    return closest_polygons
+
+
+def _calc_mean_closest_metric(mapped_metrics, closest_polygons):
+    closest_metrics = mapped_metrics[closest_polygons]
+    closest_metrics_with_nans = jnp.where(
+        closest_polygons != -1, closest_metrics, jnp.nan
+    )
+    mean_mapped_metrics = jnp.nanmean(closest_metrics_with_nans, axis=1)
+    return mean_mapped_metrics
+
+
+def _get_left_area_scalings(closest_polygons, mapped_areas, init_areas):
+    mean_mapped_areas = _calc_mean_closest_metric(
+        mapped_areas, closest_polygons
+    )
+    mean_init_areas = _calc_mean_closest_metric(init_areas, closest_polygons)
+    left_area_scalings = mean_mapped_areas / mean_init_areas
+    return left_area_scalings
+
+
+def _get_init_logits(left_knots, jax_arrays, params):
     mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
+    closest_polygons = _find_closest_polygons(
+        left_knots, mapped_vertices, jax_arrays['vertex_polygons']
+    )
     all_mapped_cells = mapped_vertices[jax_arrays['indices']]
     mapped_areas = my_utils.calc_all_areas(
         all_mapped_cells, jax_arrays['valid_mask']
     )
-
     all_cells = my_utils.get_all_cells(
         jax_arrays['init_vertices'], jax_arrays['indices']
     )
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-
-    mapped_area_scalings = mapped_areas / init_areas
+    left_area_scalings = _get_left_area_scalings(
+        closest_polygons, mapped_areas, init_areas
+    )
 
     min_area_scaling = 1 / params.numerical['growth_scale']
     max_area_scaling = params.numerical['max_area_scaling']
-    mapped_area_scalings = mapped_area_scalings.clip(
+    left_area_scalings = left_area_scalings.clip(
         min_area_scaling + 1e-8, max_area_scaling - 1e-8
     )
 
     mapped_aspect_ratios = my_utils.calc_aspect_ratios(
         all_mapped_cells, jax_arrays['valid_mask']
     )
-
-    left_area_scalings = mapped_area_scalings[left_knot_inds]
-    left_aspect_ratios = mapped_aspect_ratios[left_knot_inds]
+    left_aspect_ratios = _calc_mean_closest_metric(
+        mapped_aspect_ratios, closest_polygons
+    )
 
     init_logits = {
         'left_area_scalings': _calc_inverse_area_scaling(
@@ -215,7 +260,7 @@ def _calc_knot_weights(mapped_centroids, knots):
     return knot_weights
 
 
-def _iterate_towards_shape(left_knot_inds, init_logits, jax_arrays, all_params):
+def _iterate_towards_shape(init_logits, left_knots, jax_arrays, all_params):
     params = all_params.numerical
 
     vertices = jax_arrays['init_vertices']
@@ -225,7 +270,6 @@ def _iterate_towards_shape(left_knot_inds, init_logits, jax_arrays, all_params):
     min_area_scaling = 1 / params['growth_scale']
 
     mapped_centroids = _get_mapped_centroids(jax_arrays)
-    left_knots = mapped_centroids[left_knot_inds]
     knots = _get_symmetric_knots(left_knots)
 
     knot_weights = _calc_knot_weights(mapped_centroids, knots)
@@ -328,11 +372,12 @@ def _run(params):
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    left_knot_inds = jnp.array([89, 60, 25, 54, 62, 11, 22])
-    init_logits = _get_init_logits(left_knot_inds, jax_arrays, params)
+    left_knots = _get_left_knots()
+
+    init_logits = _get_init_logits(left_knots, jax_arrays, params)
 
     best_loss, final_tissues, tabular_output = _iterate_towards_shape(
-        left_knot_inds, init_logits, jax_arrays, params
+        init_logits, left_knots, jax_arrays, params
     )
 
     return best_loss, final_tissues, tabular_output
