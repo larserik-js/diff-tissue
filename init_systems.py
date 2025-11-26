@@ -75,6 +75,7 @@ class _Polygons(ABC):
         self._boundary_mask = self._find_boundary_mask()
         self._poly_neighbors = self._calc_poly_neighbors()
         self._vertex_neighbors = self._calc_vertex_neighbors()
+        self._vertex_polygons = self._calc_vertex_polygons()
 
     @abstractmethod
     def _build(self):
@@ -109,7 +110,7 @@ class _Polygons(ABC):
         return boundary_mask
 
     @staticmethod
-    def _list_of_ints_to_padded_array(all_neighbors):
+    def _list_of_lists_of_ints_to_padded_array(all_neighbors):
         max_n_neighbors = max([
             len(neighbors_list) for neighbors_list in all_neighbors
         ])
@@ -137,7 +138,7 @@ class _Polygons(ABC):
             if n_neighbors > max_n_neighbors:
                 max_n_neighbors = n_neighbors
 
-        neighbors = self._list_of_ints_to_padded_array(neighbors)
+        neighbors = self._list_of_lists_of_ints_to_padded_array(neighbors)
         return neighbors
 
     def _calc_vertex_neighbors(self):
@@ -155,8 +156,22 @@ class _Polygons(ABC):
         vertex_neighbors = [
             list(neighbors_set) for neighbors_set in vertex_neighbors.values()
         ]
-        vertex_neighbors = self._list_of_ints_to_padded_array(vertex_neighbors)
+        vertex_neighbors = self._list_of_lists_of_ints_to_padded_array(
+            vertex_neighbors
+        )
         return vertex_neighbors
+
+    def _calc_vertex_polygons(self):
+        vertex_polygons_list = list()
+        for vertex_idx in range(self._vertices.shape[0]):
+            vertex_polygons = np.where(vertex_idx == self._polygon_inds)[0]
+            vertex_polygons = list(set(vertex_polygons))
+            vertex_polygons_list.append(vertex_polygons)
+
+        vertex_polygons = self._list_of_lists_of_ints_to_padded_array(
+            vertex_polygons_list
+        )
+        return vertex_polygons
 
     @property
     def vertices(self):
@@ -189,6 +204,10 @@ class _Polygons(ABC):
     @property
     def vertex_neighbors(self):
         return self._vertex_neighbors
+
+    @property
+    def vertex_polygons(self):
+        return self._vertex_polygons
 
 
 class _MeshPolygons(_Polygons):

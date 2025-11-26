@@ -123,6 +123,7 @@ def _make_arrays(polygons, outer_shape):
         'init_vertices': polygons.vertices,
         'poly_neighbors': polygons.poly_neighbors,
         'vertex_neighbors': polygons.vertex_neighbors,
+        'vertex_polygons': polygons.vertex_polygons,
         'free_mask': polygons.free_mask,
         'proximal_mask': polygons.proximal_mask,
         'boundary_mask': polygons.boundary_mask,
