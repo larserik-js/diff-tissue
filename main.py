@@ -161,18 +161,18 @@ def _save_output_params(param_dict, params):
 
 
 def _make_min_dist_mask(jax_arrays):
-    min_dist_mask = np.ones(
+    min_dist_mask = jnp.ones(
         (jax_arrays['init_vertices'].shape[0],
          jax_arrays['outer_shape'].shape[0]),
          dtype=bool
     )
     fixed_mask = jnp.any(~jax_arrays['free_mask'], axis=1)
 
-    outer_shape_basal_mask = np.isclose(
+    outer_shape_basal_mask = jnp.isclose(
         jax_arrays['outer_shape'][:,1], init_systems.Coords.base_origin[1]
     )
-    min_dist_mask[fixed_mask] = outer_shape_basal_mask
-    return jnp.array(min_dist_mask)
+    min_dist_mask = min_dist_mask.at[fixed_mask].set(outer_shape_basal_mask)
+    return min_dist_mask
 
 
 def _iterate_towards_shape(init_logits, jax_arrays, all_params):
