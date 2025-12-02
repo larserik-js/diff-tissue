@@ -33,6 +33,16 @@ def _calc_inverse_aspect_ratios(aspect_ratios):
     return logits
 
 
+def _calc_smoothing_stds(logits):
+    smoothing_stds = _calc_sigmoid(0.0, 10.0, logits)
+    return smoothing_stds
+
+
+def _calc_inverse_smoothing_stds(smoothing_stds):
+    logits = _calc_inverse_sigmoid(0.0, 10.0, smoothing_stds)
+    return logits
+
+
 def _calc_goal_areas(init_areas, min_area_scaling, max_area_scaling, logits):
     goal_areas = init_areas.mean() * _calc_area_scaling(
         min_area_scaling, max_area_scaling, logits
@@ -45,6 +55,21 @@ def _calc_goal_aspect_ratios(as_logits):
     return goal_aspect_ratios
 
 
+def _calc_knot_weights(std_logits, dist_vecs):
+    smoothing_stds = _calc_smoothing_stds(std_logits)
+    knot_weights = jnp.exp(-dist_vecs[:, :, 1]**2 / (2 * smoothing_stds**2))
+    knot_weights += 1e-8
+    knot_weights = knot_weights / jnp.sum(knot_weights, axis=1)[:, None]
+
+    return knot_weights
+
+
+def _knots_to_full_shape(left_goals, weights):
+    symmetric_goals = jnp.tile(left_goals, 2)
+    all_goals = jnp.sum(symmetric_goals[None, :] * weights, axis=1)
+    return all_goals
+
+
 def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
     diff_vectors = final_vertices[:,None] - outer_shape
     dists = jnp.linalg.norm(diff_vectors, axis=2)
@@ -55,13 +80,7 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
     return shape_loss
 
 
-def _knots_to_full_shape(left_goals, weights):
-    symmetric_goals = jnp.tile(left_goals, 2)
-    all_goals = jnp.sum(symmetric_goals[None, :] * weights, axis=1)
-    return all_goals
-
-
-def _loss_f(ar_logits, as_logits, knot_weights, init_areas,
+def _loss_f(ar_logits, as_logits, std_logits, dist_vecs, init_areas,
             min_dist_mask, n_growth_steps, jax_arrays, params):
 
     min_area_scaling = 1 / params['growth_scale']
@@ -69,6 +88,8 @@ def _loss_f(ar_logits, as_logits, knot_weights, init_areas,
         init_areas, min_area_scaling, params['max_area_scaling'], ar_logits
     )
     left_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
+
+    knot_weights = _calc_knot_weights(std_logits, dist_vecs)
 
     goal_areas = _knots_to_full_shape(left_goal_areas, knot_weights)
     goal_aspect_ratios = _knots_to_full_shape(
@@ -89,7 +110,7 @@ def _loss_f(ar_logits, as_logits, knot_weights, init_areas,
 
 
 _calc_loss_val_grads = jax.jit(
-    jax.value_and_grad(_loss_f, has_aux=True, argnums=(0, 1)),
+    jax.value_and_grad(_loss_f, has_aux=True, argnums=(0, 1, 2)),
     static_argnames=['n_growth_steps']
 )
 
@@ -168,17 +189,20 @@ def _get_init_logits(left_knots, jax_arrays, params):
         mapped_aspect_ratios, closest_polygons
     )
 
+    smoothing_stds = jnp.array([1.0])
+
     init_logits = {
         'left_area_scalings': _calc_inverse_area_scaling(
             min_area_scaling, max_area_scaling, left_area_scalings
         ),
-        'left_aspect_ratios': _calc_inverse_aspect_ratios(left_aspect_ratios)
+        'left_aspect_ratios': _calc_inverse_aspect_ratios(left_aspect_ratios),
+        'smoothing_stds': _calc_inverse_smoothing_stds(smoothing_stds)
     }
     return init_logits
 
 
 class _MyOptimizer:
-    def __init__(self, ar_logits, as_logits):
+    def __init__(self, ar_logits, as_logits, std_logits):
         self._lr_schedule = optax.cosine_decay_schedule(
             init_value=0.02, decay_steps=500, alpha=1e-5
         )
@@ -190,17 +214,18 @@ class _MyOptimizer:
             optax.scale(-1.0)
         )
         self._state = self._optimizer.init(
-            params=(ar_logits, as_logits)
+            params=(ar_logits, as_logits, std_logits)
         )
 
-    def update(self, ar_logits, as_logits, ar_grads, as_grads):
+    def update(self, ar_logits, as_logits, std_logits, ar_grads, as_grads,
+               std_grads):
         updates, self._state = self._optimizer.update(
-            (ar_grads, as_grads), self._state
+            (ar_grads, as_grads, std_grads), self._state
         )
-        ar_logits, as_logits = optax.apply_updates(
-            (ar_logits, as_logits), updates
+        ar_logits, as_logits, std_logits = optax.apply_updates(
+            (ar_logits, as_logits, std_logits), updates
         )
-        return ar_logits, as_logits
+        return ar_logits, as_logits, std_logits
 
 
 def _save_final_tissues(final_tissues, params):
@@ -252,16 +277,6 @@ def _get_symmetric_knots(left_knots):
     return symmetric_knots
 
 
-def _calc_knot_weights(mapped_centroids, knots):
-    dist_vecs = (mapped_centroids[:, None] - knots[None, :])
-    sy = 1.0
-    knot_weights = jnp.exp(-dist_vecs[:, :, 1]**2 / (2 * sy**2))
-    knot_weights += 1e-8
-    knot_weights = knot_weights / jnp.sum(knot_weights, axis=1)[:, None]
-
-    return knot_weights
-
-
 def _iterate_towards_shape(init_logits, left_knots, jax_arrays, all_params):
     params = all_params.numerical
 
@@ -274,15 +289,16 @@ def _iterate_towards_shape(init_logits, left_knots, jax_arrays, all_params):
     mapped_centroids = _get_mapped_centroids(jax_arrays)
     knots = _get_symmetric_knots(left_knots)
 
-    knot_weights = _calc_knot_weights(mapped_centroids, knots)
+    dist_vecs = mapped_centroids[:, None] - knots[None, :]
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
 
     # Initialize parameters
     ar_logits = init_logits['left_area_scalings']
     as_logits = init_logits['left_aspect_ratios']
+    std_logits = init_logits['smoothing_stds']
 
-    optimizer = _MyOptimizer(ar_logits, as_logits)
+    optimizer = _MyOptimizer(ar_logits, as_logits, std_logits)
 
     best_loss = jnp.inf
 
@@ -292,14 +308,16 @@ def _iterate_towards_shape(init_logits, left_knots, jax_arrays, all_params):
     final_tissues = final_tissues.at[0].set(vertices)
 
     for shape_step in range(params['n_shape_steps']):
-        (loss, vertices), (ar_grads, as_grads) = (
+        (loss, vertices), (ar_grads, as_grads, std_grads) = (
             _calc_loss_val_grads(
-                ar_logits, as_logits, knot_weights, init_areas,
+                ar_logits, as_logits, std_logits, dist_vecs, init_areas,
                 min_dist_mask, params['n_growth_steps'], jax_arrays, params
             )
         )
-        ar_logits, as_logits = (
-            optimizer.update(ar_logits, as_logits, ar_grads, as_grads)
+        ar_logits, as_logits, std_logits = (
+            optimizer.update(
+                ar_logits, as_logits, std_logits, ar_grads, as_grads, std_grads
+            )
         )
 
         print(f'{shape_step}: Shape loss = {loss}')
@@ -313,6 +331,8 @@ def _iterate_towards_shape(init_logits, left_knots, jax_arrays, all_params):
                 ar_logits
             )
             best_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
+
+            best_knot_weights = _calc_knot_weights(std_logits, dist_vecs)
 
             best_loss = loss
 
@@ -330,28 +350,29 @@ def _iterate_towards_shape(init_logits, left_knots, jax_arrays, all_params):
         all_cells, jax_arrays['valid_mask']
     )
     best_goal_area_scalings = _knots_to_full_shape(
-        best_goal_area_scalings, knot_weights
+        best_goal_area_scalings, best_knot_weights
     )
-    best_goal_areas = _knots_to_full_shape(best_goal_areas, knot_weights)
+    best_goal_areas = _knots_to_full_shape(best_goal_areas, best_knot_weights)
     best_goal_aspect_ratios = _knots_to_full_shape(
-        best_goal_aspect_ratios, knot_weights
+        best_goal_aspect_ratios, best_knot_weights
     )
 
+    final_knot_weights = _calc_knot_weights(std_logits, dist_vecs)
     final_goal_areas_scalings = _calc_area_scaling(
         min_area_scaling, params['max_area_scaling'], ar_logits
     )
     final_goal_areas_scalings = _knots_to_full_shape(
-        final_goal_areas_scalings, knot_weights
+        final_goal_areas_scalings, final_knot_weights
     )
     final_goal_areas = _calc_goal_areas(
         init_areas, min_area_scaling, params['max_area_scaling'], ar_logits
     )
     final_goal_areas = _knots_to_full_shape(
-        final_goal_areas, knot_weights
+        final_goal_areas, final_knot_weights
     )
     final_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
     final_goal_aspect_ratios = _knots_to_full_shape(
-        final_goal_aspect_ratios, knot_weights
+        final_goal_aspect_ratios, final_knot_weights
     )
 
     tabular_output = {
