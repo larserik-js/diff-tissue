@@ -95,10 +95,12 @@ _calc_loss_val_grads = jax.jit(
 
 
 def _get_left_knots():
-    x = -2.5
-    left_knots = jnp.array([
-        [x, 1.0], [x, 4.0], [x, 7.0], [x, 10.0], [x, 13.0]
-    ])
+    grid = jnp.mgrid[-2.5:-2.5:1j, 1:13:5j]
+
+    xs = grid[0].flatten()
+    ys = grid[1].flatten()
+    left_knots = jnp.column_stack([xs, ys])
+
     left_knots = left_knots.at[:,1].add(init_systems.Coords.base_origin[1])
     return left_knots
 
