@@ -57,7 +57,9 @@ def _calc_goal_aspect_ratios(as_logits):
 
 def _calc_knot_weights(std_logits, dist_vecs):
     smoothing_stds = _calc_smoothing_stds(std_logits)
-    knot_weights = jnp.exp(-dist_vecs[:, :, 1]**2 / (2 * smoothing_stds**2))
+    knot_weights = jnp.exp(
+        -jnp.sum(dist_vecs**2 / (2 * smoothing_stds[None,None,:]**2), axis=2)
+    )
     knot_weights += 1e-8
     knot_weights = knot_weights / jnp.sum(knot_weights, axis=1)[:, None]
 
@@ -189,7 +191,7 @@ def _get_init_logits(left_knots, jax_arrays, params):
         mapped_aspect_ratios, closest_polygons
     )
 
-    smoothing_stds = jnp.array([1.0])
+    smoothing_stds = jnp.ones(2)
 
     init_logits = {
         'left_area_scalings': _calc_inverse_area_scaling(
