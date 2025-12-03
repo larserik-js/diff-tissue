@@ -137,7 +137,7 @@ class MorphGrowthFigure(_Figure):
 
     def _scale_vertices(self, vertices, step):
         t_frac = step / self._total_steps
-        partial_scale = 1.0 + t_frac * (self._scale - 1.0)
+        partial_scale = 1.0 + (self._scale - 1.0) * np.sin(0.5 * np.pi * t_frac)
         scaled_vertices = partial_scale * vertices
         return scaled_vertices
 
