@@ -12,13 +12,14 @@ def _get_polygons(vertices, indices, valid_mask):
 
 
 class _Artists:
-    def __init__(self, ax, init_vertices, outer_shape, jax_arrays):
+    def __init__(self, ax, init_vertices, outer_shape, symmetric_knots,
+                 jax_arrays):
         self._ax = ax
         self._init_vertices = init_vertices
         self._outer_shape = outer_shape
         self._ax_lims = self._get_ax_lims()
+        self._symmetric_knots = symmetric_knots
         self._jax_arrays = jax_arrays
-        self._boundary_mask = jax_arrays['boundary_mask']
 
     def _get_ax_lims(self):
         all_plotted_vertices = np.vstack(
@@ -52,6 +53,12 @@ class _Artists:
             'ro-', markersize=3, label='Outer shape'
         )
 
+    def _add_knots(self):
+        self._ax.scatter(
+            self._symmetric_knots[:,0], self._symmetric_knots[:,1],
+            color='brown', s=20.0, alpha=1.0
+        )
+
     def _add_vertices(self, vertices):
         polygons = _get_polygons(
             vertices, self._jax_arrays['indices'],
@@ -76,6 +83,7 @@ class _Artists:
     def _add_artists(self, vertices):
         self._add_baselines()
         self._add_outer_shape()
+        self._add_knots()
         self._add_vertices(vertices)
         self._add_boundary_vertices(vertices)
 
@@ -105,7 +113,8 @@ class MorphFigure(_Figure):
         self._init_vertices = jax_arrays['init_vertices']
         self._closed_outer_shape = self._close(jax_arrays['outer_shape'])
         self._morph_artists = _Artists(
-            ax, self._init_vertices, self._closed_outer_shape, jax_arrays
+            ax, self._init_vertices, self._closed_outer_shape,
+            jax_arrays['symmetric_knots'], jax_arrays
         )
 
     def save_plot(self, vertices, step):
@@ -125,14 +134,18 @@ class MorphGrowthFigure(_Figure):
         self._init_vertices = jax_arrays['init_vertices']
         self._closed_outer_shape = self._close(jax_arrays['outer_shape'])
         self._scaled_outer_shape = self._scale * self._closed_outer_shape
+        self._symmetric_knots = jax_arrays['symmetric_knots']
+        self._scaled_knots = self._scale * self._symmetric_knots
 
         ax0 = self._fig.add_subplot(self._gs[0])
         self._morph_artists = _Artists(
-            ax0, self._init_vertices, self._closed_outer_shape, jax_arrays
+            ax0, self._init_vertices, self._closed_outer_shape,
+            self._symmetric_knots, jax_arrays
         )
         ax1 = self._fig.add_subplot(self._gs[1:])
         self._growth_artists = _Artists(
-            ax1, self._init_vertices, self._scaled_outer_shape, jax_arrays
+            ax1, self._init_vertices, self._scaled_outer_shape,
+            self._scaled_knots, jax_arrays
         )
 
     def _scale_vertices(self, vertices, step):
