@@ -117,17 +117,6 @@ _calc_loss_val_grads = jax.jit(
 )
 
 
-def _get_left_knots():
-    grid = jnp.mgrid[-2.5:-2.5:1j, 1:13:5j]
-
-    xs = grid[0].flatten()
-    ys = grid[1].flatten()
-    left_knots = jnp.column_stack([xs, ys])
-
-    left_knots = left_knots.at[:,1].add(init_systems.Coords.base_origin[1])
-    return left_knots
-
-
 def _find_closest_vertices(left_knots, mapped_vertices):
     dist_vecs = left_knots[:,None,:] - mapped_vertices
     dists = jnp.linalg.norm(dist_vecs, axis=2)
@@ -161,10 +150,10 @@ def _get_left_area_scalings(closest_polygons, mapped_areas, init_areas):
     return left_area_scalings
 
 
-def _get_init_logits(left_knots, jax_arrays, params):
+def _get_init_logits(jax_arrays, params):
     mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
     closest_polygons = _find_closest_polygons(
-        left_knots, mapped_vertices, jax_arrays['vertex_polygons']
+        jax_arrays['left_knots'], mapped_vertices, jax_arrays['vertex_polygons']
     )
     all_mapped_cells = mapped_vertices[jax_arrays['indices']]
     mapped_areas = my_utils.calc_all_areas(
@@ -265,21 +254,7 @@ def _get_mapped_centroids(jax_arrays):
     return mapped_centroids
 
 
-def _flip_around_shape_y(array):
-    flipped_array = jnp.empty_like(array)
-    shape_x = init_systems.Coords.shape_origin[0]
-    flipped_array = flipped_array.at[:,0].set(2 * shape_x - array[:,0])
-    flipped_array = flipped_array.at[:,1].set(array[:,1])
-    return flipped_array
-
-
-def _get_symmetric_knots(left_knots):
-    right_knots = _flip_around_shape_y(left_knots)
-    symmetric_knots = jnp.concatenate([left_knots, right_knots], axis=0)
-    return symmetric_knots
-
-
-def _iterate_towards_shape(init_logits, left_knots, jax_arrays, all_params):
+def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     params = all_params.numerical
 
     vertices = jax_arrays['init_vertices']
@@ -289,7 +264,7 @@ def _iterate_towards_shape(init_logits, left_knots, jax_arrays, all_params):
     min_area_scaling = 1 / params['growth_scale']
 
     mapped_centroids = _get_mapped_centroids(jax_arrays)
-    knots = _get_symmetric_knots(left_knots)
+    knots = jax_arrays['symmetric_knots']
 
     dist_vecs = mapped_centroids[:, None] - knots[None, :]
 
@@ -397,12 +372,10 @@ def _run(params):
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    left_knots = _get_left_knots()
-
-    init_logits = _get_init_logits(left_knots, jax_arrays, params)
+    init_logits = _get_init_logits(jax_arrays, params)
 
     best_loss, final_tissues, tabular_output = _iterate_towards_shape(
-        init_logits, left_knots, jax_arrays, params
+        init_logits, jax_arrays, params
     )
 
     return best_loss, final_tissues, tabular_output

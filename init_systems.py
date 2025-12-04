@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from functools import cached_property
 import json
 from pathlib import Path
 import sys
@@ -652,3 +653,31 @@ def get_system(system):
         case _:
             raise ValueError('Invalid initial system!')
     return polygons
+
+
+class Knots:
+    @cached_property
+    def left_knots(self):
+        grid = np.mgrid[-2.5:-2.5:1j, 1:13:5j]
+
+        xs = grid[0].flatten()
+        ys = grid[1].flatten()
+        left_knots = np.column_stack([xs, ys])
+
+        left_knots[:,1] += Coords.base_origin[1]
+        return left_knots
+
+    @cached_property
+    def _right_knots(self):
+        flipped_array = np.empty_like(self.left_knots)
+        shape_x = Coords.shape_origin[0]
+        flipped_array[:,0] = 2 * shape_x - self.left_knots[:,0]
+        flipped_array[:,1] = self.left_knots[:,1]
+        return flipped_array
+
+    @cached_property
+    def symmetric_knots(self):
+        symmetric_knots = np.concatenate(
+            [self.left_knots, self._right_knots], axis=0
+        )
+        return symmetric_knots

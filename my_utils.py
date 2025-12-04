@@ -116,7 +116,7 @@ class Params:
         return args
 
 
-def _make_array_dict(polygons, outer_shape):
+def _make_array_dict(polygons, outer_shape, knots):
     arrays = {
         'indices': polygons.polygon_inds,
         'valid_mask': polygons.valid_mask,
@@ -127,7 +127,9 @@ def _make_array_dict(polygons, outer_shape):
         'free_mask': polygons.free_mask,
         'proximal_mask': polygons.proximal_mask,
         'boundary_mask': polygons.boundary_mask,
-        'outer_shape': outer_shape
+        'outer_shape': outer_shape,
+        'left_knots': knots.left_knots,
+        'symmetric_knots': knots.symmetric_knots
     }
     return arrays
 
@@ -135,7 +137,7 @@ def _make_array_dict(polygons, outer_shape):
 def _get_arrays(params):
     polygons = init_systems.get_system(params.system)
     outer_shape = shapes.get_outer_shape(params.shape, polygons)
-    arrays = _make_array_dict(polygons, outer_shape)
+    arrays = _make_array_dict(polygons, outer_shape, init_systems.Knots())
     return arrays
 
 
