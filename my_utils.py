@@ -67,7 +67,7 @@ class Params:
         parser.add_argument(
             '--gsteps',
             type=int,
-            default=100,
+            default=500,
             help='Number of growth steps.'
         )
 
@@ -81,14 +81,14 @@ class Params:
         parser.add_argument(
             '--anlw',
             type=float,
-            default=70.0,
+            default=200.0,
             help='Angles loss weight.'
         )
 
         parser.add_argument(
             '--aslw',
             type=float,
-            default=100.0,
+            default=300.0,
             help='Aspect ratio loss weight.'
         )
 
