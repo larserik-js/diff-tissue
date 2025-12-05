@@ -4,7 +4,7 @@ import numpy as np
 import optax
 import pandas as pd
 
-import diffeomorphism, morph, init_systems, my_files, my_utils, plotting
+import diffeomorphism, init_systems, morph, my_files, my_utils
 
 
 def _calc_sigmoid(min_val, max_val, logits):
@@ -154,6 +154,12 @@ class _MyOptimizer:
         return ar_logits, as_logits
 
 
+def _save_final_tissues(final_tissues, params):
+    output_file = my_files.OutputFile('final_tissues', '.pkl', params)
+    data_handler = my_files.DataHandler(output_file)
+    data_handler.save(final_tissues)
+
+
 def _save_output_params(param_dict, params):
     df = pd.DataFrame(param_dict)
     output_file = my_files.get_output_params_file(params)
@@ -192,11 +198,12 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
 
     optimizer = _MyOptimizer(ar_logits, as_logits)
 
-    final_tissues_dir = my_files.OutputDir('final_tissues', all_params)
-
-    figure = plotting.MorphFigure(final_tissues_dir.path, jax_arrays)
-
     best_loss = jnp.inf
+
+    final_tissues = jnp.empty(
+        (params['n_shape_steps'] + 1, vertices.shape[0], vertices.shape[1])
+    )
+    final_tissues = final_tissues.at[0].set(vertices)
 
     for shape_step in range(params['n_shape_steps']):
         (loss, vertices), (ar_grads, as_grads) = (
@@ -226,9 +233,7 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
             print(f'(Stored params with new best loss.)')
             print('')
 
-        if shape_step % 10 == 0:
-            figure.save_plot(vertices, shape_step)
-    figure.save_plot(vertices, shape_step)
+        final_tissues = final_tissues.at[shape_step+1].set(vertices)
 
     # Calculate output params
     all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
@@ -258,6 +263,7 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
         'final_goal_aspect_ratio': final_goal_aspect_ratios
     }
 
+    _save_final_tissues(final_tissues, all_params)
     _save_output_params(param_dict, all_params)
 
 
