@@ -62,7 +62,7 @@ def _calc_area_regularization_loss(final_vertices, jax_arrays):
     return area_reg_loss
 
 
-def _shape_loss_f(ar_logits, as_logits, init_areas, min_dist_mask,
+def _loss_f(ar_logits, as_logits, init_areas, min_dist_mask,
                   n_growth_steps, jax_arrays, params):
     min_area_scaling = 1 / params['growth_scale']
     goal_areas = _calc_goal_areas(
@@ -84,13 +84,13 @@ def _shape_loss_f(ar_logits, as_logits, init_areas, min_dist_mask,
         final_vertices, jax_arrays
     )
 
-    shape_loss += area_reg_loss
+    loss = shape_loss + area_reg_loss
 
-    return shape_loss, final_vertices
+    return loss, final_vertices
 
 
-_calc_shape_loss_val_grads = jax.jit(
-    jax.value_and_grad(_shape_loss_f, has_aux=True, argnums=(0, 1)),
+_calc_loss_val_grads = jax.jit(
+    jax.value_and_grad(_loss_f, has_aux=True, argnums=(0, 1)),
     static_argnames=['n_growth_steps']
 )
 
@@ -196,11 +196,11 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
 
     figure = plotting.MorphFigure(final_tissues_dir.path, jax_arrays)
 
-    shape_loss = jnp.inf
+    best_loss = jnp.inf
 
     for shape_step in range(params['n_shape_steps']):
-        (new_shape_loss, vertices), (ar_grads, as_grads) = (
-            _calc_shape_loss_val_grads(
+        (loss, vertices), (ar_grads, as_grads) = (
+            _calc_loss_val_grads(
                 ar_logits, as_logits, init_areas, min_dist_mask,
                 params['n_growth_steps'], jax_arrays, params
             )
@@ -209,9 +209,9 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
             optimizer.update(ar_logits, as_logits, ar_grads, as_grads)
         )
 
-        print(f'{shape_step}: Shape loss = {new_shape_loss}')
+        print(f'{shape_step}: Shape loss = {loss}')
 
-        if new_shape_loss < shape_loss:
+        if loss < best_loss:
             best_goal_area_scalings = _calc_area_scaling(
                 min_area_scaling, params['max_area_scaling'], ar_logits
             )
@@ -221,9 +221,9 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
             )
             best_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
-            shape_loss = new_shape_loss
+            best_loss = loss
 
-            print(f'(Stored params with new best shape loss.)')
+            print(f'(Stored params with new best loss.)')
             print('')
 
         if shape_step % 10 == 0:
