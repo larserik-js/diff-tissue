@@ -251,7 +251,7 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
     )
     final_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
-    param_dict = {
+    tabular_output = {
         'init_area': init_areas,
         'final_area': final_areas,
         'final_aspect_ratio': final_aspect_ratios,
@@ -263,8 +263,21 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
         'final_goal_aspect_ratio': final_goal_aspect_ratios
     }
 
-    _save_final_tissues(final_tissues, all_params)
-    _save_output_params(param_dict, all_params)
+    return best_loss, final_tissues, tabular_output
+
+
+def _run(params):
+    np.random.seed(params.numerical['seed'])
+
+    jax_arrays = my_utils.get_jax_arrays(params)
+
+    init_logits = _get_init_logits(jax_arrays, params)
+
+    best_loss, final_tissues, tabular_output = _iterate_towards_shape(
+        init_logits, jax_arrays, params
+    )
+
+    return best_loss, final_tissues, tabular_output
 
 
 @my_utils.timer
@@ -273,13 +286,10 @@ def _main():
 
     params = my_utils.Params()
 
-    np.random.seed(params.numerical['seed'])
+    _, final_tissues, tabular_output = _run(params)
 
-    jax_arrays = my_utils.get_jax_arrays(params)
-
-    init_logits = _get_init_logits(jax_arrays, params)
-
-    _iterate_towards_shape(init_logits, jax_arrays, params)
+    _save_final_tissues(final_tissues, params)
+    _save_output_params(tabular_output, params)
 
 
 if __name__ == '__main__':
