@@ -35,38 +35,6 @@ def _extend(indices):
     return indices
 
 
-def _calc_segment_area(d, r):
-    segment_area = r**2 * np.arccos(d / r) - d * np.sqrt(r**2 - d**2)
-    return segment_area
-
-
-def _get_full_mesh_area():
-    big_r = 40.0
-    big_circle_area = np.pi * big_r**2
-    center_to_base_line_dist = big_r - Coords.full_mesh_base[1]
-    big_circle_segment = _calc_segment_area(center_to_base_line_dist, big_r)
-
-    small_r = 33.0
-    center_to_base_line_dist = Coords.full_mesh_base[1]
-    small_circle_segment = _calc_segment_area(
-        center_to_base_line_dist, small_r
-    )
-    full_mesh_area = big_circle_area - big_circle_segment - small_circle_segment
-    print(f'Full mesh area = {full_mesh_area:.3f}')
-    return full_mesh_area
-
-
-def _calc_single_poly_area(vertices):
-    xs = vertices[:,0]
-    ys = vertices[:,1]
-
-    area = 0.5 * np.abs(
-        np.dot(xs, np.roll(ys, -1)) - np.dot(ys, np.roll(xs, -1))
-    )
-    print(f'Single polygon area = {area:.3f}')
-    return area
-
-
 class _Polygons(ABC):
     def __init__(self):
         self._build()
@@ -209,6 +177,10 @@ class _Polygons(ABC):
     def vertex_polygons(self):
         return self._vertex_polygons
 
+    @property
+    def mesh_area(self):
+        return self._mesh_area
+
 
 class _MeshPolygons(_Polygons):
     def __init__(self):
@@ -221,6 +193,7 @@ class _MeshPolygons(_Polygons):
             self._make_init_polygons()
         )
         self._free_mask = self._get_free_mask()
+        self._mesh_area = self._calc_mesh_area()
 
     def _read_input_cells(self):
         input_path = Path('input_cells.json')
@@ -314,6 +287,27 @@ class _MeshPolygons(_Polygons):
         free_mask[fixed_inds] = False
         return free_mask
 
+    @staticmethod
+    def _calc_segment_area(d, r):
+        segment_area = r**2 * np.arccos(d / r) - d * np.sqrt(r**2 - d**2)
+        return segment_area
+
+    def _calc_mesh_area(self):
+        big_r = 40.0
+        big_circle_area = np.pi * big_r**2
+        center_to_base_line_dist = big_r - Coords.full_mesh_base[1]
+        big_circle_segment = self._calc_segment_area(
+            center_to_base_line_dist, big_r
+        )
+
+        small_r = 33.0
+        center_to_base_line_dist = Coords.full_mesh_base[1]
+        small_circle_segment = self._calc_segment_area(
+            center_to_base_line_dist, small_r
+        )
+        mesh_area = big_circle_area - big_circle_segment - small_circle_segment
+        return mesh_area
+
 
 class _VoronoiPolygons(_Polygons):
     def __init__(self):
@@ -361,7 +355,6 @@ class _VoronoiPolygons(_Polygons):
 
     def _calc_mesh_area(self):
         area = 0.5 * self._n_polygons_in_full_circle * self._polygon_area
-        print(f'Voronoi mesh area = {area:.3f}')
         return area
 
     def _generate_random_points(self):
@@ -616,6 +609,7 @@ class _SinglePolygon(_Polygons):
         self._polygon_inds = self._find_polygon_inds()
         self._free_mask = self._get_free_mask()
         self._proximal_mask = np.array([True])
+        self._mesh_area = self._calc_mesh_area()
 
     def _make_init_polygons(self):
         vertices = Coords.base_origin + np.array([
@@ -637,37 +631,46 @@ class _SinglePolygon(_Polygons):
         free_mask[:3,1] = False
         return free_mask
 
+    def _calc_mesh_area(self):
+        xs = self._vertices[:,0]
+        ys = self._vertices[:,1]
+
+        area = 0.5 * np.abs(
+            np.dot(xs, np.roll(ys, -1)) - np.dot(ys, np.roll(xs, -1))
+        )
+        return area
+
 
 class _AbstractFactory(ABC):
     def __init__(self, system):
         self._build()
 
         self._system = system
-        self._polygons, self._mesh_area = self._get_mesh_and_area()
+        self._polygons = self._get_mesh()
+        self._mesh_area = self._polygons.mesh_area
         self._vertex_numbers = self._find_vertex_numbers()
         self._scale = self._calc_scale()
         self._outer_shape = self._make_outer_shape()
+        self._print_mesh_area()
 
     @abstractmethod
     def _build(self):
         pass
 
-    def _get_mesh_and_area(self):
+    def _print_mesh_area(self):
+        print(f'{self._system} mesh area = {self._mesh_area:.3f}')
+
+    def _get_mesh(self):
         match self._system:
             case 'full':
                 polygons = _MeshPolygons()
-                mesh_area = _get_full_mesh_area()
             case 'voronoi':
                 polygons = _VoronoiPolygons()
-                mesh_area = 225.0 # Manually insert for now
             case 'single':
                 polygons = _SinglePolygon()
-                vertices = polygons.vertices
-                mesh_area = _calc_single_poly_area(vertices)
             case _:
                 raise ValueError('Invalid initial system!')
-
-        return polygons, mesh_area
+        return polygons
 
     def _find_vertex_numbers(self):
         n_basal_vertices = (
