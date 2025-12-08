@@ -182,7 +182,7 @@ class _Polygons(ABC):
         return self._mesh_area
 
 
-class _MeshPolygons(_Polygons):
+class _FullPolygons(_Polygons):
     def __init__(self):
         super().__init__()
 
@@ -651,19 +651,17 @@ class _AbstractFactory(ABC):
         self._vertex_numbers = self._find_vertex_numbers()
         self._scale = self._calc_scale()
         self._outer_shape = self._make_outer_shape()
-        self._print_mesh_area()
+        self._shape_area = self._calc_shape_area()
+        self._validate_areas()
 
     @abstractmethod
     def _build(self):
         pass
 
-    def _print_mesh_area(self):
-        print(f'{self._system} mesh area = {self._mesh_area:.3f}')
-
     def _get_mesh(self):
         match self._system:
             case 'full':
-                polygons = _MeshPolygons()
+                polygons = _FullPolygons()
             case 'voronoi':
                 polygons = _VoronoiPolygons()
             case 'single':
@@ -749,6 +747,10 @@ class _AbstractFactory(ABC):
     def _make_outer_shape(self):
         pass
 
+    def _validate_areas(self):
+        if not np.isclose(self._mesh_area - self._shape_area, 0.0):
+            raise ValueError('System and mesh areas do not match!')
+
     @property
     def polygons(self):
         return self._polygons
@@ -772,23 +774,23 @@ class _TrapzeoidFactory(_AbstractFactory):
         return scale
 
     def _make_outer_shape(self):
-        scaled_height = self._height * self._scale
-        scaled_lower_r = self._lower_r * self._scale
-        scaled_upper_r = self._upper_r * self._scale
-
-        non_basal_xs = np.array(
-            [scaled_lower_r, scaled_upper_r, -scaled_upper_r, -scaled_lower_r]
+        non_basal_xs = self._scale * np.array(
+            [self._lower_r, self._upper_r, -self._upper_r, -self._lower_r]
         )
-        non_basal_ys = np.array([0.0, scaled_height, scaled_height, 0.0])
+        non_basal_ys = self._scale * np.array(
+            [0.0, self._height, self._height, 0.0]
+        )
 
         outer_shape = self._construct_outer_shape(
-            non_basal_xs, non_basal_ys, scaled_lower_r
+            non_basal_xs, non_basal_ys, self._scale * self._lower_r
         )
-
-        area = scaled_height * (scaled_lower_r + scaled_upper_r)
-        print(f'Outer shape area = {area:.3f}')
-
         return outer_shape
+
+    def _calc_shape_area(self):
+        shape_area = (
+            self._height * (self._lower_r + self._upper_r) * self._scale**2
+        )
+        return shape_area
 
 
 class _TriangleFactory(_AbstractFactory):
@@ -804,20 +806,19 @@ class _TriangleFactory(_AbstractFactory):
         return scale
 
     def _make_outer_shape(self):
-        scaled_height = self._height * self._scale
-        scaled_lower_r = self._lower_r * self._scale
-
-        non_basal_xs = np.array([scaled_lower_r, 0.0, -scaled_lower_r])
-        non_basal_ys = np.array([0.0, scaled_height, 0.0])
+        non_basal_xs = self._scale * np.array(
+            [self._lower_r, 0.0, -self._lower_r]
+        )
+        non_basal_ys = self._scale * np.array([0.0, self._height, 0.0])
 
         outer_shape = self._construct_outer_shape(
-            non_basal_xs, non_basal_ys, scaled_lower_r
+            non_basal_xs, non_basal_ys, self._scale * self._lower_r
         )
-
-        area = scaled_height * scaled_lower_r
-        print(f'Outer shape area = {area:.3f}')
-
         return outer_shape
+
+    def _calc_shape_area(self):
+        shape_area = self._height * self._lower_r * self._scale**2
+        return shape_area
 
 
 class _PetalFactory(_AbstractFactory):
@@ -837,28 +838,31 @@ class _PetalFactory(_AbstractFactory):
         return scale
 
     def _make_outer_shape(self):
-        scaled_lower_r = self._lower_r * self._scale
-        scaled_height = self._height * self._scale
-
-        xs = np.linspace(
-            -scaled_lower_r, scaled_lower_r, self._vertex_numbers['non_basal']
+        xs = self._scale * np.linspace(
+            -self._lower_r, self._lower_r, self._vertex_numbers['non_basal']
         )
-        non_basal_ys = scaled_height * np.sqrt(1 - (xs / scaled_lower_r)**2)
+        non_basal_ys = (
+            self._scale * self._height *
+            np.sqrt(1 - (xs / (self._scale * self._lower_r))**2)
+        )
 
-        factor = 1 + self._stretch_strength * (non_basal_ys / scaled_height)
+        factor = (
+            1 + self._stretch_strength *
+            (non_basal_ys / (self._scale * self._height))
+        )
         non_basal_xs = xs * factor
 
         outer_shape = self._construct_outer_shape(
-            non_basal_xs, non_basal_ys, scaled_lower_r
+            non_basal_xs, non_basal_ys, self._scale * self._lower_r
         )
+        return outer_shape
 
-        area = (
-            scaled_lower_r * scaled_height *
+    def _calc_shape_area(self):
+        shape_area = (
+            self._lower_r * self._height * self._scale**2 *
             (np.pi / 2 + 2 * self._stretch_strength / 3)
         )
-        print(f'Outer shape area = {area:.3f}')
-
-        return outer_shape
+        return shape_area
 
 
 def get_factory(shape, system):
