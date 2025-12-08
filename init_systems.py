@@ -641,18 +641,33 @@ class _SinglePolygon(_Polygons):
 class _AbstractFactory(ABC):
     def __init__(self, system):
         self._build()
+
         self._system = system
-        self._shape_params, self._polygons = self._make_params_and_polygons()
+        self._polygons, self._mesh_area = self._get_mesh_and_area()
         self._vertex_numbers = self._find_vertex_numbers()
+        self._scale = self._calc_scale()
         self._outer_shape = self._make_outer_shape()
 
     @abstractmethod
     def _build(self):
         pass
 
-    @abstractmethod
-    def _make_params_and_polygons(self):
-        pass
+    def _get_mesh_and_area(self):
+        match self._system:
+            case 'full':
+                polygons = _MeshPolygons()
+                mesh_area = _get_full_mesh_area()
+            case 'voronoi':
+                polygons = _VoronoiPolygons()
+                mesh_area = 225.0 # Manually insert for now
+            case 'single':
+                polygons = _SinglePolygon()
+                vertices = polygons.vertices
+                mesh_area = _calc_single_poly_area(vertices)
+            case _:
+                raise ValueError('Invalid initial system!')
+
+        return polygons, mesh_area
 
     def _find_vertex_numbers(self):
         n_basal_vertices = (
@@ -749,35 +764,14 @@ class _TrapzeoidFactory(_AbstractFactory):
         self._lower_r = 1.5
         self._upper_r = 2.0
 
-    def _calc_scale(self, mesh_area):
-        scale = np.sqrt(mesh_area / self._height**2)
+    def _calc_scale(self):
+        scale = np.sqrt(self._mesh_area / self._height**2)
         return scale
 
-    def _make_params_and_polygons(self):
-        match self._system:
-            case 'full':
-                mesh_area = _get_full_mesh_area()
-                scale = self._calc_scale(mesh_area)
-                polygons = _MeshPolygons()
-            case 'voronoi':
-                mesh_area = 225.0 # Manually insert for now
-                scale = self._calc_scale(mesh_area)
-                polygons = _VoronoiPolygons()
-            case 'single':
-                polygons = _SinglePolygon()
-                vertices = polygons.vertices
-                mesh_area = _calc_single_poly_area(vertices)
-                scale = self._calc_scale(mesh_area)
-            case _:
-                raise ValueError('Invalid initial system!')
-
-        shape_params = {'scale': scale}
-        return shape_params, polygons
-
     def _make_outer_shape(self):
-        scaled_height = self._height * self._shape_params['scale']
-        scaled_lower_r = self._lower_r * self._shape_params['scale']
-        scaled_upper_r = self._upper_r * self._shape_params['scale']
+        scaled_height = self._height * self._scale
+        scaled_lower_r = self._lower_r * self._scale
+        scaled_upper_r = self._upper_r * self._scale
 
         non_basal_xs = np.array(
             [scaled_lower_r, scaled_upper_r, -scaled_upper_r, -scaled_lower_r]
@@ -802,34 +796,13 @@ class _TriangleFactory(_AbstractFactory):
         self._height = 2.5
         self._lower_r = 1.5
 
-    def _calc_scale(self, mesh_area):
-        scale = np.sqrt(mesh_area / (self._height * self._lower_r))
+    def _calc_scale(self):
+        scale = np.sqrt(self._mesh_area / (self._height * self._lower_r))
         return scale
 
-    def _make_params_and_polygons(self):
-        match self._system:
-            case 'full':
-                mesh_area = _get_full_mesh_area()
-                scale = self._calc_scale(mesh_area)
-                polygons = _MeshPolygons()
-            case 'voronoi':
-                mesh_area = 225.0 # Manually insert for now
-                scale = self._calc_scale(mesh_area)
-                polygons = _VoronoiPolygons()
-            case 'single':
-                polygons = _SinglePolygon()
-                vertices = polygons.vertices
-                mesh_area = _calc_single_poly_area(vertices)
-                scale = self._calc_scale(mesh_area)
-            case _:
-                raise ValueError('Invalid initial system!')
-
-        shape_params = {'scale': scale}
-        return shape_params, polygons
-
     def _make_outer_shape(self):
-        scaled_height = self._height * self._shape_params['scale']
-        scaled_lower_r = self._lower_r * self._shape_params['scale']
+        scaled_height = self._height * self._scale
+        scaled_lower_r = self._lower_r * self._scale
 
         non_basal_xs = np.array([scaled_lower_r, 0.0, -scaled_lower_r])
         non_basal_ys = np.array([0.0, scaled_height, 0.0])
@@ -853,37 +826,16 @@ class _PetalFactory(_AbstractFactory):
         self._height = 60.0
         self._stretch_strength = 2.0
 
-    def _calc_scale(self, mesh_area):
+    def _calc_scale(self):
         scale = np.sqrt(
-            mesh_area / ((self._lower_r * self._height) *
+            self._mesh_area / ((self._lower_r * self._height) *
             (np.pi / 2 + 2 * self._stretch_strength / 3))
         )
         return scale
 
-    def _make_params_and_polygons(self):
-        match self._system:
-            case 'full':
-                mesh_area = _get_full_mesh_area()
-                scale = self._calc_scale(mesh_area)
-                polygons = _MeshPolygons()
-            case 'voronoi':
-                mesh_area = 225.0 # Manually insert for now
-                scale = self._calc_scale(mesh_area)
-                polygons = _VoronoiPolygons()
-            case 'single':
-                polygons = _SinglePolygon()
-                vertices = polygons.vertices
-                mesh_area = _calc_single_poly_area(vertices)
-                scale = self._calc_scale(mesh_area)
-            case _:
-                raise ValueError('Invalid initial system!')
-
-        shape_params = {'scale': scale}
-        return shape_params, polygons
-
     def _make_outer_shape(self):
-        scaled_lower_r = self._lower_r * self._shape_params['scale']
-        scaled_height = self._height * self._shape_params['scale']
+        scaled_lower_r = self._lower_r * self._scale
+        scaled_height = self._height * self._scale
 
         xs = np.linspace(
             -scaled_lower_r, scaled_lower_r, self._vertex_numbers['non_basal']
