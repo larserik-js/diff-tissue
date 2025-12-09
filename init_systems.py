@@ -744,7 +744,15 @@ class _AbstractFactory(ABC):
         return outer_shape
 
     @abstractmethod
+    def _calc_scale(self):
+        pass
+
+    @abstractmethod
     def _make_outer_shape(self):
+        pass
+
+    @abstractmethod
+    def _calc_shape_area(self):
         pass
 
     def _validate_areas(self):
