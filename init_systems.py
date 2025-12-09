@@ -834,6 +834,27 @@ class _Triangle(_Shape):
         return outer_shape
 
 
+class _NonConvexShape(_Shape):
+    def __init__(self, polygons):
+        super().__init__(polygons)
+
+    def _build(self):
+        self._height = 3.0
+        self._lower_r = 1.5
+
+    def _make_raw_shape(self):
+        non_basal_xs = self._lower_r * np.array([1.0, 1.4, 1.8, 1.9, 1.2, 0.4])
+        non_basal_xs = np.concatenate([non_basal_xs, np.flip(-non_basal_xs)])
+        non_basal_ys = self._height * np.array([0.0, 0.3, 0.7, 1.1, 1.2, 1.0])
+        non_basal_ys = np.concatenate([
+            non_basal_ys, np.flip(non_basal_ys)]
+        )
+        outer_shape = self._construct_outer_shape(
+            non_basal_xs, non_basal_ys, self._lower_r
+        )
+        return outer_shape
+
+
 def get_system(system):
     match system:
         case 'voronoi':
@@ -855,6 +876,8 @@ def get_outer_shape(shape, polygons):
             shape = _Trapzeoid(polygons)
         case 'triangle':
             shape = _Triangle(polygons)
+        case 'nconv':
+            shape = _NonConvexShape(polygons)
         case _:
             raise ValueError('Invalid outer shape!')
     return shape.outer_shape

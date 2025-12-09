@@ -52,7 +52,7 @@ class Params:
         parser.add_argument(
             '--shape',
             type=str,
-            choices=['petal', 'trapezoid', 'triangle'],
+            choices=['petal', 'trapezoid', 'triangle', 'nconv'],
             default='petal',
             help='Type of outer shape.'
         )
