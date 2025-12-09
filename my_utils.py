@@ -4,7 +4,7 @@ import timeit
 import jax
 import jax.numpy as jnp
 
-import init_systems
+import init_systems, shapes
 
 
 def timer(func):
@@ -151,7 +151,7 @@ def _make_jax_arrays(arrays):
 
 def get_arrays(params):
     polygons = init_systems.get_system(params.system)
-    outer_shape = init_systems.get_outer_shape(params.shape, polygons)
+    outer_shape = shapes.get_outer_shape(params.shape, polygons)
     arrays = _make_arrays(polygons, outer_shape)
     return arrays
 
