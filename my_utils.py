@@ -44,7 +44,7 @@ class Params:
         parser.add_argument(
             '--system',
             type=str,
-            choices=['full', 'voronoi', 'single'],
+            choices=['voronoi', 'full', 'single'],
             default='voronoi',
             help='Initial polygon configuration.'
         )
@@ -52,7 +52,7 @@ class Params:
         parser.add_argument(
             '--shape',
             type=str,
-            choices=['trapezoid', 'triangle', 'petal'],
+            choices=['petal', 'trapezoid', 'triangle'],
             default='petal',
             help='Type of outer shape.'
         )
@@ -150,9 +150,8 @@ def _make_jax_arrays(arrays):
 
 
 def get_arrays(params):
-    factory = init_systems.get_factory(params.shape, params.system)
-    polygons = factory.polygons
-    outer_shape = factory.outer_shape
+    polygons = init_systems.get_system(params.system)
+    outer_shape = init_systems.get_outer_shape(params.shape, polygons)
     arrays = _make_arrays(polygons, outer_shape)
     return arrays
 

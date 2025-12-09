@@ -182,133 +182,6 @@ class _Polygons(ABC):
         return self._mesh_area
 
 
-class _FullPolygons(_Polygons):
-    def __init__(self):
-        super().__init__()
-
-    def _build(self):
-        self._input_cells = self._read_input_cells()
-        self._max_vertices = self._find_max_vertices()
-        self._polygon_inds, self._vertices, self._proximal_mask = (
-            self._make_init_polygons()
-        )
-        self._free_mask = self._get_free_mask()
-        self._mesh_area = self._calc_mesh_area()
-
-    def _read_input_cells(self):
-        input_path = Path('input_cells.json')
-        with input_path.open() as data:
-            input_cells = json.load(data)
-
-        return input_cells
-
-    def _find_max_vertices(self):
-        max_vertices = 0
-        for polygon in self._input_cells:
-            if not polygon['is_boundary']:
-                max_vertices = max(max_vertices, len(polygon['edges']))
-        # Compensates for extra vertex added for efficiency
-        max_vertices += 1
-        return max_vertices
-
-    def _is_proximal(self, vertex):
-        dist_from_origin = np.linalg.norm(vertex - Coords.full_mesh_origin)
-        proximal_radius = np.inf
-        return dist_from_origin < proximal_radius
-
-    @staticmethod
-    def _remove_duplicates(lst):
-        seen = set()
-        return [x for x in lst if not (x in seen or seen.add(x))]
-
-    def _make_init_polygons(self):
-        all_vertices = np.zeros((0, 2))
-        all_indices = []
-        proximal_mask = []
-        index = 0
-        for polygon in self._input_cells:
-            if polygon['is_boundary']:
-                continue
-            indices = []
-            vertices = polygon['edges']
-            is_proximal = True
-            for vertex in vertices:
-                are_equal = np.isclose(
-                    np.array(vertex) - all_vertices, 0.0, atol=0.5
-                )
-                possible_inds = np.where(np.all(are_equal, axis=1))[0]
-
-                # Add new index
-                if len(possible_inds) == 0:
-                    all_vertices = np.vstack([all_vertices, vertex])
-                    indices.append(index)
-                    index += 1
-                # Use existing index
-                elif len(possible_inds) == 1:
-                    indices.append(int(possible_inds[0]))
-                else:
-                    raise ValueError('Multiple indices found')
-
-                # True if all vertices are proximal
-                is_proximal *= self._is_proximal(vertex)
-
-            indices = self._remove_duplicates(indices)
-            indices = sort_counterclockwise(
-                indices, all_vertices[indices]
-            )
-            # For efficiency
-            indices = _extend(indices)
-
-            # Pad
-            indices += [-1] * (self._max_vertices - len(indices))
-            indices.extend([-1] * (self._max_vertices - len(indices)))
-
-            all_indices.append(indices)
-            proximal_mask.append(is_proximal)
-
-        all_indices = np.array(all_indices)
-        proximal_mask = np.array(proximal_mask)
-
-        # Transform coordinates
-        all_vertices -= Coords.full_mesh_base
-
-        return all_indices, all_vertices, proximal_mask
-
-    def _get_fixed_inds(self):
-        fixed_inds = [
-            3, 0, 15, 16, 27, 37, 47, 66, 97, 103, 110, 145, 128, 123, 107, 78,
-            52, 35, 18, 10, 11, 6, 7
-        ]
-        return fixed_inds
-
-    def _get_free_mask(self):
-        fixed_inds = self._get_fixed_inds()
-        free_mask = np.ones(self._vertices.shape, dtype=bool)
-        free_mask[fixed_inds] = False
-        return free_mask
-
-    @staticmethod
-    def _calc_segment_area(d, r):
-        segment_area = r**2 * np.arccos(d / r) - d * np.sqrt(r**2 - d**2)
-        return segment_area
-
-    def _calc_mesh_area(self):
-        big_r = 40.0
-        big_circle_area = np.pi * big_r**2
-        center_to_base_line_dist = big_r - Coords.full_mesh_base[1]
-        big_circle_segment = self._calc_segment_area(
-            center_to_base_line_dist, big_r
-        )
-
-        small_r = 33.0
-        center_to_base_line_dist = Coords.full_mesh_base[1]
-        small_circle_segment = self._calc_segment_area(
-            center_to_base_line_dist, small_r
-        )
-        mesh_area = big_circle_area - big_circle_segment - small_circle_segment
-        return mesh_area
-
-
 class _VoronoiPolygons(_Polygons):
     def __init__(self):
         super().__init__()
@@ -599,6 +472,133 @@ class _VoronoiPolygons(_Polygons):
         return free_mask
 
 
+class _FullPolygons(_Polygons):
+    def __init__(self):
+        super().__init__()
+
+    def _build(self):
+        self._input_cells = self._read_input_cells()
+        self._max_vertices = self._find_max_vertices()
+        self._polygon_inds, self._vertices, self._proximal_mask = (
+            self._make_init_polygons()
+        )
+        self._free_mask = self._get_free_mask()
+        self._mesh_area = self._calc_mesh_area()
+
+    def _read_input_cells(self):
+        input_path = Path('input_cells.json')
+        with input_path.open() as data:
+            input_cells = json.load(data)
+
+        return input_cells
+
+    def _find_max_vertices(self):
+        max_vertices = 0
+        for polygon in self._input_cells:
+            if not polygon['is_boundary']:
+                max_vertices = max(max_vertices, len(polygon['edges']))
+        # Compensates for extra vertex added for efficiency
+        max_vertices += 1
+        return max_vertices
+
+    def _is_proximal(self, vertex):
+        dist_from_origin = np.linalg.norm(vertex - Coords.full_mesh_origin)
+        proximal_radius = np.inf
+        return dist_from_origin < proximal_radius
+
+    @staticmethod
+    def _remove_duplicates(lst):
+        seen = set()
+        return [x for x in lst if not (x in seen or seen.add(x))]
+
+    def _make_init_polygons(self):
+        all_vertices = np.zeros((0, 2))
+        all_indices = []
+        proximal_mask = []
+        index = 0
+        for polygon in self._input_cells:
+            if polygon['is_boundary']:
+                continue
+            indices = []
+            vertices = polygon['edges']
+            is_proximal = True
+            for vertex in vertices:
+                are_equal = np.isclose(
+                    np.array(vertex) - all_vertices, 0.0, atol=0.5
+                )
+                possible_inds = np.where(np.all(are_equal, axis=1))[0]
+
+                # Add new index
+                if len(possible_inds) == 0:
+                    all_vertices = np.vstack([all_vertices, vertex])
+                    indices.append(index)
+                    index += 1
+                # Use existing index
+                elif len(possible_inds) == 1:
+                    indices.append(int(possible_inds[0]))
+                else:
+                    raise ValueError('Multiple indices found')
+
+                # True if all vertices are proximal
+                is_proximal *= self._is_proximal(vertex)
+
+            indices = self._remove_duplicates(indices)
+            indices = sort_counterclockwise(
+                indices, all_vertices[indices]
+            )
+            # For efficiency
+            indices = _extend(indices)
+
+            # Pad
+            indices += [-1] * (self._max_vertices - len(indices))
+            indices.extend([-1] * (self._max_vertices - len(indices)))
+
+            all_indices.append(indices)
+            proximal_mask.append(is_proximal)
+
+        all_indices = np.array(all_indices)
+        proximal_mask = np.array(proximal_mask)
+
+        # Transform coordinates
+        all_vertices -= Coords.full_mesh_base
+
+        return all_indices, all_vertices, proximal_mask
+
+    def _get_fixed_inds(self):
+        fixed_inds = [
+            3, 0, 15, 16, 27, 37, 47, 66, 97, 103, 110, 145, 128, 123, 107, 78,
+            52, 35, 18, 10, 11, 6, 7
+        ]
+        return fixed_inds
+
+    def _get_free_mask(self):
+        fixed_inds = self._get_fixed_inds()
+        free_mask = np.ones(self._vertices.shape, dtype=bool)
+        free_mask[fixed_inds] = False
+        return free_mask
+
+    @staticmethod
+    def _calc_segment_area(d, r):
+        segment_area = r**2 * np.arccos(d / r) - d * np.sqrt(r**2 - d**2)
+        return segment_area
+
+    def _calc_mesh_area(self):
+        big_r = 40.0
+        big_circle_area = np.pi * big_r**2
+        center_to_base_line_dist = big_r - Coords.full_mesh_base[1]
+        big_circle_segment = self._calc_segment_area(
+            center_to_base_line_dist, big_r
+        )
+
+        small_r = 33.0
+        center_to_base_line_dist = Coords.full_mesh_base[1]
+        small_circle_segment = self._calc_segment_area(
+            center_to_base_line_dist, small_r
+        )
+        mesh_area = big_circle_area - big_circle_segment - small_circle_segment
+        return mesh_area
+
+
 class _SinglePolygon(_Polygons):
     def __init__(self):
         super().__init__()
@@ -641,12 +641,11 @@ class _SinglePolygon(_Polygons):
         return area
 
 
-class _AbstractFactory(ABC):
-    def __init__(self, system):
+class _Shape(ABC):
+    def __init__(self, polygons):
         self._build()
 
-        self._system = system
-        self._polygons = self._get_mesh()
+        self._polygons = polygons
         self._mesh_area = self._polygons.mesh_area
         self._vertex_numbers = self._find_vertex_numbers()
         self._scale = self._calc_scale()
@@ -657,18 +656,6 @@ class _AbstractFactory(ABC):
     @abstractmethod
     def _build(self):
         pass
-
-    def _get_mesh(self):
-        match self._system:
-            case 'full':
-                polygons = _FullPolygons()
-            case 'voronoi':
-                polygons = _VoronoiPolygons()
-            case 'single':
-                polygons = _SinglePolygon()
-            case _:
-                raise ValueError('Invalid initial system!')
-        return polygons
 
     def _find_vertex_numbers(self):
         n_basal_vertices = (
@@ -760,78 +747,13 @@ class _AbstractFactory(ABC):
             raise ValueError('System and mesh areas do not match!')
 
     @property
-    def polygons(self):
-        return self._polygons
-
-    @property
     def outer_shape(self):
         return self._outer_shape
 
 
-class _TrapzeoidFactory(_AbstractFactory):
-    def __init__(self, system):
-        super().__init__(system)
-
-    def _build(self):
-        self._height = 3.5
-        self._lower_r = 1.5
-        self._upper_r = 2.0
-
-    def _calc_scale(self):
-        scale = np.sqrt(self._mesh_area / self._height**2)
-        return scale
-
-    def _make_outer_shape(self):
-        non_basal_xs = self._scale * np.array(
-            [self._lower_r, self._upper_r, -self._upper_r, -self._lower_r]
-        )
-        non_basal_ys = self._scale * np.array(
-            [0.0, self._height, self._height, 0.0]
-        )
-
-        outer_shape = self._construct_outer_shape(
-            non_basal_xs, non_basal_ys, self._scale * self._lower_r
-        )
-        return outer_shape
-
-    def _calc_shape_area(self):
-        shape_area = (
-            self._height * (self._lower_r + self._upper_r) * self._scale**2
-        )
-        return shape_area
-
-
-class _TriangleFactory(_AbstractFactory):
-    def __init__(self, system):
-        super().__init__(system)
-
-    def _build(self):
-        self._height = 2.5
-        self._lower_r = 1.5
-
-    def _calc_scale(self):
-        scale = np.sqrt(self._mesh_area / (self._height * self._lower_r))
-        return scale
-
-    def _make_outer_shape(self):
-        non_basal_xs = self._scale * np.array(
-            [self._lower_r, 0.0, -self._lower_r]
-        )
-        non_basal_ys = self._scale * np.array([0.0, self._height, 0.0])
-
-        outer_shape = self._construct_outer_shape(
-            non_basal_xs, non_basal_ys, self._scale * self._lower_r
-        )
-        return outer_shape
-
-    def _calc_shape_area(self):
-        shape_area = self._height * self._lower_r * self._scale**2
-        return shape_area
-
-
-class _PetalFactory(_AbstractFactory):
-    def __init__(self, system):
-        super().__init__(system)
+class _Petal(_Shape):
+    def __init__(self, polygons):
+        super().__init__(polygons)
 
     def _build(self):
         self._lower_r = 20.0
@@ -873,14 +795,88 @@ class _PetalFactory(_AbstractFactory):
         return shape_area
 
 
-def get_factory(shape, system):
+class _Trapzeoid(_Shape):
+    def __init__(self, polygons):
+        super().__init__(polygons)
+
+    def _build(self):
+        self._height = 3.5
+        self._lower_r = 1.5
+        self._upper_r = 2.0
+
+    def _calc_scale(self):
+        scale = np.sqrt(self._mesh_area / self._height**2)
+        return scale
+
+    def _make_outer_shape(self):
+        non_basal_xs = self._scale * np.array(
+            [self._lower_r, self._upper_r, -self._upper_r, -self._lower_r]
+        )
+        non_basal_ys = self._scale * np.array(
+            [0.0, self._height, self._height, 0.0]
+        )
+
+        outer_shape = self._construct_outer_shape(
+            non_basal_xs, non_basal_ys, self._scale * self._lower_r
+        )
+        return outer_shape
+
+    def _calc_shape_area(self):
+        shape_area = (
+            self._height * (self._lower_r + self._upper_r) * self._scale**2
+        )
+        return shape_area
+
+
+class _Triangle(_Shape):
+    def __init__(self, polygons):
+        super().__init__(polygons)
+
+    def _build(self):
+        self._height = 2.5
+        self._lower_r = 1.5
+
+    def _calc_scale(self):
+        scale = np.sqrt(self._mesh_area / (self._height * self._lower_r))
+        return scale
+
+    def _make_outer_shape(self):
+        non_basal_xs = self._scale * np.array(
+            [self._lower_r, 0.0, -self._lower_r]
+        )
+        non_basal_ys = self._scale * np.array([0.0, self._height, 0.0])
+
+        outer_shape = self._construct_outer_shape(
+            non_basal_xs, non_basal_ys, self._scale * self._lower_r
+        )
+        return outer_shape
+
+    def _calc_shape_area(self):
+        shape_area = self._height * self._lower_r * self._scale**2
+        return shape_area
+
+
+def get_system(system):
+    match system:
+        case 'voronoi':
+            polygons = _VoronoiPolygons()
+        case 'full':
+            polygons = _FullPolygons()
+        case 'single':
+            polygons = _SinglePolygon()
+        case _:
+            raise ValueError('Invalid initial system!')
+    return polygons
+
+
+def get_outer_shape(shape, polygons):
     match shape:
-        case 'trapezoid':
-            factory = _TrapzeoidFactory(system)
-        case 'triangle':
-            factory = _TriangleFactory(system)
         case 'petal':
-            factory = _PetalFactory(system)
+            shape = _Petal(polygons)
+        case 'trapezoid':
+            shape = _Trapzeoid(polygons)
+        case 'triangle':
+            shape = _Triangle(polygons)
         case _:
             raise ValueError('Invalid outer shape!')
-    return factory
+    return shape.outer_shape
