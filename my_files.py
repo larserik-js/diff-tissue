@@ -15,7 +15,8 @@ class _Output:
         self._output_dir = self._project_dir / 'output'
         self._output_type_dir = self._output_dir / output_type_dir
         self._params = params
-        self._param_path = self._make_param_path()
+        self._all_params_path = self._make_all_params_path()
+        self._arrays_path = self._make_arrays_path()
 
     def _get_project_dir(self):
         project_dir = os.path.abspath(os.path.dirname(__file__))
@@ -35,19 +36,31 @@ class _Output:
             param_name_val = param_name_val.rstrip('0').rstrip('.')
         return param_name_val
 
-    def _concatenate_param_val_pairs(self):
+    def _concatenate_param_val_pairs(self, param_names):
         param_name_vals = []
-        for name, val in self._params.all.items():
-            param_name_val = self._format_param_val_str(name, val)
+        for name in param_names:
+            param_name_val = self._format_param_val_str(
+                name, self._params.all[name]
+            )
             param_name_vals.append(param_name_val)
 
         param_path_str = '_'.join(param_name_vals)
         return param_path_str
 
-    def _make_param_path(self):
-        param_path_str = self._concatenate_param_val_pairs()
+    def _make_param_path(self, param_names):
+        param_path_str = self._concatenate_param_val_pairs(param_names)
         param_path = self._output_type_dir / param_path_str
         return param_path
+
+    def _make_all_params_path(self):
+        param_names = self._params.all.keys()
+        all_params_path = self._make_param_path(param_names)
+        return all_params_path
+
+    def _make_arrays_path(self):
+        param_names = ['system', 'shape', 'seed']
+        arrays_path = self._make_param_path(param_names)
+        return arrays_path
 
 
 class OutputDir(_Output):
@@ -56,17 +69,31 @@ class OutputDir(_Output):
         self._make()
 
     def _make(self):
-        self._param_path.mkdir(exist_ok=True)
+        self._all_params_path.mkdir(exist_ok=True)
 
     @property
     def path(self):
-        return self._param_path
+        return self._all_params_path
 
 
 class OutputFile(_Output):
     def __init__(self, output_type_dir, suffix, params):
         super().__init__(output_type_dir, params)
-        self._path = self._param_path.with_name(self._param_path.name + suffix)
+        self._path = self._all_params_path.with_name(
+            self._all_params_path.name + suffix
+        )
+
+    @property
+    def path(self):
+        return self._path
+
+
+class ArraysFile(_Output):
+    def __init__(self, output_type_dir, suffix, params):
+        super().__init__(output_type_dir, params)
+        self._path = self._arrays_path.with_name(
+            self._arrays_path.name + suffix
+        )
 
     @property
     def path(self):

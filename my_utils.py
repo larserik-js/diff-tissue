@@ -4,7 +4,7 @@ import timeit
 import jax
 import jax.numpy as jnp
 
-import init_systems, shapes
+import init_systems, my_files, shapes
 
 
 def timer(func):
@@ -116,7 +116,7 @@ class Params:
         return args
 
 
-def _make_arrays(polygons, outer_shape):
+def _make_array_dict(polygons, outer_shape):
     arrays = {
         'indices': polygons.polygon_inds,
         'valid_mask': polygons.valid_mask,
@@ -129,6 +129,25 @@ def _make_arrays(polygons, outer_shape):
         'boundary_mask': polygons.boundary_mask,
         'outer_shape': outer_shape
     }
+    return arrays
+
+
+def _get_arrays(params):
+    polygons = init_systems.get_system(params.system)
+    outer_shape = shapes.get_outer_shape(params.shape, polygons)
+    arrays = _make_array_dict(polygons, outer_shape)
+    return arrays
+
+
+def get_arrays(params):
+    file = my_files.ArraysFile('arrays', '.pkl', params)
+    data_handler = my_files.DataHandler(file)
+
+    try:
+        arrays = data_handler.load()
+    except:
+        arrays = _get_arrays(params)
+        data_handler.save(arrays)
     return arrays
 
 
@@ -147,13 +166,6 @@ def to_jax(np_array):
 def _make_jax_arrays(arrays):
     jax_arrays = {name: to_jax(array) for name, array in arrays.items()}
     return jax_arrays
-
-
-def get_arrays(params):
-    polygons = init_systems.get_system(params.system)
-    outer_shape = shapes.get_outer_shape(params.shape, polygons)
-    arrays = _make_arrays(polygons, outer_shape)
-    return arrays
 
 
 def get_jax_arrays(params):
