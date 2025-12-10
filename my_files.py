@@ -1,3 +1,4 @@
+from functools import cached_property
 import os
 from pathlib import Path
 import pickle
@@ -10,17 +11,21 @@ class _Output:
                 'float64': '.7f',
                 'str': ''}
 
-    def __init__(self, output_type_dir, params):
-        self._project_dir = self._get_project_dir()
-        self._output_dir = self._project_dir / 'output'
-        self._output_type_dir = self._output_dir / output_type_dir
+    def __init__(self, output_type_dir_name, params):
+        self._output_type_dir_name = output_type_dir_name
         self._params = params
-        self._all_params_path = self._make_all_params_path()
-        self._arrays_path = self._make_arrays_path()
 
-    def _get_project_dir(self):
+    @cached_property
+    def _project_dir(self):
         project_dir = os.path.abspath(os.path.dirname(__file__))
         return Path(project_dir)
+
+    @cached_property
+    def _output_type_dir(self):
+        output_type_dir = (
+            self._project_dir / 'output' / self._output_type_dir_name
+        )
+        return output_type_dir
 
     @staticmethod
     def _get_val_type(val):
@@ -57,11 +62,6 @@ class _Output:
         all_params_path = self._make_param_path(param_names)
         return all_params_path
 
-    def _make_arrays_path(self):
-        param_names = ['system', 'shape', 'seed']
-        arrays_path = self._make_param_path(param_names)
-        return arrays_path
-
 
 class OutputDir(_Output):
     def __init__(self, output_type_dir, params):
@@ -69,35 +69,38 @@ class OutputDir(_Output):
         self._make()
 
     def _make(self):
-        self._all_params_path.mkdir(exist_ok=True)
+        self.path.mkdir(exist_ok=True)
 
-    @property
+    @cached_property
     def path(self):
-        return self._all_params_path
+        path = self._make_all_params_path()
+        return path
 
 
 class OutputFile(_Output):
     def __init__(self, output_type_dir, suffix, params):
         super().__init__(output_type_dir, params)
-        self._path = self._all_params_path.with_name(
-            self._all_params_path.name + suffix
-        )
+        self._suffix = suffix
 
-    @property
+    @cached_property
     def path(self):
-        return self._path
+        all_params_path = self._make_all_params_path()
+        path = all_params_path.with_name(all_params_path.name + self._suffix)
+        return path
 
 
 class ArraysFile(_Output):
     def __init__(self, output_type_dir, suffix, params):
         super().__init__(output_type_dir, params)
-        self._path = self._arrays_path.with_name(
-            self._arrays_path.name + suffix
-        )
+        self._suffix = suffix
 
-    @property
+    @cached_property
     def path(self):
-        return self._path
+        param_names = ['system', 'shape', 'seed']
+        param_path = self._make_param_path(param_names)
+        path = param_path.with_name(param_path.name + self._suffix
+        )
+        return path
 
 
 class DataHandler:
