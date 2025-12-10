@@ -658,7 +658,7 @@ class Knots:
     def __init__(self):
         self._nx_left = 1
         self._ny = 5
-        self._xmin, self._xmax = -2.5, -2.5
+        self._xmin, self._xmax = -5.0, -5.0
         self._ymin, self._ymax = 1.0, 13.0
 
     def _make_grid(self):

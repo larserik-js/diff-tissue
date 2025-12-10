@@ -204,7 +204,9 @@ def _get_init_logits(jax_arrays, params):
         init_logits[pos + '_area_scalings'] = ar_logits
         init_logits[pos + '_aspect_ratios'] = as_logits
 
-    init_logits['smoothing_stds'] = _calc_inverse_smoothing_stds(jnp.ones(2))
+    init_logits['smoothing_stds'] = _calc_inverse_smoothing_stds(
+        jnp.array([5.0, 1.0])
+    )
     return init_logits
 
 
