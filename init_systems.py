@@ -14,7 +14,6 @@ from shapely.geometry import Polygon
 class Coords:
     _origin = np.array([0.0, 0.0])
     base_origin = _origin + 0.0
-    shape_origin = _origin + np.array([0.0, 26.5])
     full_mesh_origin = np.array([40.0, 0.0])
     full_mesh_base = np.array([40.0, 18.635])
 
@@ -656,28 +655,47 @@ def get_system(system):
 
 
 class Knots:
+    def __init__(self):
+        self._nx_left = 1
+        self._ny = 5
+        self._xmin, self._xmax = -2.5, -2.5
+        self._ymin, self._ymax = 1.0, 13.0
+
+    def _make_grid(self):
+        nx = self._nx_left * 1j
+        ny = self._ny * 1j
+        grid = np.mgrid[self._xmin:self._xmax:nx, self._ymin:self._ymax:ny]
+        return grid
+
     @cached_property
     def left_knots(self):
-        grid = np.mgrid[-2.5:-2.5:1j, 1:13:5j]
+        grid = self._make_grid()
 
         xs = grid[0].flatten()
         ys = grid[1].flatten()
         left_knots = np.column_stack([xs, ys])
 
-        left_knots[:,1] += Coords.base_origin[1]
+        left_knots += Coords.base_origin
         return left_knots
 
     @cached_property
-    def _right_knots(self):
+    def right_knots(self):
         flipped_array = np.empty_like(self.left_knots)
-        shape_x = Coords.shape_origin[0]
+        shape_x = Coords.base_origin[0]
         flipped_array[:,0] = 2 * shape_x - self.left_knots[:,0]
         flipped_array[:,1] = self.left_knots[:,1]
         return flipped_array
 
     @cached_property
-    def symmetric_knots(self):
-        symmetric_knots = np.concatenate(
-            [self.left_knots, self._right_knots], axis=0
+    def center_knots(self):
+        center_knots = np.empty((self._ny, 2))
+        center_knots[:,0] = Coords.base_origin[0]
+        center_knots[:,1] = self.left_knots[:self._ny,1]
+        return center_knots
+
+    @cached_property
+    def all_knots(self):
+        all_knots = np.concatenate(
+            [self.left_knots, self.center_knots, self.right_knots], axis=0
         )
-        return symmetric_knots
+        return all_knots

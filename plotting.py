@@ -12,13 +12,13 @@ def _get_polygons(vertices, indices, valid_mask):
 
 
 class _Artists:
-    def __init__(self, ax, init_vertices, outer_shape, symmetric_knots,
+    def __init__(self, ax, init_vertices, outer_shape, all_knots,
                  jax_arrays):
         self._ax = ax
         self._init_vertices = init_vertices
         self._outer_shape = outer_shape
         self._ax_lims = self._get_ax_lims()
-        self._symmetric_knots = symmetric_knots
+        self._all_knots = all_knots
         self._jax_arrays = jax_arrays
 
     def _get_ax_lims(self):
@@ -55,7 +55,7 @@ class _Artists:
 
     def _add_knots(self):
         self._ax.scatter(
-            self._symmetric_knots[:,0], self._symmetric_knots[:,1],
+            self._all_knots[:,0], self._all_knots[:,1],
             color='brown', s=20.0, alpha=1.0
         )
 
@@ -114,7 +114,7 @@ class MorphFigure(_Figure):
         self._closed_outer_shape = self._close(jax_arrays['outer_shape'])
         self._morph_artists = _Artists(
             ax, self._init_vertices, self._closed_outer_shape,
-            jax_arrays['symmetric_knots'], jax_arrays
+            jax_arrays['all_knots'], jax_arrays
         )
 
     def save_plot(self, vertices, step):
@@ -134,13 +134,13 @@ class MorphGrowthFigure(_Figure):
         self._init_vertices = jax_arrays['init_vertices']
         self._closed_outer_shape = self._close(jax_arrays['outer_shape'])
         self._scaled_outer_shape = self._scale * self._closed_outer_shape
-        self._symmetric_knots = jax_arrays['symmetric_knots']
-        self._scaled_knots = self._scale * self._symmetric_knots
+        self._all_knots = jax_arrays['all_knots']
+        self._scaled_knots = self._scale * self._all_knots
 
         ax0 = self._fig.add_subplot(self._gs[0])
         self._morph_artists = _Artists(
             ax0, self._init_vertices, self._closed_outer_shape,
-            self._symmetric_knots, jax_arrays
+            self._all_knots, jax_arrays
         )
         ax1 = self._fig.add_subplot(self._gs[1:])
         self._growth_artists = _Artists(

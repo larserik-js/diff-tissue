@@ -129,7 +129,9 @@ def _make_array_dict(polygons, outer_shape, knots):
         'boundary_mask': polygons.boundary_mask,
         'outer_shape': outer_shape,
         'left_knots': knots.left_knots,
-        'symmetric_knots': knots.symmetric_knots
+        'center_knots': knots.center_knots,
+        'right_knots': knots.right_knots,
+        'all_knots': knots.all_knots
     }
     return arrays
 
