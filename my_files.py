@@ -1,10 +1,11 @@
+from abc import ABC, abstractmethod
 from functools import cached_property
 import os
 from pathlib import Path
 import pickle
 
 
-class _Output:
+class _Output(ABC):
     _formats = {'bool': '',
                 'int': 'd',
                 'float': '.7f',
@@ -14,6 +15,11 @@ class _Output:
     def __init__(self, output_type_dir_name, params):
         self._output_type_dir_name = output_type_dir_name
         self._params = params
+        self._set_param_names()
+
+    @abstractmethod
+    def _set_param_names(self):
+        pass
 
     @cached_property
     def _project_dir(self):
@@ -41,9 +47,9 @@ class _Output:
             param_name_val = param_name_val.rstrip('0').rstrip('.')
         return param_name_val
 
-    def _concatenate_param_val_pairs(self, param_names):
+    def _concatenate_param_val_pairs(self):
         param_name_vals = []
-        for name in param_names:
+        for name in self._param_names:
             param_name_val = self._format_param_val_str(
                 name, self._params.all[name]
             )
@@ -52,15 +58,10 @@ class _Output:
         param_path_str = '_'.join(param_name_vals)
         return param_path_str
 
-    def _make_param_path(self, param_names):
-        param_path_str = self._concatenate_param_val_pairs(param_names)
+    def _make_param_path(self):
+        param_path_str = self._concatenate_param_val_pairs()
         param_path = self._output_type_dir / param_path_str
         return param_path
-
-    def _make_all_params_path(self):
-        param_names = self._params.all.keys()
-        all_params_path = self._make_param_path(param_names)
-        return all_params_path
 
 
 class OutputDir(_Output):
@@ -68,13 +69,16 @@ class OutputDir(_Output):
         super().__init__(output_type_dir, params)
         self._make()
 
-    def _make(self):
-        self.path.mkdir(exist_ok=True)
+    def _set_param_names(self):
+        self._param_names = self._params.all.keys()
 
     @cached_property
     def path(self):
-        path = self._make_all_params_path()
+        path = self._make_param_path()
         return path
+
+    def _make(self):
+        self.path.mkdir(exist_ok=True)
 
 
 class OutputFile(_Output):
@@ -82,10 +86,13 @@ class OutputFile(_Output):
         super().__init__(output_type_dir, params)
         self._suffix = suffix
 
+    def _set_param_names(self):
+        self._param_names = self._params.all.keys()
+
     @cached_property
     def path(self):
-        all_params_path = self._make_all_params_path()
-        path = all_params_path.with_name(all_params_path.name + self._suffix)
+        params_path = self._make_param_path()
+        path = params_path.with_name(params_path.name + self._suffix)
         return path
 
 
@@ -94,12 +101,13 @@ class ArraysFile(_Output):
         super().__init__(output_type_dir, params)
         self._suffix = suffix
 
+    def _set_param_names(self):
+        self._param_names = ['system', 'shape', 'seed']
+
     @cached_property
     def path(self):
-        param_names = ['system', 'shape', 'seed']
-        param_path = self._make_param_path(param_names)
-        path = param_path.with_name(param_path.name + self._suffix
-        )
+        param_path = self._make_param_path()
+        path = param_path.with_name(param_path.name + self._suffix)
         return path
 
 
