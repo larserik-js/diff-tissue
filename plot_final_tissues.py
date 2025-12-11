@@ -11,8 +11,8 @@ def _get_plotting_data(params):
     return final_tissues
 
 
-def _plot(final_tissues, output_dir, jax_arrays):
-    figure = plotting.MorphFigure(output_dir, jax_arrays)
+def _plot(final_tissues, output_dir, jax_arrays, params):
+    figure = plotting.MorphFigure(output_dir, jax_arrays, params)
 
     for t, vertices in enumerate(final_tissues):
         if t%10 == 0:
@@ -33,7 +33,7 @@ def _main():
 
     output_dir = my_files.OutputDir('final_tissues', params).path
 
-    _plot(final_tissues, output_dir, jax_arrays)
+    _plot(final_tissues, output_dir, jax_arrays, params)
 
 
 if __name__ == '__main__':

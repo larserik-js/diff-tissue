@@ -26,6 +26,7 @@ class Params:
         self._args = self._parse_args()
         self.system = self._args.system
         self.shape = self._args.shape
+        self.poly = self._args.poly
         self.numerical = {
             'n_shape_steps': self._args.ssteps,
             'n_growth_steps': self._args.gsteps,
@@ -55,6 +56,13 @@ class Params:
             choices=['petal', 'trapezoid', 'triangle', 'nconv'],
             default='petal',
             help='Type of outer shape.'
+        )
+
+        parser.add_argument(
+            '--poly',
+            action='store_true',
+            help=('Train parameters for every individual polygon.' +
+                  'If not set, use knots as trainable parameters.')
         )
 
         parser.add_argument(

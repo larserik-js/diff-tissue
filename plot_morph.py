@@ -11,8 +11,8 @@ def _get_plotting_data(params):
     return growth_evolution
 
 
-def _plot(growth_evolution, output_dir, jax_arrays):
-    figure = plotting.MorphFigure(output_dir, jax_arrays)
+def _plot(growth_evolution, output_dir, jax_arrays, params):
+    figure = plotting.MorphFigure(output_dir, jax_arrays, params)
 
     for t, vertices in enumerate(growth_evolution):
         if t%10 == 0:
@@ -33,7 +33,7 @@ def _main():
 
     output_dir = my_files.OutputDir('morph', params).path
 
-    _plot(growth_evolution, output_dir, jax_arrays)
+    _plot(growth_evolution, output_dir, jax_arrays, params)
 
 
 if __name__ == '__main__':
