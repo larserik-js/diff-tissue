@@ -1,8 +1,14 @@
 import jax
 import jax.numpy as jnp
+from jaxopt import LBFGS
 import numpy as np
 
 import my_files, my_utils
+
+
+def _calc_areas_loss(target_areas, areas):
+    areas_loss = jnp.sum((target_areas - areas)**2)
+    return areas_loss
 
 
 def _calc_all_angles_loss(edges, valid_mask, optimal_angles):
@@ -40,8 +46,8 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
         all_cells, jax_arrays['valid_mask']
     )
 
-    areas_loss = params['areas_loss_weight'] * jnp.sum(
-        (target_areas - areas)**2
+    areas_loss = params['areas_loss_weight'] * _calc_areas_loss(
+        target_areas, areas
     )
     angles_loss = params['angles_loss_weight'] * _calc_all_angles_loss(
         edges, jax_arrays['valid_mask'], optimal_angles
@@ -57,14 +63,23 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
     return loss
 
 
-_calc_growth_loss_grads = jax.grad(_calc_growth_loss)
-
-
 def _update_targets(init_targets, goals, t_frac):
     targets = (
         init_targets + (goals - init_targets) * jnp.sin(0.5 * jnp.pi * t_frac)
     )
     return targets
+
+
+def _lbfgs_solve(vertices, target_areas, target_aspect_ratios, optimal_angles,
+                 jax_arrays, params):
+    solver = LBFGS(fun=_calc_growth_loss, maxiter=50)
+    result = solver.run(
+        vertices, target_areas, target_aspect_ratios, optimal_angles,
+        jax_arrays, params
+    )
+    updated_vertices = result.params
+
+    return updated_vertices
 
 
 def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
@@ -74,15 +89,16 @@ def _update_vertices(vertices, t, init_areas, goal_areas, init_aspect_ratios,
     target_aspect_ratios = _update_targets(
         init_aspect_ratios, goal_aspect_ratios, t_frac
     )
-    grads = _calc_growth_loss_grads(
+
+    updated_vertices = _lbfgs_solve(
         vertices, target_areas, target_aspect_ratios, optimal_angles,
         jax_arrays, params
     )
-    vertices -= (
-        params['growth_learning_rate'] * grads * jax_arrays['free_mask']
+    updated_vertices = jnp.where(
+        jax_arrays['free_mask'], updated_vertices, jax_arrays['init_vertices']
     )
 
-    return vertices
+    return updated_vertices
 
 
 def iterate(goal_areas, goal_aspect_ratios, n_steps, jax_arrays, params):
@@ -142,8 +158,12 @@ def _main():
     all_cells = my_utils.get_all_cells(init_vertices, jax_arrays['indices'])
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
+    goal_areas = (
+        params.numerical['max_area_scaling'] * init_areas.mean()
+    )
+
     goal_areas = params.numerical['max_area_scaling'] * init_areas
-    goal_aspect_ratios = 0.5 * jnp.ones_like(init_areas)
+    goal_aspect_ratios = 5.0 * jnp.ones_like(init_areas)
 
     jiterate = jax.jit(iterate, static_argnames=['n_steps'])
 

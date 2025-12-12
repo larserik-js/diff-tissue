@@ -5,16 +5,16 @@ import my_files, my_utils, plotting
 
 
 def _get_plotting_data(params):
-    input_file = my_files.OutputFile('morph', '.pkl', params)
+    input_file = my_files.OutputFile('final_tissues', '.pkl', params)
     data_handler = my_files.DataHandler(input_file)
-    growth_evolution = data_handler.load()
-    return growth_evolution
+    final_tissues = data_handler.load()
+    return final_tissues
 
 
-def _plot(growth_evolution, output_dir, jax_arrays):
+def _plot(final_tissues, output_dir, jax_arrays):
     figure = plotting.MorphFigure(output_dir, jax_arrays)
 
-    for t, vertices in enumerate(growth_evolution):
+    for t, vertices in enumerate(final_tissues):
         if t%10 == 0:
             figure.save_plot(vertices, t)
     figure.save_plot(vertices, t)
@@ -29,11 +29,11 @@ def _main():
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    growth_evolution = _get_plotting_data(params)
+    final_tissues = _get_plotting_data(params)
 
-    output_dir = my_files.OutputDir('morph', params).path
+    output_dir = my_files.OutputDir('final_tissues', params).path
 
-    _plot(growth_evolution, output_dir, jax_arrays)
+    _plot(final_tissues, output_dir, jax_arrays)
 
 
 if __name__ == '__main__':
