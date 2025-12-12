@@ -11,7 +11,8 @@ def _calc_areas_loss(target_areas, areas):
     return areas_loss
 
 
-def _calc_all_angles_loss(edges, valid_mask, optimal_angles):
+def _calc_all_angles_loss(all_cells, valid_mask, optimal_angles):
+    edges = all_cells[:, 1:] - all_cells[:, :-1]
     epsilon = 1e-7
     norms = jnp.linalg.norm(edges + epsilon, axis=2)
     dot_products = jnp.sum(edges[:, :-1] * edges[:, 1:], axis=2)
@@ -39,7 +40,6 @@ def _calc_aspect_ratios_loss(target_aspect_ratios, aspect_ratios,
 def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
                       optimal_angles, jax_arrays, params):
     all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
-    edges = all_cells[:, 1:] - all_cells[:, :-1]
 
     areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
     aspect_ratios = my_utils.calc_aspect_ratios(
@@ -50,7 +50,7 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
         target_areas, areas
     )
     angles_loss = params['angles_loss_weight'] * _calc_all_angles_loss(
-        edges, jax_arrays['valid_mask'], optimal_angles
+        all_cells, jax_arrays['valid_mask'], optimal_angles
     )
     aspect_ratios_loss = (
         params['aspect_ratio_loss_weight'] * _calc_aspect_ratios_loss(

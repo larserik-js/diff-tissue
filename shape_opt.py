@@ -250,7 +250,9 @@ def _get_knot_init_logits(jax_arrays, params, mapped_vertices, mapped_areas,
 
 def _get_init_logits(jax_arrays, params):
     mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
-    all_mapped_cells = mapped_vertices[jax_arrays['indices']]
+    all_mapped_cells = my_utils.get_all_cells(
+        mapped_vertices, jax_arrays['indices']
+    )
     mapped_areas = my_utils.calc_all_areas(
         all_mapped_cells, jax_arrays['valid_mask']
     )
