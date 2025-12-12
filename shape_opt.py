@@ -221,6 +221,8 @@ def _get_knot_init_logits(jax_arrays, params, mapped_vertices, mapped_areas,
                           mapped_aspect_ratios, init_areas):
     init_logits = dict()
     knot_positions = ['left', 'center']
+    left_and_center_ar_logits = []
+    left_and_center_as_logits = []
     for pos in knot_positions:
         knots = jax_arrays[pos + '_knots']
         closest_polygons = _find_closest_polygons(
@@ -235,11 +237,17 @@ def _get_knot_init_logits(jax_arrays, params, mapped_vertices, mapped_areas,
         ar_logits, as_logits = _calc_logits(
             params, area_scalings, aspect_ratios
         )
-        init_logits[pos + '_area_scalings'] = ar_logits
-        init_logits[pos + '_aspect_ratios'] = as_logits
+        left_and_center_ar_logits.append(ar_logits)
+        left_and_center_as_logits.append(as_logits)
 
+    ar_logits = jnp.concatenate(left_and_center_ar_logits)
+    as_logits = jnp.concatenate(left_and_center_as_logits)
+    init_smoothing_stds = jnp.array([5.0, 1.0])
+
+    init_logits['area_scalings'] = ar_logits
+    init_logits['aspect_ratios'] = as_logits
     init_logits['smoothing_stds'] = _calc_inverse_smoothing_stds(
-        jnp.array([5.0, 1.0])
+        init_smoothing_stds
     )
     return init_logits
 
@@ -378,16 +386,10 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
         knots = jax_arrays['all_knots']
         dist_vecs = mapped_centroids[:, None] - knots[None, :]
 
-        ar_logits = jnp.concatenate(
-            [init_logits['left_area_scalings'],
-             init_logits['center_area_scalings']]
-        )
-        as_logits = jnp.concatenate(
-            [init_logits['left_aspect_ratios'],
-             init_logits['center_aspect_ratios']]
-        )
-        n_left_logits = len(init_logits['left_area_scalings'])
+        ar_logits = init_logits['area_scalings']
+        as_logits = init_logits['aspect_ratios']
         std_logits = init_logits['smoothing_stds']
+        n_left_logits = jax_arrays['left_knots'].shape[0]
 
         optimizer = _MyOptimizerKnots(ar_logits, as_logits, std_logits)
 
