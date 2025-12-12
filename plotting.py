@@ -12,13 +12,15 @@ def _get_polygons(vertices, indices, valid_mask):
 
 
 class _Artists:
-    def __init__(self, ax, init_vertices, outer_shape, jax_arrays):
+    def __init__(self, ax, init_vertices, outer_shape, all_knots,
+                 jax_arrays, params):
         self._ax = ax
         self._init_vertices = init_vertices
         self._outer_shape = outer_shape
         self._ax_lims = self._get_ax_lims()
+        self._all_knots = all_knots
         self._jax_arrays = jax_arrays
-        self._boundary_mask = jax_arrays['boundary_mask']
+        self._params = params
 
     def _get_ax_lims(self):
         all_plotted_vertices = np.vstack(
@@ -52,6 +54,12 @@ class _Artists:
             'ro-', markersize=3, label='Outer shape'
         )
 
+    def _add_knots(self):
+        self._ax.scatter(
+            self._all_knots[:,0], self._all_knots[:,1],
+            color='brown', s=20.0, alpha=1.0
+        )
+
     def _add_vertices(self, vertices):
         polygons = _get_polygons(
             vertices, self._jax_arrays['indices'],
@@ -78,6 +86,8 @@ class _Artists:
         self._add_outer_shape()
         self._add_vertices(vertices)
         self._add_boundary_vertices(vertices)
+        if not self._params.poly:
+            self._add_knots()
 
     def plot(self, vertices):
         self._format()
@@ -99,13 +109,14 @@ class _Figure:
 
 
 class MorphFigure(_Figure):
-    def __init__(self, output_dir, jax_arrays):
+    def __init__(self, output_dir, jax_arrays, params):
         super().__init__(output_dir)
         self._fig, ax = plt.subplots(figsize=(10, 10))
         self._init_vertices = jax_arrays['init_vertices']
         self._closed_outer_shape = self._close(jax_arrays['outer_shape'])
         self._morph_artists = _Artists(
-            ax, self._init_vertices, self._closed_outer_shape, jax_arrays
+            ax, self._init_vertices, self._closed_outer_shape,
+            jax_arrays['all_knots'], jax_arrays, params
         )
 
     def save_plot(self, vertices, step):
@@ -114,10 +125,10 @@ class MorphFigure(_Figure):
 
 
 class MorphGrowthFigure(_Figure):
-    def __init__(self, output_dir, jax_arrays, total_steps, scale):
+    def __init__(self, output_dir, jax_arrays, params):
         super().__init__(output_dir)
-        self._total_steps = total_steps
-        self._scale = scale
+        self._total_steps = params.numerical['n_growth_steps']
+        self._scale = params.numerical['growth_scale']
         self._fig = plt.figure(figsize=(8, 10))
         self._gs = gridspec.GridSpec(
             nrows=2, ncols=1, figure=self._fig, height_ratios=[0.8, 1.0]
@@ -125,14 +136,18 @@ class MorphGrowthFigure(_Figure):
         self._init_vertices = jax_arrays['init_vertices']
         self._closed_outer_shape = self._close(jax_arrays['outer_shape'])
         self._scaled_outer_shape = self._scale * self._closed_outer_shape
+        self._all_knots = jax_arrays['all_knots']
+        self._scaled_knots = self._scale * self._all_knots
 
         ax0 = self._fig.add_subplot(self._gs[0])
         self._morph_artists = _Artists(
-            ax0, self._init_vertices, self._closed_outer_shape, jax_arrays
+            ax0, self._init_vertices, self._closed_outer_shape,
+            self._all_knots, jax_arrays, params
         )
         ax1 = self._fig.add_subplot(self._gs[1:])
         self._growth_artists = _Artists(
-            ax1, self._init_vertices, self._scaled_outer_shape, jax_arrays
+            ax1, self._init_vertices, self._scaled_outer_shape,
+            self._scaled_knots, jax_arrays, params
         )
 
     def _scale_vertices(self, vertices, step):
