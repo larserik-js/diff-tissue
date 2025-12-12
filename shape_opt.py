@@ -212,14 +212,12 @@ def _get_poly_init_logits(params, mapped_areas, mapped_aspect_ratios,
     ar_logits, as_logits = _calc_logits(
         params, mapped_area_scalings, mapped_aspect_ratios
     )
-
-    init_logits = {'area_scalings': ar_logits, 'aspect_ratios': as_logits}
+    init_logits = (ar_logits, as_logits)
     return init_logits
 
 
 def _get_knot_init_logits(jax_arrays, params, mapped_vertices, mapped_areas,
                           mapped_aspect_ratios, init_areas):
-    init_logits = dict()
     knot_positions = ['left', 'center']
     left_and_center_ar_logits = []
     left_and_center_as_logits = []
@@ -242,13 +240,11 @@ def _get_knot_init_logits(jax_arrays, params, mapped_vertices, mapped_areas,
 
     ar_logits = jnp.concatenate(left_and_center_ar_logits)
     as_logits = jnp.concatenate(left_and_center_as_logits)
-    init_smoothing_stds = jnp.array([5.0, 1.0])
 
-    init_logits['area_scalings'] = ar_logits
-    init_logits['aspect_ratios'] = as_logits
-    init_logits['smoothing_stds'] = _calc_inverse_smoothing_stds(
-        init_smoothing_stds
-    )
+    init_smoothing_stds = jnp.array([5.0, 1.0])
+    std_logits = _calc_inverse_smoothing_stds(init_smoothing_stds)
+
+    init_logits = (ar_logits, as_logits, std_logits)
     return init_logits
 
 
@@ -279,54 +275,22 @@ def _get_init_logits(jax_arrays, params):
 
 
 class _MyOptimizer:
-    def __init__(self, ar_logits, as_logits):
+    def __init__(self, init_logits):
         self._lr_schedule = optax.cosine_decay_schedule(
             init_value=0.02, decay_steps=500, alpha=1e-5
         )
-
         self._optimizer = optax.chain(
             optax.clip_by_global_norm(1.0),
             optax.scale_by_adam(),
             optax.scale_by_schedule(self._lr_schedule),
             optax.scale(-1.0)
         )
-        self._state = self._optimizer.init(params=(ar_logits, as_logits))
+        self._state = self._optimizer.init(params=init_logits)
 
-    def update(self, ar_logits, as_logits, ar_grads, as_grads):
-        updates, self._state = self._optimizer.update(
-            (ar_grads, as_grads), self._state
-        )
-        ar_logits, as_logits = optax.apply_updates(
-            (ar_logits, as_logits), updates
-        )
-        return ar_logits, as_logits
-
-
-class _MyOptimizerKnots:
-    def __init__(self, ar_logits, as_logits, std_logits):
-        self._lr_schedule = optax.cosine_decay_schedule(
-            init_value=0.02, decay_steps=500, alpha=1e-5
-        )
-
-        self._optimizer = optax.chain(
-            optax.clip_by_global_norm(1.0),
-            optax.scale_by_adam(),
-            optax.scale_by_schedule(self._lr_schedule),
-            optax.scale(-1.0)
-        )
-        self._state = self._optimizer.init(
-            params=(ar_logits, as_logits, std_logits)
-        )
-
-    def update(self, ar_logits, as_logits, std_logits, ar_grads, as_grads,
-               std_grads):
-        updates, self._state = self._optimizer.update(
-            (ar_grads, as_grads, std_grads), self._state
-        )
-        ar_logits, as_logits, std_logits = optax.apply_updates(
-            (ar_logits, as_logits, std_logits), updates
-        )
-        return ar_logits, as_logits, std_logits
+    def update(self, logits, grads):
+        updates, self._state = self._optimizer.update(grads, self._state)
+        logits = optax.apply_updates(logits, updates)
+        return logits
 
 
 def _save_final_tissues(final_tissues, params):
@@ -364,7 +328,7 @@ def _get_mapped_centroids(jax_arrays):
     return mapped_centroids
 
 
-def _iterate_towards_shape(init_logits, jax_arrays, all_params):
+def _iterate_towards_shape(logits, jax_arrays, all_params):
     params = all_params.numerical
 
     vertices = jax_arrays['init_vertices']
@@ -377,22 +341,12 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
 
-    if all_params.poly:
-        ar_logits = init_logits['area_scalings']
-        as_logits = init_logits['aspect_ratios']
-
-        optimizer = _MyOptimizer(ar_logits, as_logits)
-    else:
+    if not all_params.poly:
         knots = jax_arrays['all_knots']
         dist_vecs = mapped_centroids[:, None] - knots[None, :]
-
-        ar_logits = init_logits['area_scalings']
-        as_logits = init_logits['aspect_ratios']
-        std_logits = init_logits['smoothing_stds']
         n_left_logits = jax_arrays['left_knots'].shape[0]
 
-        optimizer = _MyOptimizerKnots(ar_logits, as_logits, std_logits)
-
+    optimizer = _MyOptimizer(logits)
     best_loss = jnp.inf
 
     final_tissues = jnp.empty(
@@ -402,34 +356,29 @@ def _iterate_towards_shape(init_logits, jax_arrays, all_params):
 
     for shape_step in range(params['n_shape_steps']):
         if all_params.poly:
-            (loss, vertices), (ar_grads, as_grads) = (
+            (loss, vertices), grads = (
                 _calc_loss_val_grads(
-                    ar_logits, as_logits, init_areas, min_dist_mask,
+                    *logits, init_areas, min_dist_mask,
                     params['n_growth_steps'], jax_arrays, params
                 )
-            )
-            ar_logits, as_logits = (
-                optimizer.update(ar_logits, as_logits, ar_grads, as_grads)
             )
         else:
-            (loss, vertices), (ar_grads, as_grads, std_grads) = (
+            (loss, vertices), grads = (
                 _calc_loss_val_grads_knots(
-                    ar_logits, as_logits, std_logits, n_left_logits,
-                    dist_vecs, init_areas, min_dist_mask,
-                    params['n_growth_steps'], jax_arrays, params
+                    *logits, n_left_logits, dist_vecs, init_areas,
+                    min_dist_mask, params['n_growth_steps'], jax_arrays, params
                 )
             )
-            ar_logits, as_logits, std_logits = (
-                optimizer.update(
-                    ar_logits, as_logits, std_logits, ar_grads,
-                    as_grads, std_grads
-                )
-            )
+
+        logits = optimizer.update(logits, grads)
 
         print(f'{shape_step}: Shape loss = {loss}')
 
+        ar_logits, as_logits = logits[:2]
+
         if loss < best_loss:
             if not all_params.poly:
+                std_logits = logits[2]
                 best_knot_weights = _calc_knot_weights(std_logits, dist_vecs)
 
             best_goal_area_scalings = _calc_area_scaling(
