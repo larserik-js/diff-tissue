@@ -158,19 +158,19 @@ _calc_loss_val_grads_knots = jax.jit(
 )
 
 
-def _find_closest_vertices(left_knots, mapped_vertices):
-    dist_vecs = left_knots[:,None,:] - mapped_vertices
+def _find_closest_vertex_inds_by_knots(knots, mapped_vertices):
+    dist_vecs = knots[:,None,:] - mapped_vertices
     dists = jnp.linalg.norm(dist_vecs, axis=2)
     closest_vertices = jnp.argmin(dists, axis=1)
     return closest_vertices
 
 
-def _find_closest_polygons(left_knots, mapped_vertices, vertex_polygons):
-    closest_vertices = _find_closest_vertices(
-        left_knots, mapped_vertices
+def _find_closest_polygons_by_knots(knots, mapped_vertices, vertex_polygons):
+    closest_vertex_inds_by_knots = _find_closest_vertex_inds_by_knots(
+        knots, mapped_vertices
     )
-    closest_polygons = vertex_polygons[closest_vertices]
-    return closest_polygons
+    closest_polygons_by_knots = vertex_polygons[closest_vertex_inds_by_knots]
+    return closest_polygons_by_knots
 
 
 def _calc_mean_closest_metric(mapped_metrics, closest_polygons):
@@ -223,14 +223,14 @@ def _get_knot_init_logits(jax_arrays, params, mapped_vertices, mapped_areas,
     left_and_center_as_logits = []
     for pos in knot_positions:
         knots = jax_arrays[pos + '_knots']
-        closest_polygons = _find_closest_polygons(
+        closest_polygons_by_knots = _find_closest_polygons_by_knots(
             knots, mapped_vertices, jax_arrays['vertex_polygons']
         )
         area_scalings = _get_knots_area_scalings(
-            closest_polygons, mapped_areas, init_areas
+            closest_polygons_by_knots, mapped_areas, init_areas
         )
         aspect_ratios = _calc_mean_closest_metric(
-            mapped_aspect_ratios, closest_polygons
+            mapped_aspect_ratios, closest_polygons_by_knots
         )
         ar_logits, as_logits = _calc_logits(
             params, area_scalings, aspect_ratios
