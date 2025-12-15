@@ -188,62 +188,47 @@ _calc_loss_val_grads_knots = jax.jit(
     static_argnames=['n_growth_steps']
 )
 
+def _get_mapped_centroids(jax_arrays):
+    mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
+    mapped_centroids = my_utils.calc_centroids(
+        mapped_vertices, jax_arrays['indices'], jax_arrays['valid_mask']
+    )
+    return mapped_centroids
 
-def _find_closest_vertex_inds_by_knots(knots, mapped_vertices):
-    """
-    Find the closest mapped vertex for each knot.
 
-    Args:
-        knots (jnp.ndarray): First array of shape (M,2).
-        mapped_vertices (jnp.ndarray): Second array of shape (N,2).
+def _calc_knots_to_mapped_centroids_dist_vecs(knots, jax_arrays):
+    mapped_centroids = _get_mapped_centroids(jax_arrays)
+    dist_vecs = mapped_centroids[:, None] - knots[None, :]
+    return dist_vecs
 
-    Returns:
-        jnp.ndarray: Array of closest mapped vertex for each knot, shape (M,).
-    """
-    dist_vecs = knots[:,None,:] - mapped_vertices
+
+def _find_closest_polygon_by_knots(knots, jax_arrays):
+    dist_vecs = _calc_knots_to_mapped_centroids_dist_vecs(knots, jax_arrays)
     dists = jnp.linalg.norm(dist_vecs, axis=2)
-    closest_vertices = jnp.argmin(dists, axis=1)
-    return closest_vertices
+    closest_inds = jnp.argmin(dists, axis=0)
+    return closest_inds
 
 
-def _find_closest_polygons_by_knots(knots, mapped_vertices, vertex_polygons):
-    """
-    Find the closest polygons for each knot.
+def _calc_mean_closest_metric(metrics, closest_poly_ind_by_knots, jax_arrays):
+    mean_closest_metric = np.empty(closest_poly_ind_by_knots.shape[0])
+    for i, poly_ind in enumerate(closest_poly_ind_by_knots):
+        poly_neighbors = jax_arrays['poly_neighbors'][poly_ind]
+        valid_neighbors = poly_neighbors[poly_neighbors != -1]
+        metrics_ = list(metrics[valid_neighbors]) # Metric of neighbors
+        metrics_.append(metrics[poly_ind]) # Metric of polygon
+        mean_closest_metric[i] = np.mean(metrics_)
 
-    First find the closest mapped vertex for each knot. For each of those
-    vertices, choose the polygons which belong to it.
-
-    Args:
-        knots (jnp.ndarray): First array of shape (M,2).
-        mapped_vertices (jnp.ndarray): Second array of shape (N,2).
-        vertex_polygons (jnp.ndarray): Third array of shape (N,3).
-
-    Returns:
-        jnp.ndarray: Array of closest polygons for each knot, shape (M,3).
-        The array is padded with -1 where the vertices belong to fewer than
-        3 polygons.
-    """
-    closest_vertex_inds_by_knots = _find_closest_vertex_inds_by_knots(
-        knots, mapped_vertices
-    )
-    closest_polygons_by_knots = vertex_polygons[closest_vertex_inds_by_knots]
-    return closest_polygons_by_knots
+    return mean_closest_metric
 
 
-def _calc_mean_closest_metric(mapped_metrics, closest_polygons):
-    closest_metrics = mapped_metrics[closest_polygons]
-    closest_metrics_with_nans = jnp.where(
-        closest_polygons != -1, closest_metrics, jnp.nan
-    )
-    mean_mapped_metrics = jnp.nanmean(closest_metrics_with_nans, axis=1)
-    return mean_mapped_metrics
-
-
-def _get_knots_area_scalings(closest_polygons, mapped_areas, init_areas):
+def _get_knots_area_scalings(mapped_areas, closest_poly_ind_by_knots,
+                             init_areas, jax_arrays):
     mean_mapped_areas = _calc_mean_closest_metric(
-        mapped_areas, closest_polygons
+        mapped_areas, closest_poly_ind_by_knots, jax_arrays
     )
-    mean_init_areas = _calc_mean_closest_metric(init_areas, closest_polygons)
+    mean_init_areas = _calc_mean_closest_metric(
+        init_areas, closest_poly_ind_by_knots, jax_arrays
+    )
     knots_area_scalings = mean_mapped_areas / mean_init_areas
     return knots_area_scalings
 
@@ -279,14 +264,15 @@ def _get_knot_init_logits(jax_arrays, params, mapped_vertices, mapped_areas,
     left_and_center_el_logits = []
     for pos in knot_positions:
         knots = jax_arrays[pos + '_knots']
-        closest_polygons_by_knots = _find_closest_polygons_by_knots(
-            knots, mapped_vertices, jax_arrays['vertex_polygons']
+        closest_polygon_by_knots = _find_closest_polygon_by_knots(
+            knots, jax_arrays
         )
+
         area_scalings = _get_knots_area_scalings(
-            closest_polygons_by_knots, mapped_areas, init_areas
+            mapped_areas, closest_polygon_by_knots, init_areas, jax_arrays
         )
         elongations = _calc_mean_closest_metric(
-            mapped_elongations, closest_polygons_by_knots
+            mapped_elongations, closest_polygon_by_knots, jax_arrays
         )
         ar_logits, el_logits = _calc_logits(
             params, area_scalings, elongations
@@ -372,15 +358,10 @@ class _KnotCtx:
     knot_weights: jnp.ndarray
 
 
-def _calc_dist_vecs(points, all_knots):
-    dist_vecs = points[:, None] - all_knots[None, :]
-    return dist_vecs
-
-
 def _get_knot_ctx(knots, jax_arrays):
     if knots:
-        dist_vecs = _calc_dist_vecs(
-            jax_arrays['mapped_centroids'], jax_arrays['all_knots']
+        dist_vecs = _calc_knots_to_mapped_centroids_dist_vecs(
+            jax_arrays['all_knots'], jax_arrays
         )
         knot_ctx = _KnotCtx(
             n_left_logits = jax_arrays['left_knots'].shape[0],
@@ -443,8 +424,6 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
     min_area_scaling = 1 / params['growth_scale']
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
-
-    knot_ctx = _get_knot_ctx(all_params.knots, jax_arrays)
 
     optimizer = _MyOptimizer(logits)
 
