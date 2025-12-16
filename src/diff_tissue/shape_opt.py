@@ -233,6 +233,19 @@ def _get_knots_area_scalings(mapped_areas, closest_poly_ind_by_knots,
     return knots_area_scalings
 
 
+def _calc_std_logits(jax_arrays):
+    knots_x_diff = (
+        jax_arrays['center_knots'][0,0] - jax_arrays['left_knots'][-1,0]
+    )
+    knots_y_diff = (
+        jax_arrays['left_knots'][-1,1] - jax_arrays['left_knots'][-2,1]
+    )
+
+    init_smoothing_stds = jnp.array([knots_x_diff, knots_y_diff])
+    std_logits = _calc_inverse_smoothing_stds(init_smoothing_stds)
+    return std_logits
+
+
 def _calc_logits(params, area_scalings, elongations):
     min_area_scaling = 1 / params.numerical['growth_scale']
     max_area_scaling = params.numerical['max_area_scaling']
@@ -257,8 +270,8 @@ def _get_poly_init_logits(params, mapped_areas, mapped_elongations, init_areas):
     return init_logits
 
 
-def _get_knot_init_logits(jax_arrays, params, mapped_vertices, mapped_areas,
-                          mapped_elongations, init_areas):
+def _get_knot_init_logits(jax_arrays, params, mapped_areas, mapped_elongations,
+                          init_areas):
     knot_positions = ['left', 'center']
     left_and_center_ar_logits = []
     left_and_center_el_logits = []
@@ -282,9 +295,7 @@ def _get_knot_init_logits(jax_arrays, params, mapped_vertices, mapped_areas,
 
     ar_logits = jnp.concatenate(left_and_center_ar_logits)
     el_logits = jnp.concatenate(left_and_center_el_logits)
-
-    init_smoothing_stds = jnp.array([5.0, 1.0])
-    std_logits = _calc_inverse_smoothing_stds(init_smoothing_stds)
+    std_logits = _calc_std_logits(jax_arrays)
 
     init_logits = (ar_logits, el_logits, std_logits)
     return init_logits
@@ -307,8 +318,7 @@ def _get_init_logits(jax_arrays, params):
 
     if params.knots:
         init_logits = _get_knot_init_logits(
-            jax_arrays, params, jax_arrays['mapped_vertices'], mapped_areas,
-            mapped_elongations, init_areas
+            jax_arrays, params, mapped_areas, mapped_elongations, init_areas
         )
     else:
         init_logits = _get_poly_init_logits(
