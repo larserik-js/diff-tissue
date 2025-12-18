@@ -356,6 +356,8 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
     )
     final_tissues = final_tissues.at[0].set(vertices)
 
+    steps_since_best_loss = 0
+
     for shape_step in range(params['n_shape_steps']):
         if all_params.poly:
             (loss, vertices), grads = (
@@ -393,11 +395,19 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
             best_goal_aspect_ratios = _calc_goal_aspect_ratios(as_logits)
 
             best_loss = loss
+            steps_since_best_loss = 0
 
             print(f'(Stored params with new best loss.)')
             print('')
+        else:
+            steps_since_best_loss += 1
 
         final_tissues = final_tissues.at[shape_step+1].set(vertices)
+
+        if steps_since_best_loss >= 20 and best_loss != jnp.inf:
+            print(f'(Stopped - iteration diverged.)')
+            print('')
+            break
 
     # Calculate output params
     all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
