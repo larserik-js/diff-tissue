@@ -465,7 +465,7 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
     return best_loss, final_tissues, tabular_output
 
 
-def _run(params):
+def run(params):
     np.random.seed(params.numerical['seed'])
 
     jax_arrays = my_utils.get_jax_arrays(params)
@@ -484,7 +484,7 @@ def _main():
     jax.config.update('jax_enable_x64', True)
 
     params = my_utils.Params()
-    _, final_tissues, tabular_output = _run(params)
+    _, final_tissues, tabular_output = run(params)
     
     _save_final_tissues(final_tissues, params)
     _save_output_params(tabular_output, params)
