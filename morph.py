@@ -64,9 +64,7 @@ def _calc_growth_loss(vertices, target_areas, target_aspect_ratios,
 
 
 def _update_targets(init_targets, goals, t_frac):
-    targets = (
-        init_targets + (goals - init_targets) * jnp.sin(0.5 * jnp.pi * t_frac)
-    )
+    targets = init_targets + (goals - init_targets) * t_frac
     return targets
 
 
