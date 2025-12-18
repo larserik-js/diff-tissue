@@ -376,7 +376,8 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
 
         logits = optimizer.update(logits, grads)
 
-        print(f'{shape_step}: Shape loss = {loss}')
+        if not all_params.quiet:
+            print(f'{shape_step}: Shape loss = {loss}')
 
         ar_logits, as_logits = logits[:2]
 
@@ -397,16 +398,18 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
             best_loss = loss
             steps_since_best_loss = 0
 
-            print(f'(Stored params with new best loss.)')
-            print('')
+            if not all_params.quiet:
+                print(f'(Stored params with new best loss.)')
+                print('')
         else:
             steps_since_best_loss += 1
 
         final_tissues = final_tissues.at[shape_step+1].set(vertices)
 
         if steps_since_best_loss >= 20 and best_loss != jnp.inf:
-            print(f'(Stopped - iteration diverged.)')
-            print('')
+            if not all_params.quiet:
+                print(f'(Stopped - iteration diverged.)')
+                print('')
             break
 
     # Calculate output params

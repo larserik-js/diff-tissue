@@ -27,6 +27,7 @@ class Params:
         self.system = self._args.system
         self.shape = self._args.shape
         self.poly = self._args.poly
+        self.quiet = self._args.quiet
         self.numerical = {
             'n_shape_steps': self._args.ssteps,
             'n_growth_steps': self._args.gsteps,
@@ -63,6 +64,12 @@ class Params:
             action='store_true',
             help=('Train parameters for every individual polygon.' +
                   'If not set, use knots as trainable parameters.')
+        )
+
+        parser.add_argument(
+            '--quiet',
+            action='store_true',
+            help=('If set, no information on shape optimization is printed.')
         )
 
         parser.add_argument(
