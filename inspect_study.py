@@ -15,6 +15,19 @@ def _parse_args():
     return parser.parse_args()
 
 
+def _show_studies(storage):
+    study_summaries = optuna.get_all_study_summaries(storage)
+
+    for s in study_summaries:
+        print(
+            f"Study name: {s.study_name}, "
+            f"Direction: {s.direction}, "
+            f"Trials: {s.n_trials}, "
+            f"Best value: {s.best_trial.value if s.best_trial else None}"
+        )
+    print('')
+
+
 def _show_first_trials(study):
     df = study.trials_dataframe()
     print(df.head())
@@ -33,9 +46,14 @@ def _show_best_trial(study):
 def _main():
     args = _parse_args()
 
+    db_url = 'sqlite:///optuna.db'
+    storage = optuna.storages.RDBStorage(db_url)
+
+    _show_studies(storage)
+
     study = optuna.load_study(
         study_name=f'{args.study_name}',
-        storage='sqlite:///optuna.db'
+        storage=storage
     )
 
     _show_first_trials(study)
