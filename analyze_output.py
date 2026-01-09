@@ -48,10 +48,10 @@ def _plot_residuals(ax, final_goal_vals, final_vals):
 def _plot_all(axs, df):
     all_arrays = [
         ['final_goal_area', 'final_area', 'best_goal_area'],
-        ['final_goal_aspect_ratio', 'final_aspect_ratio',
-         'best_goal_aspect_ratio']
+        ['final_goal_elongation', 'final_elongation',
+         'best_goal_elongation']
     ]
-    xlabels = ['Goal areas', 'Goal aspect ratios']
+    xlabels = ['Goal areas', 'Goal elongations']
     for i in range(2):
         arrays = [df[array_name].values for array_name in all_arrays[i]]
         max_val = _find_max_val(arrays)

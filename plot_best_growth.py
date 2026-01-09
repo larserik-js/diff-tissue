@@ -29,12 +29,10 @@ def main():
     df = pd.read_csv(input_file, sep='\t', index_col=0)
     
     best_goal_areas = my_utils.to_jax(df['best_goal_area'].values)
-    best_goal_aspect_ratios = my_utils.to_jax(
-        df['best_goal_aspect_ratio'].values
-    )
+    best_goal_elongations = my_utils.to_jax(df['best_goal_elongation'].values)
 
     growth_evolution = morph.iterate(
-        best_goal_areas, best_goal_aspect_ratios,
+        best_goal_areas, best_goal_elongations,
         params.numerical['n_growth_steps'], jax_arrays, params.numerical
     )
 

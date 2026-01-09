@@ -33,7 +33,7 @@ class Params:
             'n_growth_steps': self._args.gsteps,
             'areas_loss_weight': self._args.arlw,
             'angles_loss_weight': self._args.anlw,
-            'aspect_ratio_loss_weight': self._args.aslw,
+            'elongation_loss_weight': self._args.elw,
             'max_area_scaling': self._args.marsc,
             'growth_scale': self._args.gsc,
             'seed': self._args.seed
@@ -101,10 +101,10 @@ class Params:
         )
 
         parser.add_argument(
-            '--aslw',
+            '--elw',
             type=float,
             default=300.0,
-            help='Aspect ratio loss weight.'
+            help='Elongations loss weight.'
         )
 
         parser.add_argument(
@@ -224,7 +224,7 @@ def calc_all_areas(all_cells, valid_mask):
     return areas
 
 
-def calc_aspect_ratios(all_cells, valid_mask):
+def calc_elongations(all_cells, valid_mask):
     xs = all_cells[:, 1:-1, 0]
     ys = all_cells[:, 1:-1, 1]
     valid = valid_mask[:, 1:-1]
@@ -236,9 +236,9 @@ def calc_aspect_ratios(all_cells, valid_mask):
     y_vars = jnp.nanvar(ys_masked, axis=1)
 
     eps = 1e-8
-    aspect_ratios = (y_vars - x_vars) / (y_vars + x_vars + eps)
+    elongations = (y_vars - x_vars) / (y_vars + x_vars + eps)
 
-    return aspect_ratios
+    return elongations
 
 
 def calc_centroids(vertices, indices, valid_mask):

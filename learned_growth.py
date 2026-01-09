@@ -77,7 +77,7 @@ def _main():
     df = pd.read_csv(input_file, sep='\t', index_col=0)
     
     goal_areas = df['best_goal_area'].values
-    goal_aspect_ratios = df['goal_aspect_ratio'].values
+    goal_elongations = df['goal_elongation'].values
 
     # Regenerate new system
     np.random.seed(10000)
@@ -87,15 +87,15 @@ def _main():
     resulting_areas = _assign_weighted_goals(
         old_polygons, goal_areas, new_polygons
     )
-    resulting_aspect_ratios = _assign_weighted_goals(
-        old_polygons, goal_aspect_ratios, new_polygons
+    resulting_elongations = _assign_weighted_goals(
+        old_polygons, goal_elongations, new_polygons
     )
 
     jax_arrays = my_utils._make_jax_arrays(new_arrays)
 
     morph.iterate_and_plot(
         learned_growth_dir.path, resulting_areas,
-        resulting_aspect_ratios, jax_arrays, params.numerical
+        resulting_elongations, jax_arrays, params.numerical
     )
 
 

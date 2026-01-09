@@ -15,8 +15,8 @@ def objective_f(trial):
     params.numerical['angle_loss_weight'] = trial.suggest_float(
         'angle loss weight', 1.0, 1e4, log=True
     )
-    params.numerical['aspect_ratio_loss_weight'] = trial.suggest_float(
-        'aspect ratio loss weight', 1.0, 1e4, log=True
+    params.numerical['elongation_loss_weight'] = trial.suggest_float(
+        'elongation loss weight', 1.0, 1e4, log=True
     )
     params.numerical['max_area_scaling'] = trial.suggest_float(
         'max area scaling', 2.0, 9.0
