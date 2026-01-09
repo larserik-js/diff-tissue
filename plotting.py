@@ -86,7 +86,7 @@ class _Artists:
         self._add_outer_shape()
         self._add_vertices(vertices)
         self._add_boundary_vertices(vertices)
-        if not self._params.poly:
+        if self._params.knots:
             self._add_knots()
 
     def plot(self, vertices):

@@ -102,7 +102,7 @@ class ArraysFile(_Output):
         self._suffix = suffix
 
     def _set_param_names(self):
-        self._param_names = ['system', 'shape', 'poly', 'seed']
+        self._param_names = ['system', 'shape', 'knots', 'seed']
 
     @cached_property
     def path(self):

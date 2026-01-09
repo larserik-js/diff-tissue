@@ -263,14 +263,14 @@ def _get_init_logits(jax_arrays, params):
         all_mapped_cells, jax_arrays['valid_mask']
     )
 
-    if params.poly:
-        init_logits = _get_poly_init_logits(
-            params, mapped_areas, mapped_elongations, init_areas
-        )
-    else:
+    if params.knots:
         init_logits = _get_knot_init_logits(
             jax_arrays, params, mapped_vertices, mapped_areas,
             mapped_elongations, init_areas
+        )
+    else:
+        init_logits = _get_poly_init_logits(
+            params, mapped_areas, mapped_elongations, init_areas
         )
     return init_logits
 
@@ -342,7 +342,7 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
 
-    if not all_params.poly:
+    if all_params.knots:
         knots = jax_arrays['all_knots']
         dist_vecs = mapped_centroids[:, None] - knots[None, :]
         n_left_logits = jax_arrays['left_knots'].shape[0]
@@ -358,18 +358,18 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
     steps_since_best_loss = 0
 
     for shape_step in range(params['n_shape_steps']):
-        if all_params.poly:
-            (loss, vertices), grads = (
-                _calc_loss_val_grads(
-                    *logits, init_areas, min_dist_mask,
-                    params['n_growth_steps'], jax_arrays, params
-                )
-            )
-        else:
+        if all_params.knots:
             (loss, vertices), grads = (
                 _calc_loss_val_grads_knots(
                     *logits, n_left_logits, dist_vecs, init_areas,
                     min_dist_mask, params['n_growth_steps'], jax_arrays, params
+                )
+            )
+        else:
+            (loss, vertices), grads = (
+                _calc_loss_val_grads(
+                    *logits, init_areas, min_dist_mask,
+                    params['n_growth_steps'], jax_arrays, params
                 )
             )
 
@@ -381,7 +381,7 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
         ar_logits, el_logits = logits[:2]
 
         if loss < best_loss:
-            if not all_params.poly:
+            if all_params.knots:
                 std_logits = logits[2]
                 best_knot_weights = _calc_knot_weights(std_logits, dist_vecs)
 
@@ -427,7 +427,7 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
     )
     final_goal_elongations = _calc_goal_elongations(el_logits)
 
-    if not all_params.poly:
+    if all_params.knots:
         best_goal_area_scalings = _knots_to_full_shape(
             best_goal_area_scalings, n_left_logits, best_knot_weights
         )
