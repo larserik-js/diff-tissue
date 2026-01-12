@@ -2,6 +2,8 @@ import argparse
 
 import optuna
 
+from diff_tissue import my_files
+
 
 def _parse_args():
     parser = argparse.ArgumentParser()
@@ -9,6 +11,7 @@ def _parse_args():
     parser.add_argument(
         '--n',
         type=str,
+        default='my_study',
         dest='study_name',
         help='Study name.'
     )
@@ -46,7 +49,8 @@ def _show_best_trial(study):
 def _main():
     args = _parse_args()
 
-    db_url = 'sqlite:///optuna.db'
+    output_path = my_files.get_param_search_db_file()
+    db_url = f'sqlite:///{output_path}'
     storage = optuna.storages.RDBStorage(db_url)
 
     _show_studies(storage)

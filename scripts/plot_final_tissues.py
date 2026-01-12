@@ -1,7 +1,7 @@
 import jax
 import numpy as np
 
-import my_files, my_utils, plotting
+from diff_tissue import my_files, my_utils, plotting
 
 
 def _get_plotting_data(params):

@@ -2,7 +2,7 @@ import jax
 import numpy as np
 import pandas as pd
 
-import morph, my_files, my_utils, plotting
+from diff_tissue import morphing, my_files, my_utils, plotting
 
 
 def _save_best_growth_evolution(growth_evolution, params):
@@ -44,7 +44,7 @@ def main():
     best_goal_areas = my_utils.to_jax(df['best_goal_area'].values)
     best_goal_elongations = my_utils.to_jax(df['best_goal_elongation'].values)
 
-    growth_evolution = morph.iterate(
+    growth_evolution = morphing.iterate(
         best_goal_areas, best_goal_elongations,
         params.numerical['n_growth_steps'], jax_arrays, params.numerical
     )

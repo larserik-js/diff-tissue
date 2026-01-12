@@ -2,7 +2,7 @@ from matplotlib import gridspec
 from matplotlib import pyplot as plt
 import numpy as np
 
-import init_systems
+from . import init_systems
 
 
 def _get_polygons(vertices, indices, valid_mask):

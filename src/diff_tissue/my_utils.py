@@ -4,7 +4,7 @@ import timeit
 import jax
 import jax.numpy as jnp
 
-import init_systems, my_files, shapes
+from . import init_systems, my_files, shapes
 
 
 def timer(func):

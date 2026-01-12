@@ -2,9 +2,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
-import pandas as pd
 
-import diffeomorphism, init_systems, morph, my_files, my_utils
+from . import diffeomorphism, init_systems, morphing, my_utils
 
 
 def _calc_sigmoid(min_val, max_val, logits):
@@ -98,7 +97,7 @@ def _loss_f(ar_logits, el_logits, init_areas, min_dist_mask, n_growth_steps,
     )
     goal_elongations = _calc_goal_elongations(el_logits)
 
-    growth_evolution = morph.iterate(
+    growth_evolution = morphing.iterate(
         goal_areas, goal_elongations, n_growth_steps, jax_arrays, params
     )
     final_vertices = growth_evolution[-1]
@@ -133,7 +132,7 @@ def _loss_f_knots(ar_logits, el_logits, std_logits, n_left_logits, dist_vecs,
         lc_goal_elongations, n_left_logits, knot_weights
     )
 
-    growth_evolution = morph.iterate(
+    growth_evolution = morphing.iterate(
         goal_areas, goal_elongations, n_growth_steps, jax_arrays, params
     )
     final_vertices = growth_evolution[-1]
@@ -292,18 +291,6 @@ class _MyOptimizer:
         updates, self._state = self._optimizer.update(grads, self._state)
         logits = optax.apply_updates(logits, updates)
         return logits
-
-
-def _save_final_tissues(final_tissues, params):
-    output_file = my_files.OutputFile('final_tissues', '.pkl', params)
-    data_handler = my_files.DataHandler(output_file)
-    data_handler.save(final_tissues)
-
-
-def _save_output_params(param_dict, params):
-    df = pd.DataFrame(param_dict)
-    output_file = my_files.get_output_params_file(params)
-    df.to_csv(output_file, sep='\t', index=True, header=True)
 
 
 def _make_min_dist_mask(jax_arrays):
@@ -476,18 +463,3 @@ def run(params):
     )
 
     return best_loss, final_tissues, tabular_output
-
-
-@my_utils.timer
-def _main():
-    jax.config.update('jax_enable_x64', True)
-
-    params = my_utils.Params()
-    _, final_tissues, tabular_output = run(params)
-    
-    _save_final_tissues(final_tissues, params)
-    _save_output_params(tabular_output, params)
-
-
-if __name__ == '__main__':
-    _main()

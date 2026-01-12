@@ -17,3 +17,7 @@ dependencies = [
     "shapely>=2.1.1",
     "torch>=2.6.0",
 ]
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"

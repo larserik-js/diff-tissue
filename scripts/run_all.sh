@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # Run shape optimization
-if ! uv run python shape_opt.py "$@"; then
+if ! uv run python run_shape_opt.py "$@"; then
     echo ""
-    echo "shape_opt.py failed - skipping plotting scripts."
+    echo "run_shape_opt.py failed - skipping plotting scripts."
     echo ""
     exit 0
 fi

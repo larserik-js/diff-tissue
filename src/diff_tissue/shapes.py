@@ -3,7 +3,7 @@ from functools import cached_property
 
 import numpy as np
 
-import init_systems
+from . import init_systems
 
 
 class _Shape(ABC):

@@ -1,9 +1,9 @@
-import my_files, my_utils
-
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+from diff_tissue import my_files, my_utils
 
 
 def _find_max_val(arrays):
