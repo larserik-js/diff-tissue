@@ -104,21 +104,6 @@ class OutputFile(_Output):
         return path
 
 
-class ArraysFile(_Output):
-    def __init__(self, output_type_dir, suffix, params):
-        super().__init__(output_type_dir, params)
-        self._suffix = suffix
-
-    def _set_param_names(self):
-        self._param_names = ['system', 'shape', 'knots', 'seed']
-
-    @cached_property
-    def path(self):
-        param_path = self._make_param_path()
-        path = param_path.with_name(param_path.name + self._suffix)
-        return path
-
-
 class DataHandler:
     def __init__(self, file):
         self._file_path = file.path

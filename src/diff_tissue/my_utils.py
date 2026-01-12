@@ -153,22 +153,10 @@ def _make_array_dict(polygons, outer_shape, knots):
     return arrays
 
 
-def _get_arrays(params):
+def get_arrays(params):
     polygons = init_systems.get_system(params.system)
     outer_shape = shapes.get_outer_shape(params.shape, polygons)
     arrays = _make_array_dict(polygons, outer_shape, init_systems.Knots())
-    return arrays
-
-
-def get_arrays(params):
-    file = my_files.ArraysFile('arrays', '.pkl', params)
-    data_handler = my_files.DataHandler(file)
-
-    try:
-        arrays = data_handler.load()
-    except:
-        arrays = _get_arrays(params)
-        data_handler.save(arrays)
     return arrays
 
 
