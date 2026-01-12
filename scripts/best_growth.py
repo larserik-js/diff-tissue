@@ -31,13 +31,7 @@ def main():
         params.numerical['n_growth_steps'], jax_arrays, params.numerical
     )
 
-    output = {'growth_evolution': growth_evolution,
-              'indices': jax_arrays['indices'],
-              'valid_mask': jax_arrays['valid_mask'],
-              'outer_shape': jax_arrays['outer_shape']
-    }
-
-    _save_best_growth_evolution(output, params)
+    _save_best_growth_evolution(growth_evolution, params)
 
 
 if __name__ == '__main__':

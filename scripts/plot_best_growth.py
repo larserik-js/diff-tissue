@@ -7,7 +7,7 @@ from diff_tissue import my_files, my_utils, plotting
 def _get_plotting_data(params):
     input_file = my_files.OutputFile('best_growth', '.pkl', params)
     data_handler = my_files.DataHandler(input_file)
-    best_growth_evolution = data_handler.load()['growth_evolution']
+    best_growth_evolution = data_handler.load()
     return best_growth_evolution
 
 
