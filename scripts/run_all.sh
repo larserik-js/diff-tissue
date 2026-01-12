@@ -12,7 +12,7 @@ fi
 uv run python plot_final_tissues.py "$@" &
 PID2=$!
 
-uv run python plot_best_growth.py "$@" &
+uv run python best_growth.py "$@" && uv run python plot_best_growth.py "$@" &
 PID3=$!
 
 wait $PID2
