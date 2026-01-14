@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from functools import cached_property
+from importlib.resources import files
 import json
-from pathlib import Path
 import sys
 
 import numpy as np
@@ -486,7 +486,7 @@ class _FullPolygons(_Polygons):
         self._mesh_area = self._calc_mesh_area()
 
     def _read_input_cells(self):
-        input_path = Path('input_cells.json')
+        input_path = files('diff_tissue.resources').joinpath('input_cells.json')
         with input_path.open() as data:
             input_cells = json.load(data)
 
