@@ -2,7 +2,17 @@ import jax
 import jax.numpy as jnp
 from jaxopt import LBFGS
 
-from . import my_utils
+from . import init_systems, my_utils
+
+
+def _calc_proximal_mask(jax_arrays, proximal_dist):
+    centroids = my_utils.calc_centroids(
+        jax_arrays['init_vertices'], jax_arrays['indices'],
+        jax_arrays['valid_mask']
+    )
+    y_dists_from_base = centroids[:,1] - init_systems.Coords.base_origin[1]
+    proximal_mask = (y_dists_from_base <= proximal_dist)
+    return proximal_mask
 
 
 def _calc_areas_loss(target_areas, areas):
@@ -36,7 +46,7 @@ def _calc_elongations_loss(target_elongations, elongations, proximal_mask):
 
 
 def _calc_growth_loss(vertices, target_areas, target_elongations,
-                      optimal_angles, jax_arrays, params):
+                      optimal_angles, proximal_mask, jax_arrays, params):
     all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
 
     areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
@@ -50,7 +60,7 @@ def _calc_growth_loss(vertices, target_areas, target_elongations,
     )
     elongations_loss = (
         params['elongation_loss_weight'] * _calc_elongations_loss(
-            target_elongations, elongations, jax_arrays['proximal_mask']
+            target_elongations, elongations, proximal_mask
         )
     )
 
@@ -65,11 +75,11 @@ def _update_targets(init_targets, goals, t_frac):
 
 
 def _lbfgs_solve(vertices, target_areas, target_elongations, optimal_angles,
-                 jax_arrays, params):
+                 proximal_mask, jax_arrays, params):
     solver = LBFGS(fun=_calc_growth_loss, maxiter=50)
     result = solver.run(
-        vertices, target_areas, target_elongations, optimal_angles, jax_arrays,
-        params
+        vertices, target_areas, target_elongations, optimal_angles,
+        proximal_mask, jax_arrays, params
     )
     updated_vertices = result.params
 
@@ -77,7 +87,8 @@ def _lbfgs_solve(vertices, target_areas, target_elongations, optimal_angles,
 
 
 def _update_vertices(vertices, t, init_areas, goal_areas, init_elongations,
-                     goal_elongations, optimal_angles, jax_arrays, params):
+                     goal_elongations, optimal_angles, proximal_mask,
+                     jax_arrays, params):
     t_frac = t / params['n_growth_steps']
     target_areas = _update_targets(init_areas, goal_areas, t_frac)
     target_elongations = _update_targets(
@@ -85,8 +96,8 @@ def _update_vertices(vertices, t, init_areas, goal_areas, init_elongations,
     )
 
     updated_vertices = _lbfgs_solve(
-        vertices, target_areas, target_elongations, optimal_angles, jax_arrays,
-        params
+        vertices, target_areas, target_elongations, optimal_angles,
+        proximal_mask, jax_arrays, params
     )
     updated_vertices = jnp.where(
         jax_arrays['free_mask'], updated_vertices, jax_arrays['init_vertices']
@@ -104,6 +115,7 @@ def iterate(goal_areas, goal_elongations, n_steps, jax_arrays, params):
         all_cells, jax_arrays['valid_mask']
     )
     optimal_angles = my_utils.calc_optimal_angles(jax_arrays['valid_mask'])
+    proximal_mask = _calc_proximal_mask(jax_arrays, params['proximal_dist'])
 
     def update_step(carry, t):
         (vertices, init_areas, init_elongations, goal_areas,
@@ -111,7 +123,7 @@ def iterate(goal_areas, goal_elongations, n_steps, jax_arrays, params):
 
         vertices = _update_vertices(
             vertices, t, init_areas, goal_areas, init_elongations,
-            goal_elongations, optimal_angles, jax_arrays, params
+            goal_elongations, optimal_angles, proximal_mask, jax_arrays, params
         )
 
         carry = (

@@ -36,6 +36,7 @@ class Params:
             'angles_loss_weight': self._args.anlw,
             'elongation_loss_weight': self._args.elw,
             'max_area_scaling': self._args.marsc,
+            'proximal_dist': self._args.pd,
             'growth_scale': self._args.gsc,
             'seed': self._args.seed
         }
@@ -118,6 +119,13 @@ class Params:
         )
 
         parser.add_argument(
+            '--pd',
+            type=float,
+            default=np.inf,
+            help='Distance from base for proximal polygons.'
+        )
+
+        parser.add_argument(
             '--gsc',
             type=float,
             default=5.0,
@@ -145,7 +153,6 @@ def _make_array_dict(
         'vertex_neighbors': polygons.vertex_neighbors,
         'vertex_polygons': polygons.vertex_polygons,
         'free_mask': polygons.free_mask,
-        'proximal_mask': polygons.proximal_mask,
         'boundary_mask': polygons.boundary_mask,
         'outer_shape': outer_shape,
         'mapped_vertices': mapped_vertices,
