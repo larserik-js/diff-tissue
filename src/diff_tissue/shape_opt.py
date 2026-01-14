@@ -434,8 +434,6 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
                 )
             )
 
-        logits = optimizer.update(logits, grads)
-
         if not all_params.quiet:
             print(f'{shape_step}: Shape loss = {loss}')
 
@@ -475,6 +473,8 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
                 print(f'(Stopped - iteration diverged.)')
                 print('')
             break
+        else:
+            logits = optimizer.update(logits, grads)
 
     tabular_output = _assemble_tabular_output(
         vertices, init_areas, min_area_scaling, logits, best, jax_arrays,
