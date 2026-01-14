@@ -366,12 +366,10 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
             print(f'{shape_step}: Shape loss = {loss}')
 
         ar_logits, el_logits = logits[:2]
+        if all_params.knots:
+            std_logits = logits[2]
 
         if loss < best_loss:
-            if all_params.knots:
-                std_logits = logits[2]
-                best_knot_weights = _calc_knot_weights(std_logits, dist_vecs)
-
             best_goal_area_scalings = _calc_area_scaling(
                 min_area_scaling, params['max_area_scaling'], ar_logits
             )
@@ -380,6 +378,9 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
                 ar_logits
             )
             best_goal_elongations = _calc_goal_elongations(el_logits)
+
+            if all_params.knots:
+                best_knot_weights = _calc_knot_weights(std_logits, dist_vecs)
 
             best_loss = loss
             steps_since_best_loss = 0
