@@ -411,10 +411,7 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
         goal_areas=jnp.array([]), goal_elongations=jnp.array([])
     )
 
-    final_tissues = jnp.empty(
-        (params['n_shape_steps'] + 1, vertices.shape[0], vertices.shape[1])
-    )
-    final_tissues = final_tissues.at[0].set(vertices)
+    final_tissues = [vertices]
 
     steps_since_best_loss = 0
 
@@ -466,7 +463,7 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
         else:
             steps_since_best_loss += 1
 
-        final_tissues = final_tissues.at[shape_step+1].set(vertices)
+        final_tissues.append(vertices)
 
         if steps_since_best_loss >= 20 and best.loss != jnp.inf:
             if not all_params.quiet:
@@ -475,6 +472,8 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
             break
         else:
             logits = optimizer.update(logits, grads)
+
+    final_tissues = jnp.array(final_tissues)
 
     tabular_output = _assemble_tabular_output(
         vertices, init_areas, min_area_scaling, logits, best, jax_arrays,
