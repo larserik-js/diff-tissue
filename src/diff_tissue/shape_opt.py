@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-from . import diffeomorphism, init_systems, morphing, my_utils
+from . import init_systems, morphing, my_utils
 
 
 def _calc_sigmoid(min_val, max_val, logits):
@@ -249,9 +249,8 @@ def _get_knot_init_logits(jax_arrays, params, mapped_vertices, mapped_areas,
 
 
 def _get_init_logits(jax_arrays, params):
-    mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
     all_mapped_cells = my_utils.get_all_cells(
-        mapped_vertices, jax_arrays['indices']
+        jax_arrays['mapped_vertices'], jax_arrays['indices']
     )
     mapped_areas = my_utils.calc_all_areas(
         all_mapped_cells, jax_arrays['valid_mask']
@@ -266,7 +265,7 @@ def _get_init_logits(jax_arrays, params):
 
     if params.knots:
         init_logits = _get_knot_init_logits(
-            jax_arrays, params, mapped_vertices, mapped_areas,
+            jax_arrays, params, jax_arrays['mapped_vertices'], mapped_areas,
             mapped_elongations, init_areas
         )
     else:
@@ -311,9 +310,9 @@ def _make_min_dist_mask(jax_arrays):
 
 
 def _get_mapped_centroids(jax_arrays):
-    mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
     mapped_centroids = my_utils.calc_centroids(
-        mapped_vertices, jax_arrays['indices'], jax_arrays['valid_mask']
+        jax_arrays['mapped_vertices'], jax_arrays['indices'],
+        jax_arrays['valid_mask']
     )
     return mapped_centroids
 

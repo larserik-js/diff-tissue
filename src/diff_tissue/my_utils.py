@@ -4,7 +4,7 @@ import timeit
 import jax
 import jax.numpy as jnp
 
-from . import init_systems, my_files, shapes
+from . import diffeomorphism, init_systems, shapes
 
 
 def timer(func):
@@ -133,7 +133,7 @@ class Params:
         return args
 
 
-def _make_array_dict(polygons, outer_shape, knots):
+def _make_array_dict(polygons, outer_shape, mapped_vertices, knots):
     arrays = {
         'indices': polygons.polygon_inds,
         'valid_mask': polygons.valid_mask,
@@ -145,6 +145,7 @@ def _make_array_dict(polygons, outer_shape, knots):
         'proximal_mask': polygons.proximal_mask,
         'boundary_mask': polygons.boundary_mask,
         'outer_shape': outer_shape,
+        'mapped_vertices': mapped_vertices,
         'left_knots': knots.left_knots,
         'center_knots': knots.center_knots,
         'right_knots': knots.right_knots,
@@ -156,7 +157,12 @@ def _make_array_dict(polygons, outer_shape, knots):
 def get_arrays(params):
     polygons = init_systems.get_system(params.system)
     outer_shape = shapes.get_outer_shape(params.shape, polygons)
-    arrays = _make_array_dict(polygons, outer_shape, init_systems.Knots())
+    mapped_vertices = diffeomorphism.get_mapped_vertices(
+        polygons.vertices, polygons.polygon_inds, polygons.boundary_mask,
+        outer_shape
+    )
+    knots = init_systems.Knots()
+    arrays = _make_array_dict(polygons, outer_shape, mapped_vertices, knots)
     return arrays
 
 

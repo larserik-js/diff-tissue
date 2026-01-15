@@ -1,14 +1,16 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from diff_tissue import diffeomorphism, my_files, my_utils
+from diff_tissue import my_files, my_utils
 
 
-def _plot_mapping(output_file, jax_arrays, mapped_vertices):
+def _plot_mapping(output_file, jax_arrays):
     fig, axs = plt.subplots(1, 3, figsize=(15,5))
 
     indices = jax_arrays['indices']
     init_vertices = jax_arrays['init_vertices']
+    mapped_vertices = jax_arrays['mapped_vertices']
+
     for ax, vertices, title in zip(axs, [init_vertices, mapped_vertices],
                                    ["Initial Mesh", "Mapped Mesh"]):
         for i in range(indices.shape[0]):
@@ -49,11 +51,9 @@ def _main():
     np.random.seed(params.numerical['seed'])
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
-
     output_file = my_files.OutputFile('diffeomorphism', '.pdf', params).path
 
-    _plot_mapping(output_file, jax_arrays, mapped_vertices)
+    _plot_mapping(output_file, jax_arrays)
 
 
 if __name__ == "__main__":
