@@ -121,7 +121,7 @@ class Params:
         parser.add_argument(
             '--pd',
             type=float,
-            default=np.inf,
+            default=0.0,
             help='Distance from base for proximal polygons.'
         )
 
