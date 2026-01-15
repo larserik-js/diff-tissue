@@ -143,7 +143,8 @@ class Params:
 
 
 def _make_array_dict(
-        polygons, outer_shape, mapped_vertices, mapped_centroids, knots
+        polygons, outer_shape, mapped_vertices, mapped_centroids, proximal_mask,
+        knots
     ):
     arrays = {
         'indices': polygons.polygon_inds,
@@ -157,6 +158,7 @@ def _make_array_dict(
         'outer_shape': outer_shape,
         'mapped_vertices': mapped_vertices,
         'mapped_centroids': mapped_centroids,
+        'proximal_mask': proximal_mask,
         'left_knots': knots.left_knots,
         'center_knots': knots.center_knots,
         'right_knots': knots.right_knots,
@@ -173,6 +175,14 @@ def _calc_centroids(vertices, indices, valid_mask):
     return centroids
 
 
+def _calc_proximal_mask(mapped_centroids, proximal_dist):
+    y_dists_from_base = (
+        mapped_centroids[:,1] - init_systems.Coords.base_origin[1]
+    )
+    proximal_mask = (y_dists_from_base <= proximal_dist)
+    return proximal_mask
+
+
 def get_arrays(params):
     polygons = init_systems.get_system(params.system)
     outer_shape = shapes.get_outer_shape(params.shape, polygons)
@@ -183,9 +193,13 @@ def get_arrays(params):
     mapped_centroids = _calc_centroids(
         mapped_vertices, polygons.polygon_inds, polygons.valid_mask
     )
+    proximal_mask = _calc_proximal_mask(
+        mapped_centroids, params.numerical['proximal_dist']
+    )
     knots = init_systems.Knots()
     arrays = _make_array_dict(
-        polygons, outer_shape, mapped_vertices, mapped_centroids, knots
+        polygons, outer_shape, mapped_vertices, mapped_centroids, proximal_mask,
+        knots
     )
     return arrays
 
