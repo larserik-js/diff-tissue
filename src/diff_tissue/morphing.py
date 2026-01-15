@@ -5,7 +5,8 @@ from jaxopt import LBFGS
 from . import my_utils
 
 
-def _calc_areas_loss(target_areas, areas):
+def _calc_areas_loss(target_areas, areas, proximal_mask):
+    areas = jnp.where(proximal_mask, 0.66 * areas, areas)
     areas_loss = jnp.sum((target_areas - areas)**2)
     return areas_loss
 
@@ -30,8 +31,11 @@ def _calc_all_angles_loss(all_cells, valid_mask, optimal_angles):
 
 
 def _calc_elongations_loss(target_elongations, elongations, proximal_mask):
+    elongations = jnp.where(
+        proximal_mask, 0.66 * elongations, elongations
+    )
     elongation_diffs = target_elongations - elongations
-    elongations_loss = jnp.sum(jnp.square(proximal_mask * elongation_diffs))
+    elongations_loss = jnp.sum(jnp.square(elongation_diffs))
     return elongations_loss
 
 
@@ -43,7 +47,7 @@ def _calc_growth_loss(vertices, target_areas, target_elongations,
     elongations = my_utils.calc_elongations(all_cells, jax_arrays['valid_mask'])
 
     areas_loss = params['areas_loss_weight'] * _calc_areas_loss(
-        target_areas, areas
+        target_areas, areas, jax_arrays['proximal_mask']
     )
     angles_loss = params['angles_loss_weight'] * _calc_all_angles_loss(
         all_cells, jax_arrays['valid_mask'], optimal_angles
