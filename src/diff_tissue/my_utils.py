@@ -3,6 +3,7 @@ import timeit
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from . import diffeomorphism, init_systems, shapes
 
@@ -133,7 +134,9 @@ class Params:
         return args
 
 
-def _make_array_dict(polygons, outer_shape, mapped_vertices, knots):
+def _make_array_dict(
+        polygons, outer_shape, mapped_vertices, mapped_centroids, knots
+    ):
     arrays = {
         'indices': polygons.polygon_inds,
         'valid_mask': polygons.valid_mask,
@@ -146,12 +149,21 @@ def _make_array_dict(polygons, outer_shape, mapped_vertices, knots):
         'boundary_mask': polygons.boundary_mask,
         'outer_shape': outer_shape,
         'mapped_vertices': mapped_vertices,
+        'mapped_centroids': mapped_centroids,
         'left_knots': knots.left_knots,
         'center_knots': knots.center_knots,
         'right_knots': knots.right_knots,
         'all_knots': knots.all_knots
     }
     return arrays
+
+
+def _calc_centroids(vertices, indices, valid_mask):
+    polygons = vertices[indices]
+    mask = valid_mask[..., None].repeat(2, axis=2)
+    polygons = np.where(mask, polygons, jnp.nan)
+    centroids = np.nanmean(polygons, axis=1)
+    return centroids
 
 
 def get_arrays(params):
@@ -161,8 +173,13 @@ def get_arrays(params):
         polygons.vertices, polygons.polygon_inds, polygons.boundary_mask,
         outer_shape
     )
+    mapped_centroids = _calc_centroids(
+        mapped_vertices, polygons.polygon_inds, polygons.valid_mask
+    )
     knots = init_systems.Knots()
-    arrays = _make_array_dict(polygons, outer_shape, mapped_vertices, knots)
+    arrays = _make_array_dict(
+        polygons, outer_shape, mapped_vertices, mapped_centroids, knots
+    )
     return arrays
 
 
@@ -235,11 +252,3 @@ def calc_elongations(all_cells, valid_mask):
     elongations = (y_vars - x_vars) / (y_vars + x_vars + eps)
 
     return elongations
-
-
-def calc_centroids(vertices, indices, valid_mask):
-    polygons = vertices[indices]
-    mask = valid_mask[..., None].repeat(2, axis=2)
-    polygons = jnp.where(mask, polygons, jnp.nan)
-    centroids = jnp.nanmean(polygons, axis=1)
-    return centroids

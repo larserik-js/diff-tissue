@@ -309,14 +309,6 @@ def _make_min_dist_mask(jax_arrays):
     return min_dist_mask
 
 
-def _get_mapped_centroids(jax_arrays):
-    mapped_centroids = my_utils.calc_centroids(
-        jax_arrays['mapped_vertices'], jax_arrays['indices'],
-        jax_arrays['valid_mask']
-    )
-    return mapped_centroids
-
-
 @dataclass
 class _BestState:
     loss: float
@@ -394,13 +386,11 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
 
     min_area_scaling = 1 / params['growth_scale']
 
-    mapped_centroids = _get_mapped_centroids(jax_arrays)
-
     min_dist_mask = _make_min_dist_mask(jax_arrays)
 
     if all_params.knots:
         knots = jax_arrays['all_knots']
-        dist_vecs = mapped_centroids[:, None] - knots[None, :]
+        dist_vecs = jax_arrays['mapped_centroids'][:, None] - knots[None, :]
         n_left_logits = jax_arrays['left_knots'].shape[0]
 
     optimizer = _MyOptimizer(logits)
