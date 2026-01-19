@@ -44,26 +44,28 @@ def _calc_inverse_smoothing_stds(smoothing_stds):
     return logits
 
 
-def _calc_goal_areas(
-        init_areas, min_area_scaling, max_area_scaling, proximal_mask, logits
-    ):
+def _calc_goal_areas(init_areas, min_area_scaling, max_area_scaling, logits):
     goal_areas = init_areas.mean() * _calc_area_scaling(
         min_area_scaling, max_area_scaling, logits
     )
-    # Multiplies the areas of proximal polygons.
-    # This is necessary to accompany the elongation.
-    goal_areas = jnp.where(proximal_mask, 2.0 * goal_areas, goal_areas)
     return goal_areas
 
 
-def _calc_goal_elongations(proximal_mask, el_logits):
+def _calc_goal_elongations(el_logits):
     goal_elongations = _calc_sigmoid(-1.0, 1.0, el_logits)
+    return goal_elongations
+
+
+def _transform_proximal(goal_areas, goal_elongations, proximal_mask):
+    # Multiplies the areas of proximal polygons.
+    # This is necessary to accompany the elongation.
+    goal_areas = jnp.where(proximal_mask, 2.0 * goal_areas, goal_areas)
     # Multiplies the elongations of proximal polygons.
     # The actual constant does not carry physical meaning at this point.
     goal_elongations = jnp.where(
         proximal_mask, 3.0 * goal_elongations, goal_elongations
     )
-    return goal_elongations
+    return goal_areas, goal_elongations
 
 
 def _calc_knot_weights(std_logits, dist_vecs):
@@ -105,11 +107,11 @@ def _loss_f(ar_logits, el_logits, init_areas, min_dist_mask, n_growth_steps,
             jax_arrays, params):
     min_area_scaling = 1 / params['growth_scale']
     goal_areas = _calc_goal_areas(
-        init_areas, min_area_scaling, params['max_area_scaling'],
-        jax_arrays['proximal_mask'], ar_logits
+        init_areas, min_area_scaling, params['max_area_scaling'], ar_logits
     )
-    goal_elongations = _calc_goal_elongations(
-        jax_arrays['proximal_mask'], el_logits
+    goal_elongations = _calc_goal_elongations(el_logits)
+    goal_areas, goal_elongations = _transform_proximal(
+        goal_areas, goal_elongations, jax_arrays['proximal_mask']
     )
 
     growth_evolution = morphing.iterate(
@@ -134,12 +136,9 @@ def _loss_f_knots(ar_logits, el_logits, std_logits, n_left_logits, dist_vecs,
                   params):
     min_area_scaling = 1 / params['growth_scale']
     lc_goal_areas = _calc_goal_areas(
-        init_areas, min_area_scaling, params['max_area_scaling'],
-        jax_arrays['proximal_mask'], ar_logits
+        init_areas, min_area_scaling, params['max_area_scaling'], ar_logits
     )
-    lc_goal_elongations = _calc_goal_elongations(
-        jax_arrays['proximal_mask'], el_logits
-    )
+    lc_goal_elongations = _calc_goal_elongations(el_logits)
 
     knot_weights = _calc_knot_weights(std_logits, dist_vecs)
 
@@ -148,6 +147,9 @@ def _loss_f_knots(ar_logits, el_logits, std_logits, n_left_logits, dist_vecs,
     )
     goal_elongations = _knots_to_full_shape(
         lc_goal_elongations, n_left_logits, knot_weights
+    )
+    goal_areas, goal_elongations = _transform_proximal(
+        goal_areas, goal_elongations, jax_arrays['proximal_mask']
     )
 
     growth_evolution = morphing.iterate(
@@ -354,11 +356,9 @@ def _assemble_tabular_output(
     )
     final_goal_areas = _calc_goal_areas(
         init_areas, min_area_scaling, all_params.numerical['max_area_scaling'],
-        jax_arrays['proximal_mask'], ar_logits
+        ar_logits
     )
-    final_goal_elongations = _calc_goal_elongations(
-        jax_arrays['proximal_mask'], el_logits
-    )
+    final_goal_elongations = _calc_goal_elongations(el_logits)
 
     if all_params.knots:
         best.goal_area_scalings = _knots_to_full_shape(
@@ -380,6 +380,14 @@ def _assemble_tabular_output(
         final_goal_elongations = _knots_to_full_shape(
             final_goal_elongations, n_left_logits, final_knot_weights
         )
+
+    proximal_mask = jax_arrays['proximal_mask']
+    best.goal_areas, best.goal_elongations = _transform_proximal(
+        best.goal_areas, best.goal_elongations, proximal_mask
+    )
+    final_goal_areas, final_goal_elongations = _transform_proximal(
+        final_goal_areas, final_goal_elongations, proximal_mask
+    )
 
     tabular_output = {
         'init_area': init_areas,
@@ -454,11 +462,9 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
             )
             best.goal_areas = _calc_goal_areas(
                 init_areas, min_area_scaling, params['max_area_scaling'],
-                jax_arrays['proximal_mask'], ar_logits
+                ar_logits
             )
-            best.goal_elongations = _calc_goal_elongations(
-                jax_arrays['proximal_mask'], el_logits
-            )
+            best.goal_elongations = _calc_goal_elongations(el_logits)
 
             if all_params.knots:
                 best.knot_weights = knot_weights
