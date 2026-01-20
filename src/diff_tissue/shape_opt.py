@@ -97,13 +97,6 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
     return shape_loss
 
 
-def _calc_area_regularization_loss(final_vertices, jax_arrays):
-    all_cells = my_utils.get_all_cells(final_vertices, jax_arrays['indices'])
-    final_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    area_reg_loss = jnp.var(final_areas)
-    return area_reg_loss
-
-
 def _loss_f(ar_logits, el_logits, knot_ctx, init_areas, min_dist_mask,
             n_growth_steps, jax_arrays, params):
     min_area_scaling = 1 / params['growth_scale']
@@ -120,14 +113,10 @@ def _loss_f(ar_logits, el_logits, knot_ctx, init_areas, min_dist_mask,
     )
     final_vertices = growth_evolution[-1]
 
-    shape_loss = _calc_shape_loss(
+    loss = _calc_shape_loss(
         final_vertices, jax_arrays['boundary_mask'], jax_arrays['outer_shape'],
         min_dist_mask
     )
-    area_reg_loss = 5.0 * _calc_area_regularization_loss(
-        final_vertices, jax_arrays
-    )
-    loss = shape_loss + area_reg_loss
 
     return loss, final_vertices
 
@@ -159,8 +148,8 @@ def _loss_f_knots(ar_logits, el_logits, std_logits, knot_ctx, init_areas,
     final_vertices = growth_evolution[-1]
 
     loss = _calc_shape_loss(
-        final_vertices, jax_arrays['boundary_mask'],
-        jax_arrays['outer_shape'], min_dist_mask
+        final_vertices, jax_arrays['boundary_mask'], jax_arrays['outer_shape'],
+        min_dist_mask
     )
 
     return loss, final_vertices
