@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from flax import struct
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -103,8 +104,8 @@ def _calc_area_regularization_loss(final_vertices, jax_arrays):
     return area_reg_loss
 
 
-def _loss_f(ar_logits, el_logits, init_areas, min_dist_mask, n_growth_steps,
-            jax_arrays, params):
+def _loss_f(ar_logits, el_logits, knot_ctx, init_areas, min_dist_mask,
+            n_growth_steps, jax_arrays, params):
     min_area_scaling = 1 / params['growth_scale']
     goal_areas = _calc_goal_areas(
         init_areas, min_area_scaling, params['max_area_scaling'], ar_logits
@@ -131,22 +132,22 @@ def _loss_f(ar_logits, el_logits, init_areas, min_dist_mask, n_growth_steps,
     return loss, final_vertices
 
 
-def _loss_f_knots(ar_logits, el_logits, std_logits, n_left_logits, dist_vecs,
-                  init_areas, min_dist_mask, n_growth_steps, jax_arrays,
-                  params):
+def _loss_f_knots(ar_logits, el_logits, std_logits, knot_ctx, init_areas,
+                  min_dist_mask, n_growth_steps, jax_arrays, params):
     min_area_scaling = 1 / params['growth_scale']
     lc_goal_areas = _calc_goal_areas(
         init_areas, min_area_scaling, params['max_area_scaling'], ar_logits
     )
     lc_goal_elongations = _calc_goal_elongations(el_logits)
 
-    knot_weights = _calc_knot_weights(std_logits, dist_vecs)
+    knot_weights = _calc_knot_weights(std_logits, knot_ctx.dist_vecs)
+    knot_ctx = knot_ctx.replace(knot_weights = knot_weights)
 
     goal_areas = _knots_to_full_shape(
-        lc_goal_areas, n_left_logits, knot_weights
+        lc_goal_areas, knot_ctx.n_left_logits, knot_ctx.knot_weights
     )
     goal_elongations = _knots_to_full_shape(
-        lc_goal_elongations, n_left_logits, knot_weights
+        lc_goal_elongations, knot_ctx.n_left_logits, knot_ctx.knot_weights
     )
     goal_areas, goal_elongations = _transform_proximal(
         goal_areas, goal_elongations, jax_arrays['proximal_mask']
@@ -173,7 +174,7 @@ _calc_loss_val_grads = jax.jit(
 
 _calc_loss_val_grads_knots = jax.jit(
     jax.value_and_grad(_loss_f_knots, has_aux=True, argnums=(0, 1, 2)),
-    static_argnames=['n_left_logits', 'n_growth_steps']
+    static_argnames=['n_growth_steps']
 )
 
 
@@ -327,21 +328,42 @@ def _make_min_dist_mask(jax_arrays):
     return min_dist_mask
 
 
+@struct.dataclass
+class _KnotCtx:
+    n_left_logits: int = struct.field(pytree_node=False)
+    dist_vecs: jnp.ndarray
+    knot_weights: jnp.ndarray
+
+
+def _get_knot_ctx(knots, jax_arrays):
+    if knots:
+        dist_vecs = (
+            jax_arrays['mapped_centroids'][:, None] -
+            jax_arrays['all_knots'][None, :]
+        )
+        knot_ctx = _KnotCtx(
+            n_left_logits = jax_arrays['left_knots'].shape[0],
+            dist_vecs = dist_vecs,
+            knot_weights = jnp.array([])
+        )
+    else:
+        knot_ctx = None
+
+    return knot_ctx
+
+
 @dataclass
 class _BestState:
     loss: float
     goal_areas: jnp.ndarray
     goal_elongations: jnp.ndarray
-    knot_weights: jnp.ndarray | None = None
 
 
 def _assemble_tabular_output(
         vertices, init_areas, min_area_scaling, logits, best, jax_arrays,
-        all_params, final_knot_weights
+        all_params, knot_ctx
     ):
     ar_logits, el_logits = logits[:2]
-    if all_params.knots:
-        n_left_logits = jax_arrays['left_knots'].shape[0]
 
     all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
     final_areas = my_utils.calc_all_areas(
@@ -357,18 +379,23 @@ def _assemble_tabular_output(
     final_goal_elongations = _calc_goal_elongations(el_logits)
 
     if all_params.knots:
+        knot_ctx = knot_ctx.replace(knot_weights = _calc_knot_weights(
+            logits[2], knot_ctx.dist_vecs
+        ))
+
         best.goal_areas = _knots_to_full_shape(
-            best.goal_areas, n_left_logits, best.knot_weights
+            best.goal_areas, knot_ctx.n_left_logits, knot_ctx.knot_weights
         )
         best.goal_elongations = _knots_to_full_shape(
-            best.goal_elongations, n_left_logits, best.knot_weights
+            best.goal_elongations, knot_ctx.n_left_logits, knot_ctx.knot_weights
         )
 
         final_goal_areas = _knots_to_full_shape(
-            final_goal_areas, n_left_logits, final_knot_weights
+            final_goal_areas, knot_ctx.n_left_logits, knot_ctx.knot_weights
         )
         final_goal_elongations = _knots_to_full_shape(
-            final_goal_elongations, n_left_logits, final_knot_weights
+            final_goal_elongations, knot_ctx.n_left_logits,
+            knot_ctx.knot_weights
         )
 
     proximal_mask = jax_arrays['proximal_mask']
@@ -402,10 +429,7 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
 
-    if all_params.knots:
-        knots = jax_arrays['all_knots']
-        dist_vecs = jax_arrays['mapped_centroids'][:, None] - knots[None, :]
-        n_left_logits = jax_arrays['left_knots'].shape[0]
+    knot_ctx = _get_knot_ctx(all_params.knots, jax_arrays)
 
     optimizer = _MyOptimizer(logits)
 
@@ -421,14 +445,14 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
         if all_params.knots:
             (loss, vertices), grads = (
                 _calc_loss_val_grads_knots(
-                    *logits, n_left_logits, dist_vecs, init_areas,
-                    min_dist_mask, params['n_growth_steps'], jax_arrays, params
+                    *logits, knot_ctx, init_areas, min_dist_mask,
+                    params['n_growth_steps'], jax_arrays, params
                 )
             )
         else:
             (loss, vertices), grads = (
                 _calc_loss_val_grads(
-                    *logits, init_areas, min_dist_mask,
+                    *logits, knot_ctx, init_areas, min_dist_mask,
                     params['n_growth_steps'], jax_arrays, params
                 )
             )
@@ -437,11 +461,6 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
             print(f'{shape_step}: Shape loss = {loss}')
 
         ar_logits, el_logits = logits[:2]
-        if all_params.knots:
-            std_logits = logits[2]
-            knot_weights = _calc_knot_weights(std_logits, dist_vecs)
-        else:
-            knot_weights = None
 
         if loss < best.loss:
             best.goal_areas = _calc_goal_areas(
@@ -449,9 +468,6 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
                 ar_logits
             )
             best.goal_elongations = _calc_goal_elongations(el_logits)
-
-            if all_params.knots:
-                best.knot_weights = knot_weights
 
             best.loss = loss
             steps_since_best_loss = 0
@@ -476,7 +492,7 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
 
     tabular_output = _assemble_tabular_output(
         vertices, init_areas, min_area_scaling, logits, best, jax_arrays,
-        all_params, knot_weights
+        all_params, knot_ctx
     )
 
     return best.loss, final_tissues, tabular_output
