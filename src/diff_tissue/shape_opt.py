@@ -330,7 +330,6 @@ def _make_min_dist_mask(jax_arrays):
 @dataclass
 class _BestState:
     loss: float
-    goal_area_scalings: jnp.ndarray
     goal_areas: jnp.ndarray
     goal_elongations: jnp.ndarray
     knot_weights: jnp.ndarray | None = None
@@ -351,9 +350,6 @@ def _assemble_tabular_output(
     final_elongations = my_utils.calc_elongations(
         all_cells, jax_arrays['valid_mask']
     )
-    final_goal_areas_scalings = _calc_area_scaling(
-        min_area_scaling, all_params.numerical['max_area_scaling'], ar_logits
-    )
     final_goal_areas = _calc_goal_areas(
         init_areas, min_area_scaling, all_params.numerical['max_area_scaling'],
         ar_logits
@@ -361,9 +357,6 @@ def _assemble_tabular_output(
     final_goal_elongations = _calc_goal_elongations(el_logits)
 
     if all_params.knots:
-        best.goal_area_scalings = _knots_to_full_shape(
-            best.goal_area_scalings, n_left_logits, best.knot_weights
-        )
         best.goal_areas = _knots_to_full_shape(
             best.goal_areas, n_left_logits, best.knot_weights
         )
@@ -371,9 +364,6 @@ def _assemble_tabular_output(
             best.goal_elongations, n_left_logits, best.knot_weights
         )
 
-        final_goal_areas_scalings = _knots_to_full_shape(
-            final_goal_areas_scalings, n_left_logits, final_knot_weights
-        )
         final_goal_areas = _knots_to_full_shape(
             final_goal_areas, n_left_logits, final_knot_weights
         )
@@ -393,10 +383,8 @@ def _assemble_tabular_output(
         'init_area': init_areas,
         'final_area': final_areas,
         'final_elongation': final_elongations,
-        'best_goal_area_scaling': best.goal_area_scalings,
         'best_goal_area': best.goal_areas,
         'best_goal_elongation': best.goal_elongations,
-        'final_goal_area_scaling': final_goal_areas_scalings,
         'final_goal_area': final_goal_areas,
         'final_goal_elongation': final_goal_elongations
     }
@@ -422,8 +410,7 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
     optimizer = _MyOptimizer(logits)
 
     best = _BestState(
-        loss=jnp.inf, goal_area_scalings=jnp.array([]),
-        goal_areas=jnp.array([]), goal_elongations=jnp.array([])
+        loss=jnp.inf, goal_areas=jnp.array([]), goal_elongations=jnp.array([])
     )
 
     final_tissues = [vertices]
@@ -457,9 +444,6 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
             knot_weights = None
 
         if loss < best.loss:
-            best.goal_area_scalings = _calc_area_scaling(
-                min_area_scaling, params['max_area_scaling'], ar_logits
-            )
             best.goal_areas = _calc_goal_areas(
                 init_areas, min_area_scaling, params['max_area_scaling'],
                 ar_logits
