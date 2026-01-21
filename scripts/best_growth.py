@@ -26,7 +26,9 @@ def main():
     best_goal_areas = my_utils.to_jax(df['best_goal_area'].values)
     best_goal_elongations = my_utils.to_jax(df['best_goal_elongation'].values)
 
-    growth_evolution = morphing.iterate(
+    jiterate = jax.jit(morphing.iterate, static_argnames=['n_steps'])
+
+    growth_evolution = jiterate(
         best_goal_areas, best_goal_elongations,
         params.numerical['n_growth_steps'], jax_arrays, params.numerical
     )
