@@ -324,11 +324,15 @@ class _KnotCtx:
     knot_weights: jnp.ndarray
 
 
+def _calc_dist_vecs(points, all_knots):
+    dist_vecs = points[:, None] - all_knots[None, :]
+    return dist_vecs
+
+
 def _get_knot_ctx(knots, jax_arrays):
     if knots:
-        dist_vecs = (
-            jax_arrays['mapped_centroids'][:, None] -
-            jax_arrays['all_knots'][None, :]
+        dist_vecs = _calc_dist_vecs(
+            jax_arrays['mapped_centroids'], jax_arrays['all_knots']
         )
         knot_ctx = _KnotCtx(
             n_left_logits = jax_arrays['left_knots'].shape[0],
