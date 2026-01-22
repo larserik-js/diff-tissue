@@ -4,26 +4,34 @@ import numpy as np
 from diff_tissue import my_files, my_utils
 
 
+def _add_artists(ax, jax_arrays, vertices):
+    for i in range(jax_arrays['indices'].shape[0]):
+        vertex_inds = jax_arrays['indices'][i][jax_arrays['valid_mask'][i]]
+        polygon = vertices[vertex_inds]
+        ax.scatter(
+            polygon[:, 0], polygon[:, 1], s=2.0, color='green', zorder=1
+        )
+        ax.plot(
+            polygon[:, 0], polygon[:, 1], lw=0.7, color='black', zorder=2
+        )
+
+
 def _plot_mapping(output_file, jax_arrays):
     fig, axs = plt.subplots(1, 3, figsize=(15,5))
 
-    indices = jax_arrays['indices']
+    # Initial mesh
+    ax = axs[0]
     init_vertices = jax_arrays['init_vertices']
-    mapped_vertices = jax_arrays['mapped_vertices']
+    _add_artists(ax, jax_arrays, init_vertices)
+    ax.set_aspect('equal')
+    ax.set_title('Initial mesh')
 
-    for ax, vertices, title in zip(axs, [init_vertices, mapped_vertices],
-                                   ["Initial Mesh", "Mapped Mesh"]):
-        for i in range(indices.shape[0]):
-            vertex_inds = indices[i][jax_arrays['valid_mask'][i]]
-            polygon = vertices[vertex_inds]
-            ax.scatter(
-                polygon[:, 0], polygon[:, 1], s=2.0, color='green', zorder=1
-            )
-            ax.plot(
-                polygon[:, 0], polygon[:, 1], lw=0.7, color='black', zorder=2
-            )
-        ax.set_aspect('equal')
-        ax.set_title(title)
+    # Mapped mesh
+    ax = axs[1]
+    mapped_vertices = jax_arrays['mapped_vertices']
+    _add_artists(ax, jax_arrays, mapped_vertices)
+    ax.set_aspect('equal')
+    ax.set_title('Mapped mesh')
 
     # Vector field from initial to mapped
     ax = axs[2]
