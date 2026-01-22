@@ -1,9 +1,10 @@
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pandas as pd
 from shapely.geometry import Polygon
 
-from diff_tissue import morphing, my_files, my_utils
+from diff_tissue import morphing, my_files, my_utils, plotting
 
 
 def _make_poly_idx_lists(jax_arrays):
@@ -34,54 +35,66 @@ def _assign_weighted_goals(old_polygons, goals, new_polygons):
     new_goals = []
 
     for new_poly in new_polygons:
-        intersections = []
-        goal_parts = []
+        inter_areas = []
         goals_ = []
 
         for old_poly, goal in zip(old_polygons, goals):
             inter = new_poly.intersection(old_poly)
             if not inter.is_empty:
-                inter_area = inter.area
-                intersections.append(inter_area)
-                goal_parts.append((inter_area, goal))
+                inter_areas.append(inter.area)
                 goals_.append(goal)
         
-        intersections = np.array(intersections)
         goals_ = np.array(goals_)
-        total_inter_area = intersections.sum()
+        inter_areas = np.array(inter_areas)
+        total_inter_area = inter_areas.sum()
+        weights = inter_areas / total_inter_area
 
         if np.isclose(total_inter_area, 0.0):
             new_goals.append(0.0)
         else:
-            weighted_goal = np.sum(
-                intersections * goals_ / total_inter_area
-            )
-            new_goals.append(weighted_goal)
+            new_goal = np.sum(weights * goals_)
+            new_goals.append(new_goal)
     
     new_goals = jnp.array(new_goals)
 
     return new_goals
 
 
+def _save_growth_evolution(growth_evolution, params):
+    output_file = my_files.OutputFile('learned_growth', '.pkl', params)
+    data_handler = my_files.DataHandler(output_file)
+    data_handler.save(growth_evolution)
+
+
+def _plot(growth_evolution, output_dir, jax_arrays, params):
+    figure = plotting.MorphFigure(output_dir, jax_arrays, params)
+
+    for t, vertices in enumerate(growth_evolution):
+        if t%10 == 0:
+            figure.save_plot(vertices, t)
+    figure.save_plot(vertices, t)
+
+
 def _main():
+    jax.config.update('jax_enable_x64', True)
+
     params = my_utils.Params()
 
     np.random.seed(params.numerical['seed'])
 
-    learned_growth_dir = my_files.OutputDir('learned_growth', params)
+    jax_arrays = my_utils.get_jax_arrays(params)
 
-    arrays = my_utils.get_arrays(params)
-    old_polygons = _build_polygons(arrays)
+    old_polygons = _build_polygons(jax_arrays)
 
     input_file = my_files.get_output_params_file(params)
     df = pd.read_csv(input_file, sep='\t', index_col=0)
     
     goal_areas = df['best_goal_area'].values
-    goal_elongations = df['goal_elongation'].values
+    goal_elongations = df['best_goal_elongation'].values
 
     # Regenerate new system
     np.random.seed(10000)
-    new_arrays = my_utils.get_arrays(params)
+    new_arrays = my_utils.get_jax_arrays(params)
     new_polygons = _build_polygons(new_arrays)
 
     resulting_areas = _assign_weighted_goals(
@@ -93,10 +106,15 @@ def _main():
 
     jax_arrays = my_utils._make_jax_arrays(new_arrays)
 
-    morphing.iterate_and_plot(
-        learned_growth_dir.path, resulting_areas,
-        resulting_elongations, jax_arrays, params.numerical
+    growth_evolution = morphing.iterate(
+        resulting_areas, resulting_elongations,
+        params.numerical['n_growth_steps'], jax_arrays, params.numerical
     )
+
+    _save_growth_evolution(growth_evolution, params)
+
+    output_dir = my_files.OutputDir('learned_growth', params).path
+    _plot(growth_evolution, output_dir, jax_arrays, params)
 
 
 if __name__ == '__main__':
