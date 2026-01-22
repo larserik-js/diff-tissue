@@ -16,8 +16,8 @@ def _plot(final_tissues, output_dir, jax_arrays, params):
 
     for t, vertices in enumerate(final_tissues):
         if t%10 == 0:
-            figure.save_plot(vertices, t)
-    figure.save_plot(vertices, t)
+            figure.save_plot(vertices, t, enumerate=True)
+    figure.save_plot(vertices, t, enumerate=True)
 
 
 def _main():

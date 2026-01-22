@@ -2,7 +2,7 @@ from matplotlib import gridspec
 from matplotlib import pyplot as plt
 import numpy as np
 
-from . import init_systems
+from . import init_systems, my_utils
 
 
 def _get_polygons(vertices, indices, valid_mask):
@@ -12,8 +12,8 @@ def _get_polygons(vertices, indices, valid_mask):
 
 
 class _Artists:
-    def __init__(self, ax, init_vertices, outer_shape, all_knots,
-                 jax_arrays, params):
+    def __init__(self, ax, init_vertices, outer_shape, all_knots, jax_arrays,
+                 params):
         self._ax = ax
         self._init_vertices = init_vertices
         self._outer_shape = outer_shape
@@ -74,6 +74,15 @@ class _Artists:
                 polygon[:,0], polygon[:,1], lw=0.7, color='black', zorder=2
             )
 
+    def _enumerate_centroids(self, vertices):
+        centroids = my_utils.calc_centroids(
+            vertices, self._jax_arrays['indices'],
+            self._jax_arrays['valid_mask']
+        )
+        markers = np.arange(centroids.shape[0])
+        for i, (x, y) in enumerate(centroids):
+            self._ax.text(x, y, str(markers[i]), color='r')
+
     def _add_boundary_vertices(self, vertices):
         boundary_vertices = vertices[self._jax_arrays['boundary_mask']]
         self._ax.scatter(
@@ -81,7 +90,7 @@ class _Artists:
             marker='s', zorder=3
         )
 
-    def _add_artists(self, vertices):
+    def _add_artists(self, vertices, enumerate):
         self._add_baselines()
         self._add_outer_shape()
         self._add_vertices(vertices)
@@ -89,9 +98,12 @@ class _Artists:
         if self._params.knots:
             self._add_knots()
 
-    def plot(self, vertices):
+        if enumerate:
+            self._enumerate_centroids(vertices)
+
+    def plot(self, vertices, enumerate=False):
         self._format()
-        self._add_artists(vertices)
+        self._add_artists(vertices, enumerate)
 
 
 class _Figure:
@@ -119,8 +131,8 @@ class MorphFigure(_Figure):
             jax_arrays['all_knots'], jax_arrays, params
         )
 
-    def save_plot(self, vertices, step):
-        self._morph_artists.plot(vertices)
+    def save_plot(self, vertices, step, enumerate):
+        self._morph_artists.plot(vertices, enumerate)
         self._save(step)
 
 

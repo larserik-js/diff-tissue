@@ -167,7 +167,7 @@ def _make_array_dict(
     return arrays
 
 
-def _calc_centroids(vertices, indices, valid_mask):
+def calc_centroids(vertices, indices, valid_mask):
     polygons = vertices[indices]
     mask = valid_mask[..., None].repeat(2, axis=2)
     polygons = np.where(mask, polygons, jnp.nan)
@@ -190,7 +190,7 @@ def get_arrays(params):
         polygons.vertices, polygons.polygon_inds, polygons.boundary_mask,
         outer_shape
     )
-    mapped_centroids = _calc_centroids(
+    mapped_centroids = calc_centroids(
         mapped_vertices, polygons.polygon_inds, polygons.valid_mask
     )
     proximal_mask = _calc_proximal_mask(
