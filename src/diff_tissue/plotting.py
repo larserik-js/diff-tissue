@@ -101,7 +101,7 @@ class _Artists:
         if enumerate:
             self._enumerate_centroids(vertices)
 
-    def plot(self, vertices, enumerate=False):
+    def plot(self, vertices, enumerate):
         self._format()
         self._add_artists(vertices, enumerate)
 
@@ -131,7 +131,7 @@ class MorphFigure(_Figure):
             jax_arrays['all_knots'], jax_arrays, params
         )
 
-    def save_plot(self, vertices, step, enumerate):
+    def save_plot(self, vertices, step, enumerate=False):
         self._morph_artists.plot(vertices, enumerate)
         self._save(step)
 
