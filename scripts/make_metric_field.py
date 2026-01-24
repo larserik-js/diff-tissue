@@ -18,6 +18,7 @@ class _Mesh:
 
 
 def _get_outer_shape():
+    np.random.seed(0)
     params = my_utils.Params()
     jax_arrays = my_utils.get_jax_arrays(params)
     outer_shape = jax_arrays['outer_shape']
@@ -61,6 +62,7 @@ def _build_meshes(n_meshes, output_file):
         for i in range(n_meshes):
             print(i)
             params.numerical['seed'] = i
+            np.random.seed(params.numerical['seed'])
             jax_arrays = my_utils.get_jax_arrays(params)
             shapely_polygons = my_utils.get_shapely_polygons(
                 jax_arrays['mapped_vertices'], jax_arrays['indices']
@@ -108,8 +110,8 @@ def _aggregate_meshes(meshes, pts_np):
     all_samples = []
 
     for mesh in meshes:
-        all_samples.append(_sample_mesh(mesh, pts_np))
-    
+        sampled_mesh = _sample_mesh(mesh, pts_np)
+        all_samples.append(sampled_mesh)
 
     stacked = np.vstack(all_samples)
 
@@ -139,6 +141,7 @@ def _main():
     jax.config.update('jax_enable_x64', True)
 
     outer_shape = _get_outer_shape()
+
     nx, ny = 100, 100
     grid_coords = _make_samples(nx, ny, outer_shape)
 
@@ -147,8 +150,7 @@ def _main():
     mask = domain_polygon.covers(pts_geom)
     filtered_pts = grid_coords[mask]
 
-
-    n_meshes = 1 # Will increase later
+    n_meshes = 100
     output_file = my_files.get_meshes_file()
     meshes = _build_meshes(n_meshes, output_file)
 
