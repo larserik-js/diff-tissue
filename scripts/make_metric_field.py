@@ -120,6 +120,12 @@ def _aggregate_meshes(meshes, pts_np):
     return mean
 
 
+def _save_fields(grid_coords, grid_field, output_file):
+    output = {'grid_coords': grid_coords, 'grid_field': grid_field}
+    with open(output_file, 'wb') as f:
+        pickle.dump(output, f)
+
+
 def _plot(grid_coords, field_grid):
     xmin, ymin = grid_coords.min(axis=0)
     xmax, ymax = grid_coords.max(axis=0)
@@ -151,16 +157,19 @@ def _main():
     filtered_pts = grid_coords[mask]
 
     n_meshes = 100
-    output_file = my_files.get_meshes_file()
-    meshes = _build_meshes(n_meshes, output_file)
+    meshes_file = my_files.get_meshes_file()
+    meshes = _build_meshes(n_meshes, meshes_file)
 
     field = _aggregate_meshes(meshes, filtered_pts)
 
     field_full = np.full(len(grid_coords), np.nan)
     field_full[mask] = field
-    field_grid = field_full.reshape((ny, nx))
+    grid_field = field_full.reshape((ny, nx))
 
-    _plot(grid_coords, field_grid)
+    fields_file = my_files.get_fields_file()
+    _save_fields(grid_coords, grid_field, fields_file)
+
+    _plot(grid_coords, grid_field)
 
 
 if __name__ == '__main__':

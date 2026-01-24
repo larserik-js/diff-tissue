@@ -142,3 +142,7 @@ def get_output_params_file(params):
 
 def get_meshes_file():
     return _ProjectStructure().output_dir / 'meshes.pkl'
+
+
+def get_fields_file():
+    return _ProjectStructure().output_dir / 'fields.pkl'
