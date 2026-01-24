@@ -2,33 +2,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pandas as pd
-from shapely.geometry import Polygon
 
 from diff_tissue import morphing, my_files, my_utils, plotting
-
-
-def _make_poly_idx_lists(jax_arrays):
-    polygon_indices = jax_arrays['indices']
-    poly_idx_lists = []
-
-    for polygon in polygon_indices:
-        poly_inds = polygon[polygon != -1]
-        poly_idx_list = poly_inds[:-2]
-        poly_idx_lists.append(poly_idx_list)
-    return poly_idx_lists
-
-
-def _build_polygons(jax_arrays):
-    poly_idx_lists = _make_poly_idx_lists(jax_arrays)
-    polygons = []
-    for idx_list in poly_idx_lists:
-        coords = jax_arrays['init_vertices'][idx_list]
-        # Ensure closure: Shapely closes automatically,
-        # but doing it explicitly avoids issues
-        if not (coords[0] == coords[-1]).all():
-            coords = np.vstack([coords, coords[0]])
-        polygons.append(Polygon(coords))
-    return polygons
 
 
 def _assign_weighted_goals(old_polygons, goals, new_polygons):
@@ -84,7 +59,9 @@ def _main():
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    old_polygons = _build_polygons(jax_arrays)
+    old_polygons = my_utils.get_shapely_polygons(
+        jax_arrays['init_vertices'], jax_arrays['indices']
+    )
 
     input_file = my_files.get_output_params_file(params)
     df = pd.read_csv(input_file, sep='\t', index_col=0)
@@ -95,7 +72,9 @@ def _main():
     # Regenerate new system
     np.random.seed(10000)
     new_arrays = my_utils.get_jax_arrays(params)
-    new_polygons = _build_polygons(new_arrays)
+    new_polygons = my_utils.get_shapely_polygons(
+        new_arrays['init_vertices'], new_arrays['indices']
+    )
 
     resulting_areas = _assign_weighted_goals(
         old_polygons, goal_areas, new_polygons
