@@ -1,0 +1,165 @@
+from dataclasses import dataclass
+import pickle
+
+import jax
+import matplotlib.pyplot as plt
+import numpy as np
+import shapely
+from shapely.strtree import STRtree
+
+from diff_tissue import my_files, my_utils
+
+
+@dataclass
+class _Mesh:
+    polygons: list
+    areas: np.ndarray
+    elongations: np.ndarray
+
+
+def _get_outer_shape():
+    params = my_utils.Params()
+    jax_arrays = my_utils.get_jax_arrays(params)
+    outer_shape = jax_arrays['outer_shape']
+    return outer_shape
+
+
+def _make_samples(nx, ny, outer_shape):
+    xmin, ymin = outer_shape.min(axis=0)
+    xmax, ymax = outer_shape.max(axis=0)
+
+    xs = np.linspace(xmin, xmax, nx)
+    ys = np.linspace(ymin, ymax, ny)
+    X, Y = np.meshgrid(xs, ys)
+    all_points = np.column_stack([X.ravel(), Y.ravel()])
+
+    return all_points
+
+
+def _get_mapped_metrics(jax_arrays):
+    all_mapped_cells = my_utils.get_all_cells(
+        jax_arrays['mapped_vertices'], jax_arrays['indices']
+    )
+    mapped_areas = my_utils.calc_all_areas(
+        all_mapped_cells, jax_arrays['valid_mask']
+    )
+    mapped_elongations = my_utils.calc_elongations(
+        all_mapped_cells, jax_arrays['valid_mask']
+    )
+    return mapped_areas, mapped_elongations
+
+
+def _build_meshes(n_meshes, output_file):
+    if output_file.exists():
+        with open(output_file, 'rb') as f:
+            meshes = pickle.load(f)
+        return meshes
+    else:
+        params = my_utils.Params()
+        meshes = []
+
+        for i in range(n_meshes):
+            print(i)
+            params.numerical['seed'] = i
+            jax_arrays = my_utils.get_jax_arrays(params)
+            shapely_polygons = my_utils.get_shapely_polygons(
+                jax_arrays['mapped_vertices'], jax_arrays['indices']
+            )
+            mapped_areas, mapped_elongations = _get_mapped_metrics(jax_arrays)
+
+            mesh = _Mesh(
+                shapely_polygons, np.array(mapped_areas),
+                np.array(mapped_elongations)
+            )
+            meshes.append(mesh)
+    
+        with open(output_file, 'wb') as f:
+            pickle.dump(meshes, f)
+    
+    return meshes
+
+
+def _sample_mesh(mesh: _Mesh, pts_np: np.ndarray):
+    """
+    Assign mesh scalar values to sample points.
+    Points must already be NumPy and lie inside the domain.
+    """
+
+    tree = STRtree(mesh.polygons)
+    geom_pts = shapely.points(pts_np)
+
+    sampled = np.full(len(pts_np), np.nan)
+
+    # IMPORTANT:
+    # predicate must be 'intersects'
+    # index order is (point_index, polygon_index)
+    matches = tree.query(geom_pts, predicate="intersects")
+
+    pt_indices, poly_indices = matches
+    sampled[pt_indices] = mesh.areas[poly_indices]
+
+    return sampled
+
+
+def _aggregate_meshes(meshes, pts_np):
+    """
+    Sample all meshes and average their scalar fields.
+    """
+    all_samples = []
+
+    for mesh in meshes:
+        all_samples.append(_sample_mesh(mesh, pts_np))
+    
+
+    stacked = np.vstack(all_samples)
+
+    mean = np.nanmean(stacked, axis=0)
+
+    return mean
+
+
+def _plot(grid_coords, field_grid):
+    xmin, ymin = grid_coords.min(axis=0)
+    xmax, ymax = grid_coords.max(axis=0)
+    plt.figure(figsize=(6, 4))
+    plt.imshow(
+        field_grid,
+        extent=(xmin, xmax, ymin, ymax),
+        origin="lower",
+        aspect="auto",
+    )
+    plt.colorbar(label="Scalar value")
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.title("Scalar field")
+    plt.show()
+
+
+def _main():
+    jax.config.update('jax_enable_x64', True)
+
+    outer_shape = _get_outer_shape()
+    nx, ny = 100, 100
+    grid_coords = _make_samples(nx, ny, outer_shape)
+
+    domain_polygon = shapely.Polygon(outer_shape)
+    pts_geom = shapely.points(grid_coords)
+    mask = domain_polygon.covers(pts_geom)
+    filtered_pts = grid_coords[mask]
+
+
+    n_meshes = 1 # Will increase later
+    output_file = my_files.get_meshes_file()
+    meshes = _build_meshes(n_meshes, output_file)
+
+    field = _aggregate_meshes(meshes, filtered_pts)
+
+    field_full = np.full(len(grid_coords), np.nan)
+    field_full[mask] = field
+    field_grid = field_full.reshape((ny, nx))
+
+    _plot(grid_coords, field_grid)
+
+
+if __name__ == '__main__':
+    _main()

@@ -138,3 +138,7 @@ def get_param_search_db_file():
 
 def get_output_params_file(params):
     return OutputFile('output_params', '.txt', params).path
+
+
+def get_meshes_file():
+    return _ProjectStructure().output_dir / 'meshes.pkl'
