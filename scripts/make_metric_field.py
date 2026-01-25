@@ -1,13 +1,15 @@
 from dataclasses import dataclass
+import pathlib
 import pickle
 
 import jax
+from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 import shapely
 from shapely.strtree import STRtree
 
-from diff_tissue import my_files, my_utils
+from diff_tissue import my_utils
 
 
 @dataclass
@@ -90,57 +92,105 @@ def _sample_mesh(mesh: _Mesh, pts_np: np.ndarray):
     tree = STRtree(mesh.polygons)
     geom_pts = shapely.points(pts_np)
 
-    sampled = np.full(len(pts_np), np.nan)
+    sampled_areas = np.full(len(pts_np), np.nan)
+    sampled_elongations = np.full(len(pts_np), np.nan)
 
     # IMPORTANT:
     # predicate must be 'intersects'
     # index order is (point_index, polygon_index)
-    matches = tree.query(geom_pts, predicate="intersects")
+    matches = tree.query(geom_pts, predicate='intersects')
 
     pt_indices, poly_indices = matches
-    sampled[pt_indices] = mesh.areas[poly_indices]
+    sampled_areas[pt_indices] = mesh.areas[poly_indices]
+    sampled_elongations[pt_indices] = mesh.elongations[poly_indices]
 
-    return sampled
+    return sampled_areas, sampled_elongations
 
 
 def _aggregate_meshes(meshes, pts_np):
     """
     Sample all meshes and average their scalar fields.
     """
-    all_samples = []
+    all_sampled_areas = []
+    all_sampled_elongations = []
 
     for mesh in meshes:
-        sampled_mesh = _sample_mesh(mesh, pts_np)
-        all_samples.append(sampled_mesh)
+        sampled_areas, sampled_elongations = _sample_mesh(mesh, pts_np)
+        all_sampled_areas.append(sampled_areas)
+        all_sampled_elongations.append(sampled_elongations)
 
-    stacked = np.vstack(all_samples)
+    stacked_areas = np.vstack(all_sampled_areas)
+    stacked_elongations = np.vstack(all_sampled_elongations)
 
-    mean = np.nanmean(stacked, axis=0)
+    mean_areas = np.nanmean(stacked_areas, axis=0)
+    mean_elongations = np.nanmean(stacked_elongations, axis=0)
 
-    return mean
+    return mean_areas, mean_elongations
 
 
-def _save_fields(grid_coords, grid_field, output_file):
-    output = {'grid_coords': grid_coords, 'grid_field': grid_field}
+def _save_fields(grid_coords, area_field_grid, elongation_field_grid,
+                 output_file):
+    output = {
+        'grid_coords': grid_coords,
+        'area_field_grid': area_field_grid,
+        'elongation_field_grid': elongation_field_grid
+    }
     with open(output_file, 'wb') as f:
         pickle.dump(output, f)
 
 
-def _plot(grid_coords, field_grid):
+def _add_colorbar(ax, cmap_vals, cmap_name):
+    normalize = colors.Normalize(
+        vmin = np.nanmin(cmap_vals),
+        vmax = np.nanmax(cmap_vals)
+    )
+    cmap = plt.get_cmap(cmap_name)
+    sm = plt.cm.ScalarMappable(norm=normalize, cmap=cmap)
+    sm.set_array(cmap_vals)
+    ax.figure.colorbar(sm, ax=ax, shrink=0.8)
+
+
+def _plot(grid_coords, area_field_grid, elongation_field_grid):
     xmin, ymin = grid_coords.min(axis=0)
     xmax, ymax = grid_coords.max(axis=0)
-    plt.figure(figsize=(6, 4))
-    plt.imshow(
-        field_grid,
-        extent=(xmin, xmax, ymin, ymax),
-        origin="lower",
-        aspect="auto",
-    )
-    plt.colorbar(label="Scalar value")
-    plt.xlabel("x")
-    plt.ylabel("y")
-    plt.title("Scalar field")
-    plt.show()
+
+    field_grids = [area_field_grid, elongation_field_grid]
+
+    titles = ['Goal areas', 'Goal elongations']
+    cmaps = ['copper', 'viridis']
+
+    fig, axs = plt.subplots(2, figsize=(5,6))
+    for i, ax in enumerate(axs):
+        field_grid = field_grids[i]
+        ax.imshow(
+            field_grid, cmap=cmaps[i], extent=(xmin, xmax, ymin, ymax),
+            origin='lower', aspect='auto',
+        )
+        _add_colorbar(ax, field_grid, cmaps[i])
+        ax.set_title(titles[i])
+        ax.set_aspect('equal')
+        ax.set_xlim(-11.0, 11.0)
+        ax.set_ylim(-0.5, 16.1)
+        if i == 0:
+            ax.set_xticklabels([])
+        if i == 1:
+            ax.set_xlabel('$x$')
+
+    fig.tight_layout()
+    return fig
+
+
+def _to_grid(field, grid_coords, mask, nx, ny):
+    field_full = np.full(len(grid_coords), np.nan)
+    field_full[mask] = field
+    field_grid = field_full.reshape((ny, nx))
+    return field_grid
+
+
+def _save_plot(fig):
+    output_file = pathlib.Path('outputs/fields.pdf')
+    output_file.parent.mkdir(exist_ok=True)
+    fig.savefig(output_file)
 
 
 def _main():
@@ -157,19 +207,28 @@ def _main():
     filtered_pts = grid_coords[mask]
 
     n_meshes = 100
-    meshes_file = my_files.get_meshes_file()
+
+    output_dir = pathlib.Path('outputs')
+    output_dir.mkdir(exist_ok=True)
+
+    meshes_file = output_dir / 'meshes.pkl'
     meshes = _build_meshes(n_meshes, meshes_file)
 
-    field = _aggregate_meshes(meshes, filtered_pts)
+    area_field, elongation_field = _aggregate_meshes(meshes, filtered_pts)
 
-    field_full = np.full(len(grid_coords), np.nan)
-    field_full[mask] = field
-    grid_field = field_full.reshape((ny, nx))
+    area_field_grid = _to_grid(area_field, grid_coords, mask, nx, ny)
+    elongation_field_grid = _to_grid(
+        elongation_field, grid_coords, mask, nx, ny
+    )
 
-    fields_file = my_files.get_fields_file()
-    _save_fields(grid_coords, grid_field, fields_file)
+    fields_file = output_dir / 'fields.pkl'
+    _save_fields(
+        grid_coords, area_field_grid, elongation_field_grid, fields_file
+    )
 
-    _plot(grid_coords, grid_field)
+    fig = _plot(grid_coords, area_field_grid, elongation_field_grid)
+
+    _save_plot(fig)
 
 
 if __name__ == '__main__':
