@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-from . import init_systems, morphing, my_utils
+from . import diffeomorphism, init_systems, morphing, my_utils
 
 
 def _calc_sigmoid(min_val, max_val, logits):
@@ -189,7 +189,10 @@ _calc_loss_val_grads_knots = jax.jit(
 )
 
 def _get_mapped_centroids(jax_arrays):
-    mapped_vertices = diffeomorphism.get_mapped_vertices(jax_arrays)
+    mapped_vertices = diffeomorphism.get_mapped_vertices(
+        jax_arrays['init_vertices'], jax_arrays['indices'],
+        jax_arrays['boundary_mask'], jax_arrays['outer_shape']
+    )
     mapped_centroids = my_utils.calc_centroids(
         mapped_vertices, jax_arrays['indices'], jax_arrays['valid_mask']
     )
@@ -434,6 +437,8 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
     min_area_scaling = 1 / params['growth_scale']
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
+
+    knot_ctx = _get_knot_ctx(all_params.knots, jax_arrays)
 
     optimizer = _MyOptimizer(logits)
 
