@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def _load_fields(input_file):
+def _load_mapped_fields(input_file):
     with open(input_file, 'rb') as f:
-        fields = pickle.load(f)
-    return fields
+        mapped_fields = pickle.load(f)
+    return mapped_fields
 
 
 def _add_colorbar(ax, cmap_vals, cmap_name):
@@ -23,23 +23,23 @@ def _add_colorbar(ax, cmap_vals, cmap_name):
     ax.figure.colorbar(sm, ax=ax, shrink=0.8)
 
 
-def _plot(*, grid_coords, area_field_grid, elongation_field_grid):
+def _plot(*, grid_coords, mapped_area_field, mapped_elongation_field):
     xmin, ymin = grid_coords.min(axis=0)
     xmax, ymax = grid_coords.max(axis=0)
 
-    field_grids = [area_field_grid, elongation_field_grid]
+    mapped_fields = [mapped_area_field, mapped_elongation_field]
 
-    titles = ['Goal areas', 'Goal elongations']
+    titles = ['Mapped areas', 'Mapped elongations']
     cmaps = ['copper', 'viridis']
 
     fig, axs = plt.subplots(2, figsize=(5,6))
     for i, ax in enumerate(axs):
-        field_grid = field_grids[i]
+        mapped_field = mapped_fields[i]
         ax.imshow(
-            field_grid, cmap=cmaps[i], extent=(xmin, xmax, ymin, ymax),
+            mapped_field, cmap=cmaps[i], extent=(xmin, xmax, ymin, ymax),
             origin='lower', aspect='auto',
         )
-        _add_colorbar(ax, field_grid, cmaps[i])
+        _add_colorbar(ax, mapped_field, cmaps[i])
         ax.set_title(titles[i])
         ax.set_aspect('equal')
         ax.set_xlim(-11.0, 11.0)
@@ -54,16 +54,16 @@ def _plot(*, grid_coords, area_field_grid, elongation_field_grid):
 
 
 def _save_plot(fig):
-    output_file = pathlib.Path('outputs/fields.pdf')
+    output_file = pathlib.Path('outputs/mapped_fields.pdf')
     output_file.parent.mkdir(exist_ok=True)
     fig.savefig(output_file)
 
 
 def _main():
-    fields_file = pathlib.Path('outputs/fields.pkl')
-    fields = _load_fields(fields_file)
+    mapped_fields_file = pathlib.Path('outputs/mapped_fields.pkl')
+    mapped_fields = _load_mapped_fields(mapped_fields_file)
 
-    fig = _plot(**fields)
+    fig = _plot(**mapped_fields)
 
     _save_plot(fig)
 

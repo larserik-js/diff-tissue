@@ -37,6 +37,13 @@ def _make_samples(nx, ny, outer_shape):
     return all_points
 
 
+def _get_inside_shape_mask(outer_shape, grid_coords):
+    domain_polygon = shapely.Polygon(outer_shape)
+    grid_coords_shapely = shapely.points(grid_coords)
+    inside_shape_mask = domain_polygon.covers(grid_coords_shapely)
+    return inside_shape_mask
+
+
 def _get_mapped_metrics(jax_arrays):
     all_mapped_cells = my_utils.get_all_cells(
         jax_arrays['mapped_vertices'], jax_arrays['indices']
@@ -59,8 +66,10 @@ def _build_meshes(n_meshes, output_file):
         params = my_utils.Params()
         meshes = []
 
+        print('Building meshes...')
         for i in range(n_meshes):
-            print(i)
+            if (i+1)%10 == 0:
+                print(f'{i+1} / {n_meshes}')
             params.numerical['seed'] = i
             np.random.seed(params.numerical['seed'])
             jax_arrays = my_utils.get_jax_arrays(params)
@@ -81,31 +90,34 @@ def _build_meshes(n_meshes, output_file):
     return meshes
 
 
-def _sample_mesh(mesh: _Mesh, pts_np: np.ndarray):
+def _sample_mesh(mesh: _Mesh, points_inside_shape: np.ndarray):
     """
     Assign mesh scalar values to sample points.
     Points must already be NumPy and lie inside the domain.
     """
-
-    tree = STRtree(mesh.polygons)
-    geom_pts = shapely.points(pts_np)
-
-    sampled_areas = np.full(len(pts_np), np.nan)
-    sampled_elongations = np.full(len(pts_np), np.nan)
-
-    # IMPORTANT:
     # predicate must be 'intersects'
     # index order is (point_index, polygon_index)
-    matches = tree.query(geom_pts, predicate='intersects')
+    tree = STRtree(mesh.polygons)
+    points_shapely = shapely.points(points_inside_shape)
+    matches = tree.query(points_shapely, predicate='intersects')
+    point_inds, poly_inds = matches
 
-    pt_indices, poly_indices = matches
-    sampled_areas[pt_indices] = mesh.areas[poly_indices]
-    sampled_elongations[pt_indices] = mesh.elongations[poly_indices]
+    sampled_areas = np.full(len(points_inside_shape), np.nan)
+    sampled_elongations = np.full(len(points_inside_shape), np.nan)
+
+    sampled_areas[point_inds] = mesh.areas[poly_inds]
+    sampled_elongations[point_inds] = mesh.elongations[poly_inds]
 
     return sampled_areas, sampled_elongations
 
 
-def _aggregate_meshes(meshes, pts_np):
+def _calc_mean_metrics(all_sampled_metrics: list):
+    stacked_metrics = np.vstack(all_sampled_metrics)
+    mean_metrics = np.nanmean(stacked_metrics, axis=0)
+    return mean_metrics
+
+
+def _get_mean_mapped_fields(meshes, points_inside_shape):
     """
     Sample all meshes and average their scalar fields.
     """
@@ -113,25 +125,24 @@ def _aggregate_meshes(meshes, pts_np):
     all_sampled_elongations = []
 
     for mesh in meshes:
-        sampled_areas, sampled_elongations = _sample_mesh(mesh, pts_np)
+        sampled_areas, sampled_elongations = _sample_mesh(
+            mesh, points_inside_shape
+        )
         all_sampled_areas.append(sampled_areas)
         all_sampled_elongations.append(sampled_elongations)
 
-    stacked_areas = np.vstack(all_sampled_areas)
-    stacked_elongations = np.vstack(all_sampled_elongations)
-
-    mean_areas = np.nanmean(stacked_areas, axis=0)
-    mean_elongations = np.nanmean(stacked_elongations, axis=0)
+    mean_areas = _calc_mean_metrics(all_sampled_areas)
+    mean_elongations = _calc_mean_metrics(all_sampled_elongations)
 
     return mean_areas, mean_elongations
 
 
-def _save_fields(grid_coords, area_field_grid, elongation_field_grid,
-                 output_file):
+def _save_mapped_fields(grid_coords, mapped_area_field, mapped_elongation_field,
+                        output_file):
     output = {
         'grid_coords': grid_coords,
-        'area_field_grid': area_field_grid,
-        'elongation_field_grid': elongation_field_grid
+        'mapped_area_field': mapped_area_field,
+        'mapped_elongation_field': mapped_elongation_field
     }
     with open(output_file, 'wb') as f:
         pickle.dump(output, f)
@@ -152,29 +163,29 @@ def _main():
     nx, ny = 100, 100
     grid_coords = _make_samples(nx, ny, outer_shape)
 
-    domain_polygon = shapely.Polygon(outer_shape)
-    pts_geom = shapely.points(grid_coords)
-    mask = domain_polygon.covers(pts_geom)
-    filtered_pts = grid_coords[mask]
-
-    n_meshes = 100
+    inside_shape_mask = _get_inside_shape_mask(outer_shape, grid_coords)
+    points_inside_shape = grid_coords[inside_shape_mask]
 
     output_dir = pathlib.Path('outputs')
     output_dir.mkdir(exist_ok=True)
 
     meshes_file = output_dir / 'meshes.pkl'
-    meshes = _build_meshes(n_meshes, meshes_file)
+    meshes = _build_meshes(n_meshes=100, output_file=meshes_file)
 
-    area_field, elongation_field = _aggregate_meshes(meshes, filtered_pts)
-
-    area_field_grid = _to_grid(area_field, grid_coords, mask, nx, ny)
-    elongation_field_grid = _to_grid(
-        elongation_field, grid_coords, mask, nx, ny
+    mapped_area_field, mapped_elongation_field = _get_mean_mapped_fields(
+        meshes, points_inside_shape
     )
 
-    fields_file = output_dir / 'fields.pkl'
-    _save_fields(
-        grid_coords, area_field_grid, elongation_field_grid, fields_file
+    area_field_grid = _to_grid(
+        mapped_area_field, grid_coords, inside_shape_mask, nx, ny
+    )
+    elongation_field_grid = _to_grid(
+        mapped_elongation_field, grid_coords, inside_shape_mask, nx, ny
+    )
+
+    mapped_fields_file = output_dir / 'mapped_fields.pkl'
+    _save_mapped_fields(
+        grid_coords, area_field_grid, elongation_field_grid, mapped_fields_file
     )
 
 
