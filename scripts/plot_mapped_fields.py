@@ -50,19 +50,20 @@ def _plot(*, coords, mapped_area_field, mapped_elongation_field):
     return fig
 
 
-def _save_plot(fig):
-    output_file = pathlib.Path('outputs/mapped_fields.pdf')
+def _save_plot(fig, shape):
+    output_file = pathlib.Path(f'outputs/mapped_fields_{shape}.pdf')
     output_file.parent.mkdir(exist_ok=True)
     fig.savefig(output_file)
 
 
 def _main():
-    mapped_fields_file = pathlib.Path('outputs/mapped_fields.pkl')
+    shape = 'petal'
+    mapped_fields_file = pathlib.Path(f'outputs/mapped_fields_{shape}.pkl')
     mapped_fields = _load_mapped_fields(mapped_fields_file)
 
     fig = _plot(**mapped_fields)
 
-    _save_plot(fig)
+    _save_plot(fig, shape)
 
 
 if __name__ == '__main__':

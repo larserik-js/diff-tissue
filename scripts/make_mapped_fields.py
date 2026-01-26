@@ -17,9 +17,10 @@ class _Mesh:
     elongations: np.ndarray
 
 
-def _get_outer_shape():
+def _get_outer_shape(shape):
     np.random.seed(0)
     params = my_utils.Params()
+    params.shape = shape
     jax_arrays = my_utils.get_jax_arrays(params)
     outer_shape = jax_arrays['outer_shape']
     return outer_shape
@@ -151,7 +152,9 @@ def _save_mapped_fields(coords, mapped_area_field, mapped_elongation_field,
 def _main():
     jax.config.update('jax_enable_x64', True)
 
-    outer_shape = _get_outer_shape()
+    shape = 'petal' # Only possibility as of now
+
+    outer_shape = _get_outer_shape(shape)
 
     nx, ny = 100, 100
     sample_coords = _make_samples(nx, ny, outer_shape)
@@ -162,14 +165,14 @@ def _main():
     output_dir = pathlib.Path('outputs')
     output_dir.mkdir(exist_ok=True)
 
-    meshes_file = output_dir / 'meshes.pkl'
+    meshes_file = output_dir / f'meshes_{shape}.pkl'
     meshes = _build_meshes(n_meshes=100, output_file=meshes_file)
 
     mapped_area_field, mapped_elongation_field = _get_mean_mapped_fields(
         meshes, points_inside_shape
     )
 
-    mapped_fields_file = output_dir / 'mapped_fields.pkl'
+    mapped_fields_file = output_dir / f'mapped_fields_{shape}.pkl'
     _save_mapped_fields(
         points_inside_shape, mapped_area_field, mapped_elongation_field,
         mapped_fields_file
