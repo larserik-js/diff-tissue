@@ -37,10 +37,10 @@ def _make_samples(nx, ny, outer_shape):
     return all_points
 
 
-def _get_inside_shape_mask(outer_shape, grid_coords):
+def _get_inside_shape_mask(outer_shape, sample_coords):
     domain_polygon = shapely.Polygon(outer_shape)
-    grid_coords_shapely = shapely.points(grid_coords)
-    inside_shape_mask = domain_polygon.covers(grid_coords_shapely)
+    sample_coords_shapely = shapely.points(sample_coords)
+    inside_shape_mask = domain_polygon.covers(sample_coords_shapely)
     return inside_shape_mask
 
 
@@ -137,22 +137,15 @@ def _get_mean_mapped_fields(meshes, points_inside_shape):
     return mean_areas, mean_elongations
 
 
-def _save_mapped_fields(grid_coords, mapped_area_field, mapped_elongation_field,
+def _save_mapped_fields(coords, mapped_area_field, mapped_elongation_field,
                         output_file):
     output = {
-        'grid_coords': grid_coords,
+        'coords': coords,
         'mapped_area_field': mapped_area_field,
         'mapped_elongation_field': mapped_elongation_field
     }
     with open(output_file, 'wb') as f:
         pickle.dump(output, f)
-
-
-def _to_grid(field, grid_coords, mask, nx, ny):
-    field_full = np.full(len(grid_coords), np.nan)
-    field_full[mask] = field
-    field_grid = field_full.reshape((ny, nx))
-    return field_grid
 
 
 def _main():
@@ -161,10 +154,10 @@ def _main():
     outer_shape = _get_outer_shape()
 
     nx, ny = 100, 100
-    grid_coords = _make_samples(nx, ny, outer_shape)
+    sample_coords = _make_samples(nx, ny, outer_shape)
 
-    inside_shape_mask = _get_inside_shape_mask(outer_shape, grid_coords)
-    points_inside_shape = grid_coords[inside_shape_mask]
+    inside_shape_mask = _get_inside_shape_mask(outer_shape, sample_coords)
+    points_inside_shape = sample_coords[inside_shape_mask]
 
     output_dir = pathlib.Path('outputs')
     output_dir.mkdir(exist_ok=True)
@@ -176,16 +169,10 @@ def _main():
         meshes, points_inside_shape
     )
 
-    area_field_grid = _to_grid(
-        mapped_area_field, grid_coords, inside_shape_mask, nx, ny
-    )
-    elongation_field_grid = _to_grid(
-        mapped_elongation_field, grid_coords, inside_shape_mask, nx, ny
-    )
-
     mapped_fields_file = output_dir / 'mapped_fields.pkl'
     _save_mapped_fields(
-        grid_coords, area_field_grid, elongation_field_grid, mapped_fields_file
+        points_inside_shape, mapped_area_field, mapped_elongation_field,
+        mapped_fields_file
     )
 
 
