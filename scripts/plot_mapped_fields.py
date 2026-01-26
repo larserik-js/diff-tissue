@@ -24,9 +24,6 @@ def _add_colorbar(ax, cmap_vals, cmap_name):
 
 
 def _plot(*, grid_coords, mapped_area_field, mapped_elongation_field):
-    xmin, ymin = grid_coords.min(axis=0)
-    xmax, ymax = grid_coords.max(axis=0)
-
     mapped_fields = [mapped_area_field, mapped_elongation_field]
 
     titles = ['Mapped areas', 'Mapped elongations']
@@ -35,9 +32,9 @@ def _plot(*, grid_coords, mapped_area_field, mapped_elongation_field):
     fig, axs = plt.subplots(2, figsize=(5,6))
     for i, ax in enumerate(axs):
         mapped_field = mapped_fields[i]
-        ax.imshow(
-            mapped_field, cmap=cmaps[i], extent=(xmin, xmax, ymin, ymax),
-            origin='lower', aspect='auto',
+        ax.scatter(
+            grid_coords[:,0], grid_coords[:,1], c=mapped_field, cmap=cmaps[i],
+            s=1.5
         )
         _add_colorbar(ax, mapped_field, cmaps[i])
         ax.set_title(titles[i])
