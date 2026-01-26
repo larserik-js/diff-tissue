@@ -142,8 +142,9 @@ def _loss_f(ar_logits, el_logits, knot_ctx, init_areas, min_dist_mask,
         final_vertices, jax_arrays['boundary_mask'], jax_arrays['outer_shape'],
         min_dist_mask
     )
+    aux_data = (final_vertices, knot_ctx)
 
-    return loss, final_vertices
+    return loss, aux_data
 
 
 def _loss_f_knots(
@@ -171,8 +172,9 @@ def _loss_f_knots(
         final_vertices, jax_arrays['boundary_mask'], jax_arrays['outer_shape'],
         min_dist_mask
     )
+    aux_data = (final_vertices, knot_ctx)
 
-    return loss, final_vertices
+    return loss, aux_data
 
 
 _calc_loss_val_grads = jax.jit(
@@ -430,19 +432,20 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
 
     for shape_step in range(params['n_shape_steps']):
         if all_params.knots:
-            (loss, vertices), grads = (
+            (loss, aux_data), grads = (
                 _calc_loss_val_grads_knots(
                     *logits, knot_ctx, init_areas, min_dist_mask,
                     params['n_growth_steps'], jax_arrays, params
                 )
             )
         else:
-            (loss, vertices), grads = (
+            (loss, aux_data), grads = (
                 _calc_loss_val_grads(
                     *logits, knot_ctx, init_areas, min_dist_mask,
                     params['n_growth_steps'], jax_arrays, params
                 )
             )
+        vertices, knot_ctx = aux_data
 
         if not all_params.quiet:
             print(f'{shape_step}: Shape loss = {loss}')
