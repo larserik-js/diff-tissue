@@ -168,12 +168,12 @@ class MorphGrowthFigure(_Figure):
         scaled_vertices = partial_scale * vertices
         return scaled_vertices
 
-    def _plot(self, vertices, step):
-        self._morph_artists.plot(vertices)
+    def _plot(self, vertices, step, enumerate):
+        self._morph_artists.plot(vertices, enumerate)
 
         scaled_vertices = self._scale_vertices(vertices, step)
-        self._growth_artists.plot(scaled_vertices)
+        self._growth_artists.plot(scaled_vertices, enumerate)
 
-    def save_plot(self, vertices, step):
-        self._plot(vertices, step)
+    def save_plot(self, vertices, step, enumerate=False):
+        self._plot(vertices, step, enumerate)
         self._save(step)
