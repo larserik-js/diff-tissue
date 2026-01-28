@@ -190,6 +190,16 @@ _calc_loss_val_grads_knots = jax.jit(
 
 
 def _find_closest_vertex_inds_by_knots(knots, mapped_vertices):
+    """
+    Find the closest mapped vertex for each knot.
+
+    Args:
+        knots (jnp.ndarray): First array of shape (M,2).
+        mapped_vertices (jnp.ndarray): Second array of shape (N,2).
+
+    Returns:
+        jnp.ndarray: Array of closest mapped vertex for each knot, shape (M,).
+    """
     dist_vecs = knots[:,None,:] - mapped_vertices
     dists = jnp.linalg.norm(dist_vecs, axis=2)
     closest_vertices = jnp.argmin(dists, axis=1)
@@ -197,6 +207,22 @@ def _find_closest_vertex_inds_by_knots(knots, mapped_vertices):
 
 
 def _find_closest_polygons_by_knots(knots, mapped_vertices, vertex_polygons):
+    """
+    Find the closest polygons for each knot.
+
+    First find the closest mapped vertex for each knot. For each of those
+    vertices, choose the polygons which belong to it.
+
+    Args:
+        knots (jnp.ndarray): First array of shape (M,2).
+        mapped_vertices (jnp.ndarray): Second array of shape (N,2).
+        vertex_polygons (jnp.ndarray): Third array of shape (N,3).
+
+    Returns:
+        jnp.ndarray: Array of closest polygons for each knot, shape (M,3).
+        The array is padded with -1 where the vertices belong to fewer than
+        3 polygons.
+    """
     closest_vertex_inds_by_knots = _find_closest_vertex_inds_by_knots(
         knots, mapped_vertices
     )
