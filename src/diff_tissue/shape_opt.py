@@ -212,25 +212,36 @@ def _find_closest_polygon_by_knots(knots, jax_arrays):
     return closest_inds
 
 
-def _calc_mean_closest_metric(metrics, closest_poly_ind_by_knots, jax_arrays):
-    mean_closest_metric = np.empty(closest_poly_ind_by_knots.shape[0])
-    for i, poly_ind in enumerate(closest_poly_ind_by_knots):
+def _calc_mean_closest_metric(metrics, closest_poly_idx_by_knots, jax_arrays):
+    """
+    Calculate the mean metric of a polygon and its immediate neighbors
+    for each knot.
+
+    Args:
+        metrics (jnp.ndarray): First array of shape (M,).
+        closest_poly_idx_by_knots (jnp.ndarray): Second array of shape (N,).
+        jax_arrays (dict): Jax arrays.
+
+    Returns:
+        jnp.ndarray: The mean metric for each knot. Array of shape (N,).
+    """
+    mean_closest_metrics = np.empty(closest_poly_idx_by_knots.shape[0])
+    for i, poly_ind in enumerate(closest_poly_idx_by_knots):
         poly_neighbors = jax_arrays['poly_neighbors'][poly_ind]
         valid_neighbors = poly_neighbors[poly_neighbors != -1]
-        metrics_ = list(metrics[valid_neighbors]) # Metric of neighbors
+        metrics_ = list(metrics[valid_neighbors]) # Metrics of neighbors
         metrics_.append(metrics[poly_ind]) # Metric of polygon
-        mean_closest_metric[i] = np.mean(metrics_)
+        mean_closest_metrics[i] = np.mean(metrics_)
+    return mean_closest_metrics
 
-    return mean_closest_metric
 
-
-def _get_knots_area_scalings(mapped_areas, closest_poly_ind_by_knots,
+def _get_knots_area_scalings(mapped_areas, closest_poly_idx_by_knots,
                              init_areas, jax_arrays):
     mean_mapped_areas = _calc_mean_closest_metric(
-        mapped_areas, closest_poly_ind_by_knots, jax_arrays
+        mapped_areas, closest_poly_idx_by_knots, jax_arrays
     )
     mean_init_areas = _calc_mean_closest_metric(
-        init_areas, closest_poly_ind_by_knots, jax_arrays
+        init_areas, closest_poly_idx_by_knots, jax_arrays
     )
     knots_area_scalings = mean_mapped_areas / mean_init_areas
     return knots_area_scalings
