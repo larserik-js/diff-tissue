@@ -1,7 +1,7 @@
 import jax
 import pandas as pd
 
-from diff_tissue import my_files, my_utils, shape_opt
+from diff_tissue import my_files, my_utils, parameters, shape_opt
 
 
 def _save_final_tissues(final_tissues, params):
@@ -20,7 +20,7 @@ def _save_output_params(param_dict, params):
 def _main():
     jax.config.update('jax_enable_x64', True)
 
-    params = my_utils.Params()
+    params = parameters.Params()
     _, final_tissues, tabular_output = shape_opt.run(params)
     
     _save_final_tissues(final_tissues, params)

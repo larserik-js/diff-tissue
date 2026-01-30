@@ -1,7 +1,7 @@
 import jax
 import numpy as np
 
-from diff_tissue import my_files, my_utils, plotting
+from diff_tissue import my_files, my_utils, parameters, plotting
 
 
 def _get_plotting_data(params):
@@ -23,7 +23,7 @@ def _plot(growth_evolution, output_dir, jax_arrays, params):
 def _main():
     jax.config.update('jax_enable_x64', True)
 
-    params = my_utils.Params()
+    params = parameters.Params()
 
     np.random.seed(params.numerical['seed'])
 

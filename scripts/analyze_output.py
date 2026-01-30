@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from diff_tissue import my_files, my_utils
+from diff_tissue import my_files, parameters
 
 
 def _find_max_val(arrays):
@@ -70,7 +70,7 @@ def _plot_all(axs, df):
 def _main():
     jax.config.update('jax_enable_x64', True)
 
-    params = my_utils.Params()
+    params = parameters.Params()
 
     np.random.seed(params.numerical['seed'])
 

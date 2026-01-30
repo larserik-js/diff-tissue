@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from diff_tissue import my_files, my_utils
+from diff_tissue import my_files, my_utils, parameters
 
 
 def _add_artists(ax, jax_arrays, vertices):
@@ -55,7 +55,7 @@ def _plot_mapping(output_file, jax_arrays):
 
 
 def _main():
-    params = my_utils.Params()
+    params = parameters.Params()
     np.random.seed(params.numerical['seed'])
     jax_arrays = my_utils.get_jax_arrays(params)
 

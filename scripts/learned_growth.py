@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 import pandas as pd
 
-from diff_tissue import morphing, my_files, my_utils, plotting
+from diff_tissue import morphing, my_files, my_utils, parameters, plotting
 
 
 def _assign_weighted_goals(old_polygons, goals, new_polygons):
@@ -53,7 +53,7 @@ def _plot(growth_evolution, output_dir, jax_arrays, params):
 def _main():
     jax.config.update('jax_enable_x64', True)
 
-    params = my_utils.Params()
+    params = parameters.Params()
 
     np.random.seed(params.numerical['seed'])
 

@@ -1,10 +1,10 @@
 import optuna
 
-from diff_tissue import my_files, my_utils, shape_opt
+from diff_tissue import my_files, parameters, shape_opt
 
 
 def objective_f(trial):
-    params = my_utils.Params()
+    params = parameters.Params()
 
     params.numerical['growth_steps'] = trial.suggest_int(
         'growth steps', 50, 2000

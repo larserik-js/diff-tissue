@@ -7,7 +7,7 @@ import numpy as np
 import shapely
 from shapely.strtree import STRtree
 
-from diff_tissue import my_utils
+from diff_tissue import my_utils, parameters
 
 
 @dataclass
@@ -19,7 +19,7 @@ class _Mesh:
 
 def _get_outer_shape(shape):
     np.random.seed(0)
-    params = my_utils.Params()
+    params = parameters.Params()
     params.shape = shape
     jax_arrays = my_utils.get_jax_arrays(params)
     outer_shape = jax_arrays['outer_shape']
@@ -64,7 +64,7 @@ def _build_meshes(n_meshes, output_file):
             meshes = pickle.load(f)
         return meshes
     else:
-        params = my_utils.Params()
+        params = parameters.Params()
         meshes = []
 
         print('Building meshes...')
