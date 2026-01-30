@@ -634,6 +634,28 @@ def get_system(system):
     return polygons
 
 
+class VertexNumbers:
+    def __init__(self, polygons):
+        self._polygons = polygons
+
+    @cached_property
+    def basal(self):
+        n_basal_vertices = (
+            np.isclose(self._polygons.free_mask[:,1], 0.0).sum()
+        )
+        return n_basal_vertices
+
+    @cached_property
+    def boundary(self):
+        n_boundary_vertices = self._polygons.boundary_mask.sum()
+        return n_boundary_vertices
+
+    @cached_property
+    def non_basal(self):
+        n_non_basal_vertices = self.boundary - self.basal + 2
+        return n_non_basal_vertices
+
+
 class Knots:
     def __init__(self):
         self._nx_left = 1

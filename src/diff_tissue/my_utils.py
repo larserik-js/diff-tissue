@@ -65,7 +65,12 @@ def _calc_proximal_mask(mapped_centroids, proximal_dist):
 
 def get_arrays(params):
     polygons = init_systems.get_system(params.system)
-    outer_shape = shapes.get_outer_shape(params.shape, polygons)
+    mesh_area = polygons.mesh_area
+    vertex_numbers = init_systems.VertexNumbers(polygons)
+
+    outer_shape = shapes.get_outer_shape(
+        params.shape, mesh_area, vertex_numbers
+    )
     mapped_vertices = diffeomorphism.get_mapped_vertices(
         polygons.vertices, polygons.polygon_inds, polygons.boundary_mask,
         outer_shape
