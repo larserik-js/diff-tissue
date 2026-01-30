@@ -22,9 +22,35 @@ def timer(func):
     return timed
 
 
+def calc_centroids(vertices, indices, valid_mask):
+    polygons = vertices[indices]
+    mask = valid_mask[..., None].repeat(2, axis=2)
+    polygons = np.where(mask, polygons, jnp.nan)
+    centroids = np.nanmean(polygons, axis=1)
+    return centroids
+
+
+class MappedMetrics:
+    def __init__(self, polygons, outer_shape):
+        self.vertices = diffeomorphism.get_mapped_vertices(
+            polygons.vertices, polygons.polygon_inds, polygons.boundary_mask,
+            outer_shape
+        )
+        self.centroids = calc_centroids(
+            self.vertices, polygons.polygon_inds, polygons.valid_mask
+        )
+
+
+def calc_proximal_mask(mapped_centroids, proximal_dist):
+    y_dists_from_base = (
+        mapped_centroids[:,1] - init_systems.Coords.base_origin[1]
+    )
+    proximal_mask = (y_dists_from_base <= proximal_dist)
+    return proximal_mask
+
+
 def _make_array_dict(
-        polygons, outer_shape, mapped_vertices, mapped_centroids, proximal_mask,
-        knots
+        polygons, outer_shape, mapped_metrics, proximal_mask, knots
     ):
     arrays = {
         'indices': polygons.polygon_inds,
@@ -36,8 +62,8 @@ def _make_array_dict(
         'free_mask': polygons.free_mask,
         'boundary_mask': polygons.boundary_mask,
         'outer_shape': outer_shape,
-        'mapped_vertices': mapped_vertices,
-        'mapped_centroids': mapped_centroids,
+        'mapped_vertices': mapped_metrics.vertices,
+        'mapped_centroids': mapped_metrics.centroids,
         'proximal_mask': proximal_mask,
         'left_knots': knots.left_knots,
         'center_knots': knots.center_knots,
@@ -45,22 +71,6 @@ def _make_array_dict(
         'all_knots': knots.all_knots
     }
     return arrays
-
-
-def calc_centroids(vertices, indices, valid_mask):
-    polygons = vertices[indices]
-    mask = valid_mask[..., None].repeat(2, axis=2)
-    polygons = np.where(mask, polygons, jnp.nan)
-    centroids = np.nanmean(polygons, axis=1)
-    return centroids
-
-
-def _calc_proximal_mask(mapped_centroids, proximal_dist):
-    y_dists_from_base = (
-        mapped_centroids[:,1] - init_systems.Coords.base_origin[1]
-    )
-    proximal_mask = (y_dists_from_base <= proximal_dist)
-    return proximal_mask
 
 
 def get_arrays(params):
@@ -71,20 +81,13 @@ def get_arrays(params):
     outer_shape = shapes.get_outer_shape(
         params.shape, mesh_area, vertex_numbers
     )
-    mapped_vertices = diffeomorphism.get_mapped_vertices(
-        polygons.vertices, polygons.polygon_inds, polygons.boundary_mask,
-        outer_shape
-    )
-    mapped_centroids = calc_centroids(
-        mapped_vertices, polygons.polygon_inds, polygons.valid_mask
-    )
-    proximal_mask = _calc_proximal_mask(
-        mapped_centroids, params.numerical['proximal_dist']
+    mapped_metrics = MappedMetrics(polygons, outer_shape)
+    proximal_mask = calc_proximal_mask(
+        mapped_metrics.centroids, params.numerical['proximal_dist']
     )
     knots = init_systems.Knots()
     arrays = _make_array_dict(
-        polygons, outer_shape, mapped_vertices, mapped_centroids, proximal_mask,
-        knots
+        polygons, outer_shape, mapped_metrics, proximal_mask, knots
     )
     return arrays
 

@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-from . import diffeomorphism, init_systems, morphing, my_utils
+from . import init_systems, morphing, my_utils
 
 
 def _calc_sigmoid(min_val, max_val, logits):
@@ -188,20 +188,8 @@ _calc_loss_val_grads_knots = jax.jit(
     static_argnames=['n_growth_steps']
 )
 
-def _get_mapped_centroids(jax_arrays):
-    mapped_vertices = diffeomorphism.get_mapped_vertices(
-        jax_arrays['init_vertices'], jax_arrays['indices'],
-        jax_arrays['boundary_mask'], jax_arrays['outer_shape']
-    )
-    mapped_centroids = my_utils.calc_centroids(
-        mapped_vertices, jax_arrays['indices'], jax_arrays['valid_mask']
-    )
-    return mapped_centroids
-
-
 def _calc_knots_to_mapped_centroids_dist_vecs(knots, jax_arrays):
-    mapped_centroids = _get_mapped_centroids(jax_arrays)
-    dist_vecs = mapped_centroids[:, None] - knots[None, :]
+    dist_vecs = jax_arrays['mapped_centroids'][:, None] - knots[None, :]
     return dist_vecs
 
 
