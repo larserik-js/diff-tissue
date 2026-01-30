@@ -1,25 +1,57 @@
 import argparse
 
+from flax import struct
+
+
+@struct.dataclass
+class ParamsCls:
+    system: str
+    shape: str
+    knots: bool
+    quiet: bool
+    n_shape_steps: int
+    n_growth_steps: int
+    areas_loss_weight: float
+    angles_loss_weight: float
+    elongation_loss_weight: float
+    max_area_scaling: float
+    proximal_dist: float
+    growth_scale: float
+    seed: int
+
 
 class Params:
     def __init__(self):
         self._args = self._parse_args()
-        self.system = self._args.system
-        self.shape = self._args.shape
-        self.knots = self._args.knots
-        self.quiet = self._args.quiet
-        self.numerical = {
-            'n_shape_steps': self._args.ssteps,
-            'n_growth_steps': self._args.gsteps,
-            'areas_loss_weight': self._args.arlw,
-            'angles_loss_weight': self._args.anlw,
-            'elongation_loss_weight': self._args.elw,
-            'max_area_scaling': self._args.marsc,
-            'proximal_dist': self._args.pd,
-            'growth_scale': self._args.gsc,
-            'seed': self._args.seed
-        }
         self.all = vars(self._args)
+        self._short_to_long = {
+            'system': 'system',
+            'shape': 'shape',
+            'knots': 'knots',
+            'quiet': 'quiet',
+            'ssteps': 'n_shape_steps',
+            'gsteps': 'n_growth_steps',
+            'arlw': 'areas_loss_weight',
+            'anlw': 'angles_loss_weight',
+            'elw': 'elongation_loss_weight',
+            'marsc': 'max_area_scaling',
+            'pd': 'proximal_dist',
+            'gsc': 'growth_scale',
+            'seed': 'seed'
+        }
+        self._dataclass_kwargs = {
+            self._short_to_long[short]: val for short, val in self.all.items()
+        }
+
+        self.system = self._dataclass_kwargs['system']
+        self.shape = self._dataclass_kwargs['shape']
+        self.knots = self._dataclass_kwargs['knots']
+        self.quiet = self._dataclass_kwargs['quiet']
+        self.numerical = {
+            kw: val for kw, val in self._dataclass_kwargs.items()
+            if type(val) is float or type(val) is int
+        }
+        self._dataclass = ParamsCls(**self._dataclass_kwargs)
 
     def _parse_args(self):
         parser = argparse.ArgumentParser()
