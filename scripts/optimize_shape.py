@@ -20,7 +20,7 @@ def _save_output_params(param_dict, params):
 def _main():
     jax.config.update('jax_enable_x64', True)
 
-    params = parameters.Params().params
+    params = parameters.get_params_from_cli()
 
     _, final_tissues, tabular_output = shape_opt.run(params)
     

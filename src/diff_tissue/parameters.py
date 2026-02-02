@@ -4,7 +4,7 @@ from flax import struct
 
 
 @struct.dataclass
-class ParamsCls:
+class Params:
     system: str = struct.field(pytree_node=False)
     shape: str = struct.field(pytree_node=False)
     knots: bool = struct.field(pytree_node=False)
@@ -24,7 +24,7 @@ class ParamsCls:
         return names
 
 
-class Params:
+class _Params:
     def __init__(self):
         self._args = self._parse_args()
         self._short_to_long = {
@@ -46,7 +46,7 @@ class Params:
         self._dataclass_kwargs = {
             self._short_to_long[short]: val for short, val in dict_items.items()
         }
-        self.params = ParamsCls(**self._dataclass_kwargs)
+        self.params_from_datacls = Params(**self._dataclass_kwargs)
 
     def _parse_args(self):
         parser = argparse.ArgumentParser()
@@ -146,3 +146,7 @@ class Params:
         )
         args = parser.parse_args()
         return args
+
+
+def get_params_from_cli():
+    return _Params().params_from_datacls

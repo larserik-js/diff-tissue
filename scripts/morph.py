@@ -15,7 +15,7 @@ def _save_growth_evolution(growth_evolution, params):
 def _main():
     jax.config.update('jax_enable_x64', True)
 
-    params = parameters.Params().params
+    params = parameters.get_params_from_cli()
 
     np.random.seed(params.seed)
 

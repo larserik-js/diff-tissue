@@ -19,7 +19,7 @@ class _Mesh:
 
 def _get_outer_shape(shape):
     np.random.seed(0)
-    params = parameters.Params().params
+    params = parameters.get_params_from_cli()
     params = params.replace(shape=shape)
     jax_arrays = my_utils.get_jax_arrays(params)
     outer_shape = jax_arrays['outer_shape']
@@ -64,7 +64,7 @@ def _build_meshes(n_meshes, output_file):
             meshes = pickle.load(f)
         return meshes
     else:
-        params = parameters.Params().params
+        params = parameters.get_params_from_cli()
         meshes = []
 
         print('Building meshes...')
