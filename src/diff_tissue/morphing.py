@@ -42,14 +42,14 @@ def _calc_growth_loss(vertices, target_areas, target_elongations,
     areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
     elongations = my_utils.calc_elongations(all_cells, jax_arrays['valid_mask'])
 
-    areas_loss = params['areas_loss_weight'] * _calc_areas_loss(
+    areas_loss = params.areas_loss_weight * _calc_areas_loss(
         target_areas, areas
     )
-    angles_loss = params['angles_loss_weight'] * _calc_all_angles_loss(
+    angles_loss = params.angles_loss_weight * _calc_all_angles_loss(
         all_cells, jax_arrays['valid_mask'], optimal_angles
     )
     elongations_loss = (
-        params['elongation_loss_weight'] * _calc_elongations_loss(
+        params.elongation_loss_weight * _calc_elongations_loss(
             target_elongations, elongations
         )
     )
@@ -78,7 +78,7 @@ def _lbfgs_solve(vertices, target_areas, target_elongations, optimal_angles,
 
 def _update_vertices(vertices, t, init_areas, goal_areas, init_elongations,
                      goal_elongations, optimal_angles, jax_arrays, params):
-    t_frac = t / params['n_growth_steps']
+    t_frac = t / params.n_growth_steps
     target_areas = _update_targets(init_areas, goal_areas, t_frac)
     target_elongations = _update_targets(
         init_elongations, goal_elongations, t_frac

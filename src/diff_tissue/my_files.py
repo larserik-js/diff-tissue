@@ -59,7 +59,7 @@ class _Output(ABC):
         param_name_vals = []
         for name in self._param_names:
             param_name_val = self._format_param_val_str(
-                name, self._params.all[name]
+                name, getattr(self._params, name)
             )
             param_name_vals.append(param_name_val)
 
@@ -78,7 +78,7 @@ class OutputDir(_Output):
         self._make()
 
     def _set_param_names(self):
-        self._param_names = self._params.all.keys()
+        self._param_names = self._params.get_names()
 
     @cached_property
     def path(self):
@@ -95,7 +95,7 @@ class OutputFile(_Output):
         self._suffix = suffix
 
     def _set_param_names(self):
-        self._param_names = self._params.all.keys()
+        self._param_names = self._params.get_names()
 
     @cached_property
     def path(self):

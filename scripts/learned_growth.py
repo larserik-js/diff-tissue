@@ -53,9 +53,9 @@ def _plot(growth_evolution, output_dir, jax_arrays, params):
 def _main():
     jax.config.update('jax_enable_x64', True)
 
-    params = parameters.Params()
+    params = parameters.Params().params
 
-    np.random.seed(params.numerical['seed'])
+    np.random.seed(params.seed)
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
@@ -86,8 +86,8 @@ def _main():
     jax_arrays = my_utils._make_jax_arrays(new_arrays)
 
     growth_evolution = morphing.iterate(
-        resulting_areas, resulting_elongations,
-        params.numerical['n_growth_steps'], jax_arrays, params.numerical
+        resulting_areas, resulting_elongations, params.n_growth_steps,
+        jax_arrays, params
     )
 
     _save_growth_evolution(growth_evolution, params)

@@ -19,8 +19,8 @@ class _Mesh:
 
 def _get_outer_shape(shape):
     np.random.seed(0)
-    params = parameters.Params()
-    params.shape = shape
+    params = parameters.Params().params
+    params = params.replace(shape=shape)
     jax_arrays = my_utils.get_jax_arrays(params)
     outer_shape = jax_arrays['outer_shape']
     return outer_shape
@@ -64,15 +64,15 @@ def _build_meshes(n_meshes, output_file):
             meshes = pickle.load(f)
         return meshes
     else:
-        params = parameters.Params()
+        params = parameters.Params().params
         meshes = []
 
         print('Building meshes...')
         for i in range(n_meshes):
             if (i+1)%10 == 0:
                 print(f'{i+1} / {n_meshes}')
-            params.numerical['seed'] = i
-            np.random.seed(params.numerical['seed'])
+            params = params.replace(seed=i)
+            np.random.seed(params.seed)
             jax_arrays = my_utils.get_jax_arrays(params)
             shapely_polygons = my_utils.get_shapely_polygons(
                 jax_arrays['mapped_vertices'], jax_arrays['indices']

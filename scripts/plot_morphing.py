@@ -23,9 +23,9 @@ def _plot(growth_evolution, output_dir, jax_arrays, params):
 def _main():
     jax.config.update('jax_enable_x64', True)
 
-    params = parameters.Params()
+    params = parameters.Params().params
 
-    np.random.seed(params.numerical['seed'])
+    np.random.seed(params.seed)
 
     jax_arrays = my_utils.get_jax_arrays(params)
 

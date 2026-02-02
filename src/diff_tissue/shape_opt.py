@@ -124,9 +124,9 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
 
 def _loss_f(ar_logits, el_logits, knot_ctx, init_areas, min_dist_mask,
             n_growth_steps, jax_arrays, params):
-    min_area_scaling = 1 / params['growth_scale']
+    min_area_scaling = 1 / params.growth_scale
     goal_areas = _calc_goal_areas(
-        init_areas, min_area_scaling, params['max_area_scaling'], ar_logits,
+        init_areas, min_area_scaling, params.max_area_scaling, ar_logits,
         jax_arrays['proximal_mask'], False, knot_ctx
     )
     goal_elongations = _calc_goal_elongations(
@@ -154,9 +154,9 @@ def _loss_f_knots(
     updated_knot_weights = _calc_knot_weights(std_logits, knot_ctx.dist_vecs)
     knot_ctx = knot_ctx.replace(knot_weights=updated_knot_weights)
 
-    min_area_scaling = 1 / params['growth_scale']
+    min_area_scaling = 1 / params.growth_scale
     goal_areas = _calc_goal_areas(
-        init_areas, min_area_scaling, params['max_area_scaling'], ar_logits,
+        init_areas, min_area_scaling, params.max_area_scaling, ar_logits,
         jax_arrays['proximal_mask'], True, knot_ctx
     )
     goal_elongations = _calc_goal_elongations(
@@ -249,8 +249,8 @@ def _calc_std_logits(jax_arrays):
 
 
 def _calc_logits(params, area_scalings, elongations):
-    min_area_scaling = 1 / params.numerical['growth_scale']
-    max_area_scaling = params.numerical['max_area_scaling']
+    min_area_scaling = 1 / params.growth_scale
+    max_area_scaling = params.max_area_scaling
     area_scalings = area_scalings.clip(
         min_area_scaling + 1e-8, max_area_scaling - 1e-8
     )
@@ -395,7 +395,7 @@ class _BestState:
 
 def _assemble_tabular_output(
         vertices, init_areas, min_area_scaling, logits, best, jax_arrays,
-        all_params, knot_ctx
+        params, knot_ctx
     ):
     ar_logits, el_logits = logits[:2]
 
@@ -407,11 +407,11 @@ def _assemble_tabular_output(
         all_cells, jax_arrays['valid_mask']
     )
     final_goal_areas = _calc_goal_areas(
-        init_areas, min_area_scaling, all_params.numerical['max_area_scaling'],
-        ar_logits, jax_arrays['proximal_mask'], all_params.knots, knot_ctx
+        init_areas, min_area_scaling, params.max_area_scaling, ar_logits,
+        jax_arrays['proximal_mask'], params.knots, knot_ctx
     )
     final_goal_elongations = _calc_goal_elongations(
-        el_logits, jax_arrays['proximal_mask'], all_params.knots, knot_ctx
+        el_logits, jax_arrays['proximal_mask'], params.knots, knot_ctx
     )
 
     tabular_output = {
@@ -426,18 +426,16 @@ def _assemble_tabular_output(
     return tabular_output
 
 
-def _iterate_towards_shape(logits, jax_arrays, all_params):
-    params = all_params.numerical
-
+def _iterate_towards_shape(logits, jax_arrays, params):
     vertices = jax_arrays['init_vertices']
     all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
 
-    min_area_scaling = 1 / params['growth_scale']
+    min_area_scaling = 1 / params.growth_scale
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
 
-    knot_ctx = _get_knot_ctx(all_params.knots, jax_arrays)
+    knot_ctx = _get_knot_ctx(params.knots, jax_arrays)
 
     optimizer = _MyOptimizer(logits)
 
@@ -449,43 +447,43 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
 
     steps_since_best_loss = 0
 
-    for shape_step in range(params['n_shape_steps']):
-        if all_params.knots:
+    for shape_step in range(params.n_shape_steps):
+        if params.knots:
             (loss, aux_data), grads = (
                 _calc_loss_val_grads_knots(
                     *logits, knot_ctx, init_areas, min_dist_mask,
-                    params['n_growth_steps'], jax_arrays, params
+                    params.n_growth_steps, jax_arrays, params
                 )
             )
         else:
             (loss, aux_data), grads = (
                 _calc_loss_val_grads(
                     *logits, knot_ctx, init_areas, min_dist_mask,
-                    params['n_growth_steps'], jax_arrays, params
+                    params.n_growth_steps, jax_arrays, params
                 )
             )
         vertices, knot_ctx = aux_data
 
-        if not all_params.quiet:
+        if not params.quiet:
             print(f'{shape_step}: Shape loss = {loss}')
 
         ar_logits, el_logits = logits[:2]
 
         if loss < best.loss:
             best.goal_areas = _calc_goal_areas(
-                init_areas, min_area_scaling, params['max_area_scaling'],
-                ar_logits, jax_arrays['proximal_mask'], all_params.knots,
+                init_areas, min_area_scaling, params.max_area_scaling,
+                ar_logits, jax_arrays['proximal_mask'], params.knots,
                 knot_ctx
             )
             best.goal_elongations = _calc_goal_elongations(
-                el_logits, jax_arrays['proximal_mask'], all_params.knots,
+                el_logits, jax_arrays['proximal_mask'], params.knots,
                 knot_ctx
             )
 
             best.loss = loss
             steps_since_best_loss = 0
 
-            if not all_params.quiet:
+            if not params.quiet:
                 print(f'(Stored params with new best loss.)')
                 print('')
         else:
@@ -494,7 +492,7 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
         final_tissues.append(vertices)
 
         if steps_since_best_loss >= 20 and best.loss != jnp.inf:
-            if not all_params.quiet:
+            if not params.quiet:
                 print(f'(Stopped - iteration diverged.)')
                 print('')
             break
@@ -505,14 +503,14 @@ def _iterate_towards_shape(logits, jax_arrays, all_params):
 
     tabular_output = _assemble_tabular_output(
         vertices, init_areas, min_area_scaling, logits, best, jax_arrays,
-        all_params, knot_ctx
+        params, knot_ctx
     )
 
     return best.loss, final_tissues, tabular_output
 
 
 def run(params):
-    np.random.seed(params.numerical['seed'])
+    np.random.seed(params.seed)
 
     jax_arrays = my_utils.get_jax_arrays(params)
 

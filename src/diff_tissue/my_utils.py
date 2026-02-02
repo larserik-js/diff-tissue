@@ -83,7 +83,7 @@ def get_arrays(params):
     )
     mapped_metrics = MappedMetrics(polygons, outer_shape)
     proximal_mask = calc_proximal_mask(
-        mapped_metrics.centroids, params.numerical['proximal_dist']
+        mapped_metrics.centroids, params.proximal_dist
     )
     knots = init_systems.Knots()
     arrays = _make_array_dict(

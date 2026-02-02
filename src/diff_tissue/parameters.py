@@ -5,10 +5,10 @@ from flax import struct
 
 @struct.dataclass
 class ParamsCls:
-    system: str
-    shape: str
-    knots: bool
-    quiet: bool
+    system: str = struct.field(pytree_node=False)
+    shape: str = struct.field(pytree_node=False)
+    knots: bool = struct.field(pytree_node=False)
+    quiet: bool = struct.field(pytree_node=False)
     n_shape_steps: int
     n_growth_steps: int
     areas_loss_weight: float
@@ -19,11 +19,14 @@ class ParamsCls:
     growth_scale: float
     seed: int
 
+    def get_names(self):
+        names = list(self.__dataclass_fields__.keys())
+        return names
+
 
 class Params:
     def __init__(self):
         self._args = self._parse_args()
-        self.all = vars(self._args)
         self._short_to_long = {
             'system': 'system',
             'shape': 'shape',
@@ -39,19 +42,11 @@ class Params:
             'gsc': 'growth_scale',
             'seed': 'seed'
         }
+        dict_items = vars(self._args)
         self._dataclass_kwargs = {
-            self._short_to_long[short]: val for short, val in self.all.items()
+            self._short_to_long[short]: val for short, val in dict_items.items()
         }
-
-        self.system = self._dataclass_kwargs['system']
-        self.shape = self._dataclass_kwargs['shape']
-        self.knots = self._dataclass_kwargs['knots']
-        self.quiet = self._dataclass_kwargs['quiet']
-        self.numerical = {
-            kw: val for kw, val in self._dataclass_kwargs.items()
-            if type(val) is float or type(val) is int
-        }
-        self._dataclass = ParamsCls(**self._dataclass_kwargs)
+        self.params = ParamsCls(**self._dataclass_kwargs)
 
     def _parse_args(self):
         parser = argparse.ArgumentParser()

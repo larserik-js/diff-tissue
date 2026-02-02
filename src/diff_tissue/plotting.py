@@ -139,8 +139,8 @@ class MorphFigure(_Figure):
 class MorphGrowthFigure(_Figure):
     def __init__(self, output_dir, jax_arrays, params):
         super().__init__(output_dir)
-        self._total_steps = params.numerical['n_growth_steps']
-        self._scale = params.numerical['growth_scale']
+        self._total_steps = params.n_growth_steps
+        self._scale = params.growth_scale
         self._fig = plt.figure(figsize=(8, 10))
         self._gs = gridspec.GridSpec(
             nrows=2, ncols=1, figure=self._fig, height_ratios=[0.8, 1.0]

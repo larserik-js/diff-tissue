@@ -70,9 +70,9 @@ def _plot_all(axs, df):
 def _main():
     jax.config.update('jax_enable_x64', True)
 
-    params = parameters.Params()
+    params = parameters.Params().params
 
-    np.random.seed(params.numerical['seed'])
+    np.random.seed(params.seed)
 
     input_file = my_files.get_output_params_file(params)
     df = pd.read_csv(input_file, sep='\t', index_col=0)

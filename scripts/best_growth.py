@@ -14,9 +14,9 @@ def _save_best_growth_evolution(growth_evolution, params):
 def main():
     jax.config.update('jax_enable_x64', True)
 
-    params = parameters.Params()
+    params = parameters.Params().params
 
-    np.random.seed(params.numerical['seed'])
+    np.random.seed(params.seed)
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
@@ -29,8 +29,8 @@ def main():
     jiterate = jax.jit(morphing.iterate, static_argnames=['n_steps'])
 
     growth_evolution = jiterate(
-        best_goal_areas, best_goal_elongations,
-        params.numerical['n_growth_steps'], jax_arrays, params.numerical
+        best_goal_areas, best_goal_elongations, params.n_growth_steps,
+        jax_arrays, params
     )
 
     _save_best_growth_evolution(growth_evolution, params)
