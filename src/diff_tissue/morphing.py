@@ -1,7 +1,4 @@
-import jax
-import jax.numpy as jnp
-from jaxopt import LBFGS
-
+from .jax_bootstrap import jax, jaxopt, jnp
 from . import my_utils
 
 
@@ -66,7 +63,7 @@ def _update_targets(init_targets, goals, t_frac):
 
 def _lbfgs_solve(vertices, target_areas, target_elongations, optimal_angles,
                  jax_arrays, params):
-    solver = LBFGS(fun=_calc_growth_loss, maxiter=50)
+    solver = jaxopt.LBFGS(fun=_calc_growth_loss, maxiter=50)
     result = solver.run(
         vertices, target_areas, target_elongations, optimal_angles, jax_arrays,
         params

@@ -1,10 +1,9 @@
 import timeit
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 from shapely.geometry import Polygon
 
+from .jax_bootstrap import jax, jnp
 from . import diffeomorphism, init_systems, shapes
 
 

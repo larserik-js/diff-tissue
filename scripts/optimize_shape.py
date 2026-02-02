@@ -1,4 +1,3 @@
-import jax
 import pandas as pd
 
 from diff_tissue import my_files, my_utils, parameters, shape_opt
@@ -18,8 +17,6 @@ def _save_output_params(param_dict, params):
 
 @my_utils.timer
 def _main():
-    jax.config.update('jax_enable_x64', True)
-
     params = parameters.get_params_from_cli()
 
     _, final_tissues, tabular_output = shape_opt.run(params)

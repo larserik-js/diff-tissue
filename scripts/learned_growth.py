@@ -1,8 +1,7 @@
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pandas as pd
 
+from diff_tissue.jax_bootstrap import jax, jnp
 from diff_tissue import morphing, my_files, my_utils, parameters, plotting
 
 
@@ -51,8 +50,6 @@ def _plot(growth_evolution, output_dir, jax_arrays, params):
 
 
 def _main():
-    jax.config.update('jax_enable_x64', True)
-
     params = parameters.get_params_from_cli()
 
     np.random.seed(params.seed)

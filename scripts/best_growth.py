@@ -1,7 +1,7 @@
-import jax
 import numpy as np
 import pandas as pd
 
+from diff_tissue.jax_bootstrap import jax
 from diff_tissue import morphing, my_files, my_utils, parameters
 
 
@@ -12,8 +12,6 @@ def _save_best_growth_evolution(growth_evolution, params):
 
 
 def main():
-    jax.config.update('jax_enable_x64', True)
-
     params = parameters.get_params_from_cli()
 
     np.random.seed(params.seed)

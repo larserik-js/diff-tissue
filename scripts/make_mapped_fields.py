@@ -2,7 +2,6 @@ from dataclasses import dataclass
 import pathlib
 import pickle
 
-import jax
 import numpy as np
 import shapely
 from shapely.strtree import STRtree
@@ -150,8 +149,6 @@ def _save_mapped_fields(coords, mapped_area_field, mapped_elongation_field,
 
 
 def _main():
-    jax.config.update('jax_enable_x64', True)
-
     shape = 'petal' # Only possibility as of now
 
     outer_shape = _get_outer_shape(shape)

@@ -1,7 +1,7 @@
 import argparse
 from dataclasses import fields
 
-from flax import struct
+from .jax_bootstrap import struct
 
 
 @struct.dataclass

@@ -1,11 +1,9 @@
 from dataclasses import dataclass
 
-from flax import struct
-import jax
-import jax.numpy as jnp
 import numpy as np
 import optax
 
+from .jax_bootstrap import jax, jnp, struct
 from . import init_systems, morphing, my_utils
 
 
