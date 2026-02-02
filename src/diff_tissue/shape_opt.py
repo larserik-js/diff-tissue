@@ -391,37 +391,17 @@ class _BestState:
     loss: float
     goal_areas: jnp.ndarray
     goal_elongations: jnp.ndarray
+    final_areas: jnp.ndarray
+    final_elongations: jnp.ndarray
 
 
-def _assemble_tabular_output(
-        vertices, init_areas, min_area_scaling, logits, best, jax_arrays,
-        params, knot_ctx
-    ):
-    ar_logits, el_logits = logits[:2]
-
-    all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
-    final_areas = my_utils.calc_all_areas(
-        all_cells, jax_arrays['valid_mask']
-    )
-    final_elongations = my_utils.calc_elongations(
-        all_cells, jax_arrays['valid_mask']
-    )
-    final_goal_areas = _calc_goal_areas(
-        init_areas, min_area_scaling, params.max_area_scaling, ar_logits,
-        jax_arrays['proximal_mask'], params.knots, knot_ctx
-    )
-    final_goal_elongations = _calc_goal_elongations(
-        el_logits, jax_arrays['proximal_mask'], params.knots, knot_ctx
-    )
-
+def _assemble_tabular_output(init_areas, best):
     tabular_output = {
         'init_area': init_areas,
-        'final_area': final_areas,
-        'final_elongation': final_elongations,
         'best_goal_area': best.goal_areas,
         'best_goal_elongation': best.goal_elongations,
-        'final_goal_area': final_goal_areas,
-        'final_goal_elongation': final_goal_elongations
+        'final_area': best.final_areas,
+        'final_elongation': best.final_elongations,
     }
     return tabular_output
 
@@ -440,7 +420,11 @@ def _iterate_towards_shape(logits, jax_arrays, params):
     optimizer = _MyOptimizer(logits)
 
     best = _BestState(
-        loss=jnp.inf, goal_areas=jnp.array([]), goal_elongations=jnp.array([])
+        loss = jnp.inf,
+        goal_areas = jnp.array([]),
+        goal_elongations = jnp.array([]),
+        final_areas = jnp.array([]),
+        final_elongations = jnp.array([])
     )
 
     final_tissues = [vertices]
@@ -470,6 +454,9 @@ def _iterate_towards_shape(logits, jax_arrays, params):
         ar_logits, el_logits = logits[:2]
 
         if loss < best.loss:
+            best.loss = loss
+            steps_since_best_loss = 0
+
             best.goal_areas = _calc_goal_areas(
                 init_areas, min_area_scaling, params.max_area_scaling,
                 ar_logits, jax_arrays['proximal_mask'], params.knots,
@@ -480,8 +467,13 @@ def _iterate_towards_shape(logits, jax_arrays, params):
                 knot_ctx
             )
 
-            best.loss = loss
-            steps_since_best_loss = 0
+            all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
+            best.final_areas = my_utils.calc_all_areas(
+                all_cells, jax_arrays['valid_mask']
+            )
+            best.final_elongations = my_utils.calc_elongations(
+                all_cells, jax_arrays['valid_mask']
+            )
 
             if not params.quiet:
                 print(f'(Stored params with new best loss.)')
@@ -501,10 +493,7 @@ def _iterate_towards_shape(logits, jax_arrays, params):
 
     final_tissues = jnp.array(final_tissues)
 
-    tabular_output = _assemble_tabular_output(
-        vertices, init_areas, min_area_scaling, logits, best, jax_arrays,
-        params, knot_ctx
-    )
+    tabular_output = _assemble_tabular_output(init_areas, best)
 
     return best.loss, final_tissues, tabular_output
 
