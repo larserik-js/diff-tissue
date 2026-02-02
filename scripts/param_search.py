@@ -4,7 +4,7 @@ from diff_tissue import my_files, parameters, shape_opt
 
 
 def objective_f(trial):
-    params = parameters.get_params_from_cli()
+    params = parameters.Params()
 
     params = params.replace(
         n_growth_steps = trial.suggest_int('growth steps', 50, 2000)
