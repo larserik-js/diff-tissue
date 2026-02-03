@@ -387,6 +387,7 @@ def _get_knot_ctx(knots, jax_arrays):
 @dataclass
 class _BestState:
     loss: float
+    final_vertices: jnp.ndarray
     goal_areas: jnp.ndarray
     goal_elongations: jnp.ndarray
     final_areas: jnp.ndarray
@@ -419,6 +420,7 @@ def _iterate_towards_shape(logits, jax_arrays, params):
 
     best = _BestState(
         loss = jnp.inf,
+        final_vertices = jnp.array([]),
         goal_areas = jnp.array([]),
         goal_elongations = jnp.array([]),
         final_areas = jnp.array([]),
@@ -455,6 +457,7 @@ def _iterate_towards_shape(logits, jax_arrays, params):
             best.loss = loss
             steps_since_best_loss = 0
 
+            best.final_vertices = vertices
             best.goal_areas = _calc_goal_areas(
                 init_areas, min_area_scaling, params.max_area_scaling,
                 ar_logits, jax_arrays['proximal_mask'], params.knots,
@@ -493,7 +496,7 @@ def _iterate_towards_shape(logits, jax_arrays, params):
 
     tabular_output = _assemble_tabular_output(init_areas, best)
 
-    return best.loss, final_tissues, tabular_output
+    return best.loss, final_tissues, best, tabular_output
 
 
 def run(params):
@@ -503,8 +506,8 @@ def run(params):
 
     init_logits = _get_init_logits(jax_arrays, params)
 
-    best_loss, final_tissues, tabular_output = _iterate_towards_shape(
+    best_loss, final_tissues, best, tabular_output = _iterate_towards_shape(
         init_logits, jax_arrays, params
     )
 
-    return best_loss, final_tissues, tabular_output
+    return best_loss, final_tissues, best, tabular_output

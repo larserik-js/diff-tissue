@@ -30,7 +30,7 @@ def objective_f(trial):
     params = params.replace(seed = 3)
     params = params.replace(quiet = True)
 
-    loss, _, _ = shape_opt.run(params)
+    loss, _, _, _ = shape_opt.run(params)
 
     return loss
 

@@ -19,7 +19,7 @@ def _save_output_params(param_dict, params):
 def _main():
     params = parameters.get_params_from_cli()
 
-    _, final_tissues, tabular_output = shape_opt.run(params)
+    _, final_tissues, _, tabular_output = shape_opt.run(params)
     
     _save_final_tissues(final_tissues, params)
     _save_output_params(tabular_output, params)
