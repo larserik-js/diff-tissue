@@ -56,7 +56,7 @@ def _plot_mapping(output_file, jax_arrays):
 
 def _main():
     params = parameters.get_params_from_cli()
-    np.random.seed(params.seed)
+
     jax_arrays = my_utils.get_jax_arrays(params)
 
     output_file = my_files.OutputFile('diffeomorphism', '.pdf', params).path

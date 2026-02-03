@@ -6,7 +6,7 @@ import numpy as np
 import shapely
 from shapely.strtree import STRtree
 
-from diff_tissue import my_utils, parameters
+from diff_tissue import init_systems, my_utils, parameters, shapes
 
 
 @dataclass
@@ -16,12 +16,12 @@ class _Mesh:
     elongations: np.ndarray
 
 
-def _get_outer_shape(shape):
-    np.random.seed(0)
-    params = parameters.get_params_from_cli()
-    params = params.replace(shape=shape)
-    jax_arrays = my_utils.get_jax_arrays(params)
-    outer_shape = jax_arrays['outer_shape']
+def _get_general_outer_shape(shape):
+    polygons = init_systems.get_system(system='voronoi', seed=0)
+    vertex_numbers = init_systems.VertexNumbers(polygons)
+    outer_shape = shapes.get_outer_shape(
+        shape, polygons.mesh_area, vertex_numbers
+    )
     return outer_shape
 
 
@@ -44,39 +44,54 @@ def _get_inside_shape_mask(outer_shape, sample_coords):
     return inside_shape_mask
 
 
-def _get_mapped_metrics(jax_arrays):
+def _get_points_inside_shape(shape, nx, ny):
+    outer_shape = _get_general_outer_shape(shape)
+    sample_coords = _make_samples(nx, ny, outer_shape)
+
+    inside_shape_mask = _get_inside_shape_mask(outer_shape, sample_coords)
+    points_inside_shape = sample_coords[inside_shape_mask]
+    return points_inside_shape
+
+
+def _get_mapped_metrics(polygons, mapped_vertices):
     all_mapped_cells = my_utils.get_all_cells(
-        jax_arrays['mapped_vertices'], jax_arrays['indices']
+        mapped_vertices, polygons.polygon_inds
     )
     mapped_areas = my_utils.calc_all_areas(
-        all_mapped_cells, jax_arrays['valid_mask']
+        all_mapped_cells, polygons.valid_mask
     )
     mapped_elongations = my_utils.calc_elongations(
-        all_mapped_cells, jax_arrays['valid_mask']
+        all_mapped_cells, polygons.valid_mask
     )
     return mapped_areas, mapped_elongations
 
 
-def _build_meshes(n_meshes, output_file):
+def _build_meshes(n_meshes, shape, output_file):
     if output_file.exists():
         with open(output_file, 'rb') as f:
             meshes = pickle.load(f)
         return meshes
     else:
-        params = parameters.get_params_from_cli()
+        params = parameters.Params()
+        params = params.replace(shape=shape)
         meshes = []
 
         print('Building meshes...')
         for i in range(n_meshes):
             if (i+1)%10 == 0:
                 print(f'{i+1} / {n_meshes}')
+
             params = params.replace(seed=i)
-            np.random.seed(params.seed)
-            jax_arrays = my_utils.get_jax_arrays(params)
-            shapely_polygons = my_utils.get_shapely_polygons(
-                jax_arrays['mapped_vertices'], jax_arrays['indices']
+            polygons = init_systems.get_system(params.system, params.seed)
+            mapped_vertices = (
+                my_utils.MappedMetrics(polygons, params.shape).vertices
             )
-            mapped_areas, mapped_elongations = _get_mapped_metrics(jax_arrays)
+            shapely_polygons = my_utils.get_shapely_polygons(
+                mapped_vertices, polygons.polygon_inds
+            )
+            mapped_areas, mapped_elongations = _get_mapped_metrics(
+                polygons, mapped_vertices
+            )
 
             mesh = _Mesh(
                 shapely_polygons, np.array(mapped_areas),
@@ -151,19 +166,14 @@ def _save_mapped_fields(coords, mapped_area_field, mapped_elongation_field,
 def _main():
     shape = 'petal' # Only possibility as of now
 
-    outer_shape = _get_outer_shape(shape)
-
     nx, ny = 100, 100
-    sample_coords = _make_samples(nx, ny, outer_shape)
-
-    inside_shape_mask = _get_inside_shape_mask(outer_shape, sample_coords)
-    points_inside_shape = sample_coords[inside_shape_mask]
+    points_inside_shape = _get_points_inside_shape(shape, nx, ny)
 
     output_dir = pathlib.Path('outputs')
     output_dir.mkdir(exist_ok=True)
 
     meshes_file = output_dir / f'meshes_{shape}.pkl'
-    meshes = _build_meshes(n_meshes=100, output_file=meshes_file)
+    meshes = _build_meshes(n_meshes=100, shape=shape, output_file=meshes_file)
 
     mapped_area_field, mapped_elongation_field = _get_mean_mapped_fields(
         meshes, points_inside_shape

@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 
 from diff_tissue.jax_bootstrap import jax
@@ -13,8 +12,6 @@ def _save_best_growth_evolution(growth_evolution, params):
 
 def main():
     params = parameters.get_params_from_cli()
-
-    np.random.seed(params.seed)
 
     jax_arrays = my_utils.get_jax_arrays(params)
 

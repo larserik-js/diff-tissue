@@ -89,7 +89,7 @@ def _make_array_dict(
 
 
 def get_arrays(params):
-    polygons = init_systems.get_system(params.system)
+    polygons = init_systems.get_system(params.system, params.seed)
     mesh_area = polygons.mesh_area
     vertex_numbers = init_systems.VertexNumbers(polygons)
 

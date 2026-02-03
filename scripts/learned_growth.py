@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from diff_tissue.jax_bootstrap import jax, jnp
+from diff_tissue.jax_bootstrap import jnp
 from diff_tissue import morphing, my_files, my_utils, parameters, plotting
 
 
@@ -52,8 +52,6 @@ def _plot(growth_evolution, output_dir, jax_arrays, params):
 def _main():
     params = parameters.get_params_from_cli()
 
-    np.random.seed(params.seed)
-
     jax_arrays = my_utils.get_jax_arrays(params)
 
     old_polygons = my_utils.get_shapely_polygons(
@@ -67,7 +65,7 @@ def _main():
     goal_elongations = df['best_goal_elongation'].values
 
     # Regenerate new system
-    np.random.seed(10000)
+    params = params.replace(seed=10000)
     new_arrays = my_utils.get_jax_arrays(params)
     new_polygons = my_utils.get_shapely_polygons(
         new_arrays['init_vertices'], new_arrays['indices']

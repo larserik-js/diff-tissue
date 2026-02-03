@@ -179,7 +179,8 @@ class _Polygons(ABC):
 
 
 class _VoronoiPolygons(_Polygons):
-    def __init__(self):
+    def __init__(self, seed):
+        self._seed = seed
         super().__init__()
 
     def _build(self):
@@ -227,10 +228,12 @@ class _VoronoiPolygons(_Polygons):
 
     def _generate_random_points(self):
         bounds = self._generating_shape.bounds
-        xs = np.random.uniform(
+
+        rng = np.random.default_rng(self._seed)
+        xs = rng.uniform(
             bounds[0], bounds[2], self._n_polygons_in_full_circle
         )
-        ys = np.random.uniform(
+        ys = rng.uniform(
             bounds[1], bounds[3], self._n_polygons_in_full_circle
         )
         points_array = np.vstack((xs, ys)).T
@@ -621,10 +624,10 @@ class _SinglePolygon(_Polygons):
         return area
 
 
-def get_system(system):
+def get_system(system, seed):
     match system:
         case 'voronoi':
-            polygons = _VoronoiPolygons()
+            polygons = _VoronoiPolygons(seed)
         case 'full':
             polygons = _FullPolygons()
         case 'single':

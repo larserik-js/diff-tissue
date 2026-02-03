@@ -500,8 +500,6 @@ def _iterate_towards_shape(logits, jax_arrays, params):
 
 
 def run(params):
-    np.random.seed(params.seed)
-
     jax_arrays = my_utils.get_jax_arrays(params)
 
     init_logits = _get_init_logits(jax_arrays, params)
