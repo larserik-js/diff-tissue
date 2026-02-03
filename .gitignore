@@ -5,9 +5,8 @@ dist/
 wheels/
 *.egg-info
 .DS_Store
-uv.lock
-
-.venv/
+optuna.db
 
 output/
+outputs/
 

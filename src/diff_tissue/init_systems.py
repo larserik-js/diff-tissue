@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from functools import cached_property
+from importlib.resources import files
 import json
-from pathlib import Path
 import sys
 
 import numpy as np
@@ -13,7 +14,6 @@ from shapely.geometry import Polygon
 class Coords:
     _origin = np.array([0.0, 0.0])
     base_origin = _origin + 0.0
-    shape_origin = _origin + np.array([0.0, 26.5])
     full_mesh_origin = np.array([40.0, 0.0])
     full_mesh_base = np.array([40.0, 18.635])
 
@@ -154,10 +154,6 @@ class _Polygons(ABC):
         return self._free_mask
 
     @property
-    def proximal_mask(self):
-        return self._proximal_mask
-
-    @property
     def valid_mask(self):
         return self._valid_mask
 
@@ -200,7 +196,6 @@ class _VoronoiPolygons(_Polygons):
         self._max_vertices = self._find_max_vertices()
         self._polygon_inds = self._finalize_polygon_inds()
         self._free_mask = self._get_free_mask()
-        self._proximal_mask = np.ones(self._polygon_inds.shape[0], dtype=bool)
 
     def _get_generating_shape(self):
         cx, cy = Coords.base_origin
@@ -479,14 +474,12 @@ class _FullPolygons(_Polygons):
     def _build(self):
         self._input_cells = self._read_input_cells()
         self._max_vertices = self._find_max_vertices()
-        self._polygon_inds, self._vertices, self._proximal_mask = (
-            self._make_init_polygons()
-        )
+        self._polygon_inds, self._vertices = self._make_init_polygons()
         self._free_mask = self._get_free_mask()
         self._mesh_area = self._calc_mesh_area()
 
     def _read_input_cells(self):
-        input_path = Path('input_cells.json')
+        input_path = files('diff_tissue.resources').joinpath('input_cells.json')
         with input_path.open() as data:
             input_cells = json.load(data)
 
@@ -501,11 +494,6 @@ class _FullPolygons(_Polygons):
         max_vertices += 1
         return max_vertices
 
-    def _is_proximal(self, vertex):
-        dist_from_origin = np.linalg.norm(vertex - Coords.full_mesh_origin)
-        proximal_radius = np.inf
-        return dist_from_origin < proximal_radius
-
     @staticmethod
     def _remove_duplicates(lst):
         seen = set()
@@ -514,14 +502,12 @@ class _FullPolygons(_Polygons):
     def _make_init_polygons(self):
         all_vertices = np.zeros((0, 2))
         all_indices = []
-        proximal_mask = []
         index = 0
         for polygon in self._input_cells:
             if polygon['is_boundary']:
                 continue
             indices = []
             vertices = polygon['edges']
-            is_proximal = True
             for vertex in vertices:
                 are_equal = np.isclose(
                     np.array(vertex) - all_vertices, 0.0, atol=0.5
@@ -539,9 +525,6 @@ class _FullPolygons(_Polygons):
                 else:
                     raise ValueError('Multiple indices found')
 
-                # True if all vertices are proximal
-                is_proximal *= self._is_proximal(vertex)
-
             indices = self._remove_duplicates(indices)
             indices = sort_counterclockwise(
                 indices, all_vertices[indices]
@@ -554,15 +537,13 @@ class _FullPolygons(_Polygons):
             indices.extend([-1] * (self._max_vertices - len(indices)))
 
             all_indices.append(indices)
-            proximal_mask.append(is_proximal)
 
         all_indices = np.array(all_indices)
-        proximal_mask = np.array(proximal_mask)
 
         # Transform coordinates
         all_vertices -= Coords.full_mesh_base
 
-        return all_indices, all_vertices, proximal_mask
+        return all_indices, all_vertices
 
     def _get_fixed_inds(self):
         fixed_inds = [
@@ -608,7 +589,6 @@ class _SinglePolygon(_Polygons):
         self._n_vertices = self._vertices.shape[0]
         self._polygon_inds = self._find_polygon_inds()
         self._free_mask = self._get_free_mask()
-        self._proximal_mask = np.array([True])
         self._mesh_area = self._calc_mesh_area()
 
     def _make_init_polygons(self):
@@ -652,3 +632,72 @@ def get_system(system):
         case _:
             raise ValueError('Invalid initial system!')
     return polygons
+
+
+class VertexNumbers:
+    def __init__(self, polygons):
+        self._polygons = polygons
+
+    @cached_property
+    def basal(self):
+        n_basal_vertices = (
+            np.isclose(self._polygons.free_mask[:,1], 0.0).sum()
+        )
+        return n_basal_vertices
+
+    @cached_property
+    def boundary(self):
+        n_boundary_vertices = self._polygons.boundary_mask.sum()
+        return n_boundary_vertices
+
+    @cached_property
+    def non_basal(self):
+        n_non_basal_vertices = self.boundary - self.basal + 2
+        return n_non_basal_vertices
+
+
+class Knots:
+    def __init__(self):
+        self._nx_left = 1
+        self._ny = 5
+        self._xmin, self._xmax = -5.0, -5.0
+        self._ymin, self._ymax = 1.0, 13.0
+
+    def _make_grid(self):
+        nx = self._nx_left * 1j
+        ny = self._ny * 1j
+        grid = np.mgrid[self._xmin:self._xmax:nx, self._ymin:self._ymax:ny]
+        return grid
+
+    @cached_property
+    def left_knots(self):
+        grid = self._make_grid()
+
+        xs = grid[0].flatten()
+        ys = grid[1].flatten()
+        left_knots = np.column_stack([xs, ys])
+
+        left_knots += Coords.base_origin
+        return left_knots
+
+    @cached_property
+    def right_knots(self):
+        flipped_array = np.empty_like(self.left_knots)
+        shape_x = Coords.base_origin[0]
+        flipped_array[:,0] = 2 * shape_x - self.left_knots[:,0]
+        flipped_array[:,1] = self.left_knots[:,1]
+        return flipped_array
+
+    @cached_property
+    def center_knots(self):
+        center_knots = np.empty((self._ny, 2))
+        center_knots[:,0] = Coords.base_origin[0]
+        center_knots[:,1] = self.left_knots[:self._ny,1]
+        return center_knots
+
+    @cached_property
+    def all_knots(self):
+        all_knots = np.concatenate(
+            [self.left_knots, self.center_knots, self.right_knots], axis=0
+        )
+        return all_knots

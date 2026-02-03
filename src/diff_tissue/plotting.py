@@ -2,7 +2,7 @@ from matplotlib import gridspec
 from matplotlib import pyplot as plt
 import numpy as np
 
-import init_systems
+from . import init_systems, my_utils
 
 
 def _get_polygons(vertices, indices, valid_mask):
@@ -12,13 +12,15 @@ def _get_polygons(vertices, indices, valid_mask):
 
 
 class _Artists:
-    def __init__(self, ax, init_vertices, outer_shape, jax_arrays):
+    def __init__(self, ax, init_vertices, outer_shape, all_knots, jax_arrays,
+                 params):
         self._ax = ax
         self._init_vertices = init_vertices
         self._outer_shape = outer_shape
         self._ax_lims = self._get_ax_lims()
+        self._all_knots = all_knots
         self._jax_arrays = jax_arrays
-        self._boundary_mask = jax_arrays['boundary_mask']
+        self._params = params
 
     def _get_ax_lims(self):
         all_plotted_vertices = np.vstack(
@@ -52,6 +54,12 @@ class _Artists:
             'ro-', markersize=3, label='Outer shape'
         )
 
+    def _add_knots(self):
+        self._ax.scatter(
+            self._all_knots[:,0], self._all_knots[:,1],
+            color='brown', s=20.0, alpha=1.0
+        )
+
     def _add_vertices(self, vertices):
         polygons = _get_polygons(
             vertices, self._jax_arrays['indices'],
@@ -66,6 +74,15 @@ class _Artists:
                 polygon[:,0], polygon[:,1], lw=0.7, color='black', zorder=2
             )
 
+    def _enumerate_centroids(self, vertices):
+        centroids = my_utils.calc_centroids(
+            vertices, self._jax_arrays['indices'],
+            self._jax_arrays['valid_mask']
+        )
+        markers = np.arange(centroids.shape[0])
+        for i, (x, y) in enumerate(centroids):
+            self._ax.text(x, y, str(markers[i]), color='r')
+
     def _add_boundary_vertices(self, vertices):
         boundary_vertices = vertices[self._jax_arrays['boundary_mask']]
         self._ax.scatter(
@@ -73,15 +90,20 @@ class _Artists:
             marker='s', zorder=3
         )
 
-    def _add_artists(self, vertices):
+    def _add_artists(self, vertices, enumerate):
         self._add_baselines()
         self._add_outer_shape()
         self._add_vertices(vertices)
         self._add_boundary_vertices(vertices)
+        if self._params.knots:
+            self._add_knots()
 
-    def plot(self, vertices):
+        if enumerate:
+            self._enumerate_centroids(vertices)
+
+    def plot(self, vertices, enumerate):
         self._format()
-        self._add_artists(vertices)
+        self._add_artists(vertices, enumerate)
 
 
 class _Figure:
@@ -99,25 +121,26 @@ class _Figure:
 
 
 class MorphFigure(_Figure):
-    def __init__(self, output_dir, jax_arrays):
+    def __init__(self, output_dir, jax_arrays, params):
         super().__init__(output_dir)
         self._fig, ax = plt.subplots(figsize=(10, 10))
         self._init_vertices = jax_arrays['init_vertices']
         self._closed_outer_shape = self._close(jax_arrays['outer_shape'])
         self._morph_artists = _Artists(
-            ax, self._init_vertices, self._closed_outer_shape, jax_arrays
+            ax, self._init_vertices, self._closed_outer_shape,
+            jax_arrays['all_knots'], jax_arrays, params
         )
 
-    def save_plot(self, vertices, step):
-        self._morph_artists.plot(vertices)
+    def save_plot(self, vertices, step, enumerate=False):
+        self._morph_artists.plot(vertices, enumerate)
         self._save(step)
 
 
 class MorphGrowthFigure(_Figure):
-    def __init__(self, output_dir, jax_arrays, total_steps, scale):
+    def __init__(self, output_dir, jax_arrays, params):
         super().__init__(output_dir)
-        self._total_steps = total_steps
-        self._scale = scale
+        self._total_steps = params.n_growth_steps
+        self._scale = params.growth_scale
         self._fig = plt.figure(figsize=(8, 10))
         self._gs = gridspec.GridSpec(
             nrows=2, ncols=1, figure=self._fig, height_ratios=[0.8, 1.0]
@@ -125,14 +148,18 @@ class MorphGrowthFigure(_Figure):
         self._init_vertices = jax_arrays['init_vertices']
         self._closed_outer_shape = self._close(jax_arrays['outer_shape'])
         self._scaled_outer_shape = self._scale * self._closed_outer_shape
+        self._all_knots = jax_arrays['all_knots']
+        self._scaled_knots = self._scale * self._all_knots
 
         ax0 = self._fig.add_subplot(self._gs[0])
         self._morph_artists = _Artists(
-            ax0, self._init_vertices, self._closed_outer_shape, jax_arrays
+            ax0, self._init_vertices, self._closed_outer_shape,
+            self._all_knots, jax_arrays, params
         )
         ax1 = self._fig.add_subplot(self._gs[1:])
         self._growth_artists = _Artists(
-            ax1, self._init_vertices, self._scaled_outer_shape, jax_arrays
+            ax1, self._init_vertices, self._scaled_outer_shape,
+            self._scaled_knots, jax_arrays, params
         )
 
     def _scale_vertices(self, vertices, step):
@@ -141,12 +168,12 @@ class MorphGrowthFigure(_Figure):
         scaled_vertices = partial_scale * vertices
         return scaled_vertices
 
-    def _plot(self, vertices, step):
-        self._morph_artists.plot(vertices)
+    def _plot(self, vertices, step, enumerate):
+        self._morph_artists.plot(vertices, enumerate)
 
         scaled_vertices = self._scale_vertices(vertices, step)
-        self._growth_artists.plot(scaled_vertices)
+        self._growth_artists.plot(scaled_vertices, enumerate)
 
-    def save_plot(self, vertices, step):
-        self._plot(vertices, step)
+    def save_plot(self, vertices, step, enumerate=False):
+        self._plot(vertices, step, enumerate)
         self._save(step)

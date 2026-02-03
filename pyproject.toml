@@ -5,14 +5,20 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "flax>=0.12.2",
     "jax>=0.5.2",
     "jaxlib>=0.5.1",
     "jaxopt>=0.8.5",
     "matplotlib>=3.10.1",
     "numpy>=2.2.3",
     "optax>=0.2.4",
+    "optuna>=4.6.0",
     "pandas>=2.2.3",
     "scipy>=1.15.2",
     "shapely>=2.1.1",
     "torch>=2.6.0",
 ]
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"

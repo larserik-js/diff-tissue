@@ -1,18 +1,17 @@
-import jax
 import numpy as np
 
-import my_files, my_utils, plotting
+from diff_tissue import my_files, my_utils, parameters, plotting
 
 
 def _get_plotting_data(params):
-    input_file = my_files.OutputFile('morph', '.pkl', params)
+    input_file = my_files.OutputFile('morphing', '.pkl', params)
     data_handler = my_files.DataHandler(input_file)
     growth_evolution = data_handler.load()
     return growth_evolution
 
 
-def _plot(growth_evolution, output_dir, jax_arrays):
-    figure = plotting.MorphFigure(output_dir, jax_arrays)
+def _plot(growth_evolution, output_dir, jax_arrays, params):
+    figure = plotting.MorphFigure(output_dir, jax_arrays, params)
 
     for t, vertices in enumerate(growth_evolution):
         if t%10 == 0:
@@ -21,19 +20,17 @@ def _plot(growth_evolution, output_dir, jax_arrays):
 
 
 def _main():
-    jax.config.update('jax_enable_x64', True)
+    params = parameters.get_params_from_cli()
 
-    params = my_utils.Params()
-
-    np.random.seed(params.numerical['seed'])
+    np.random.seed(params.seed)
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
     growth_evolution = _get_plotting_data(params)
 
-    output_dir = my_files.OutputDir('morph', params).path
+    output_dir = my_files.OutputDir('morphing', params).path
 
-    _plot(growth_evolution, output_dir, jax_arrays)
+    _plot(growth_evolution, output_dir, jax_arrays, params)
 
 
 if __name__ == '__main__':

@@ -5,6 +5,18 @@ from pathlib import Path
 import pickle
 
 
+class _ProjectStructure:
+    @cached_property
+    def project_dir(self):
+        lib_dir = Path(os.path.abspath(os.path.dirname(__file__)))
+        project_dir = lib_dir.parent.parent
+        return project_dir
+
+    @cached_property
+    def output_dir(self):
+        return self.project_dir / 'output'
+
+
 class _Output(ABC):
     _formats = {'bool': '',
                 'int': 'd',
@@ -13,6 +25,7 @@ class _Output(ABC):
                 'str': ''}
 
     def __init__(self, output_type_dir_name, params):
+        self._project_structure = _ProjectStructure()
         self._output_type_dir_name = output_type_dir_name
         self._params = params
         self._set_param_names()
@@ -22,14 +35,9 @@ class _Output(ABC):
         pass
 
     @cached_property
-    def _project_dir(self):
-        project_dir = os.path.abspath(os.path.dirname(__file__))
-        return Path(project_dir)
-
-    @cached_property
     def _output_type_dir(self):
         output_type_dir = (
-            self._project_dir / 'output' / self._output_type_dir_name
+            self._project_structure.output_dir / self._output_type_dir_name
         )
         return output_type_dir
 
@@ -51,7 +59,7 @@ class _Output(ABC):
         param_name_vals = []
         for name in self._param_names:
             param_name_val = self._format_param_val_str(
-                name, self._params.all[name]
+                name, getattr(self._params, name)
             )
             param_name_vals.append(param_name_val)
 
@@ -70,7 +78,7 @@ class OutputDir(_Output):
         self._make()
 
     def _set_param_names(self):
-        self._param_names = self._params.all.keys()
+        self._param_names = self._params.get_names()
 
     @cached_property
     def path(self):
@@ -87,27 +95,12 @@ class OutputFile(_Output):
         self._suffix = suffix
 
     def _set_param_names(self):
-        self._param_names = self._params.all.keys()
+        self._param_names = self._params.get_names()
 
     @cached_property
     def path(self):
         params_path = self._make_param_path()
         path = params_path.with_name(params_path.name + self._suffix)
-        return path
-
-
-class ArraysFile(_Output):
-    def __init__(self, output_type_dir, suffix, params):
-        super().__init__(output_type_dir, params)
-        self._suffix = suffix
-
-    def _set_param_names(self):
-        self._param_names = ['system', 'shape', 'seed']
-
-    @cached_property
-    def path(self):
-        param_path = self._make_param_path()
-        path = param_path.with_name(param_path.name + self._suffix)
         return path
 
 
@@ -136,6 +129,11 @@ class DataHandler:
             self._save_pkl(data)
         else:
             raise NotImplementedError
+
+
+def get_param_search_db_file():
+    output_path = _ProjectStructure().output_dir / 'optuna.db'
+    return output_path
 
 
 def get_output_params_file(params):
