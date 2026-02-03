@@ -1,3 +1,4 @@
+from functools import cached_property
 import timeit
 
 import numpy as np
@@ -30,14 +31,29 @@ def calc_centroids(vertices, indices, valid_mask):
 
 
 class MappedMetrics:
-    def __init__(self, polygons, outer_shape):
-        self.vertices = diffeomorphism.get_mapped_vertices(
-            polygons.vertices, polygons.polygon_inds, polygons.boundary_mask,
-            outer_shape
+    def __init__(self, polygons, shape):
+        self._polygons = polygons
+        self._shape = shape
+
+    @cached_property
+    def vertices(self):
+        outer_shape = shapes.get_outer_shape(
+            self._shape, self._polygons.mesh_area,
+            init_systems.VertexNumbers(self._polygons)
         )
-        self.centroids = calc_centroids(
-            self.vertices, polygons.polygon_inds, polygons.valid_mask
+        vertices_ = diffeomorphism.get_mapped_vertices(
+            self._polygons.vertices, self._polygons.polygon_inds,
+            self._polygons.boundary_mask, outer_shape
         )
+        return vertices_
+
+    @cached_property
+    def centroids(self):
+        centroids_ = calc_centroids(
+            self.vertices, self._polygons.polygon_inds,
+            self._polygons.valid_mask
+        )
+        return centroids_
 
 
 def calc_proximal_mask(mapped_centroids, proximal_dist):
@@ -80,7 +96,7 @@ def get_arrays(params):
     outer_shape = shapes.get_outer_shape(
         params.shape, mesh_area, vertex_numbers
     )
-    mapped_metrics = MappedMetrics(polygons, outer_shape)
+    mapped_metrics = MappedMetrics(polygons, params.shape)
     proximal_mask = calc_proximal_mask(
         mapped_metrics.centroids, params.proximal_dist
     )
