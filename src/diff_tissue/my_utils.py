@@ -48,12 +48,33 @@ class MappedMetrics:
         return vertices_
 
     @cached_property
+    def _all_mapped_cells(self):
+        all_mapped_cells = get_all_cells(
+            self.vertices, self._polygons.polygon_inds
+        )
+        return all_mapped_cells
+
+    @cached_property
     def centroids(self):
         centroids_ = calc_centroids(
             self.vertices, self._polygons.polygon_inds,
             self._polygons.valid_mask
         )
         return centroids_
+
+    @cached_property
+    def areas(self):
+        areas_ = calc_all_areas(
+            self._all_mapped_cells, self._polygons.valid_mask
+        )
+        return areas_
+
+    @cached_property
+    def elongations(self):
+        elongations_ = calc_elongations(
+            self._all_mapped_cells, self._polygons.valid_mask
+        )
+        return elongations_
 
 
 def calc_proximal_mask(mapped_centroids, proximal_dist):
@@ -79,6 +100,8 @@ def _make_array_dict(
         'outer_shape': outer_shape,
         'mapped_vertices': mapped_metrics.vertices,
         'mapped_centroids': mapped_metrics.centroids,
+        'mapped_areas': mapped_metrics.areas,
+        'mapped_elongations': mapped_metrics.elongations,
         'proximal_mask': proximal_mask,
         'left_knots': knots.left_knots,
         'center_knots': knots.center_knots,

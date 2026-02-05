@@ -52,19 +52,6 @@ def _get_points_inside_shape(shape, nx, ny):
     return points_inside_shape
 
 
-def _get_mapped_metrics(polygons, mapped_vertices):
-    all_mapped_cells = my_utils.get_all_cells(
-        mapped_vertices, polygons.polygon_inds
-    )
-    mapped_areas = my_utils.calc_all_areas(
-        all_mapped_cells, polygons.valid_mask
-    )
-    mapped_elongations = my_utils.calc_elongations(
-        all_mapped_cells, polygons.valid_mask
-    )
-    return mapped_areas, mapped_elongations
-
-
 def _build_meshes(n_meshes, shape, output_file):
     if output_file.exists():
         with open(output_file, 'rb') as f:
@@ -88,13 +75,11 @@ def _build_meshes(n_meshes, shape, output_file):
             shapely_polygons = my_utils.get_shapely_polygons(
                 mapped_vertices, polygons.polygon_inds
             )
-            mapped_areas, mapped_elongations = _get_mapped_metrics(
-                polygons, mapped_vertices
-            )
+            mapped_metrics = my_utils.MappedMetrics(polygons, shape)
 
             mesh = _Mesh(
-                shapely_polygons, np.array(mapped_areas),
-                np.array(mapped_elongations)
+                shapely_polygons, np.array(mapped_metrics.areas),
+                np.array(mapped_metrics.elongations)
             )
             meshes.append(mesh)
 
