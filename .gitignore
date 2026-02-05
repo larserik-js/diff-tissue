@@ -5,6 +5,5 @@ dist/
 wheels/
 *.egg-info
 .DS_Store
-optuna.db
 
 outputs/
