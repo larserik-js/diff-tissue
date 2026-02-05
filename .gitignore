@@ -7,6 +7,4 @@ wheels/
 .DS_Store
 optuna.db
 
-output/
 outputs/
-

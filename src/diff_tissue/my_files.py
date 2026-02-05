@@ -1,20 +1,15 @@
 from abc import ABC, abstractmethod
 from functools import cached_property
-import os
 from pathlib import Path
 import pickle
 
 
-class _ProjectStructure:
-    @cached_property
-    def project_dir(self):
-        lib_dir = Path(os.path.abspath(os.path.dirname(__file__)))
-        project_dir = lib_dir.parent.parent
-        return project_dir
+BASE_OUTPUT_DIR = Path('outputs')
 
-    @cached_property
-    def output_dir(self):
-        return self.project_dir / 'output'
+
+def get_output_path(filename: str, base_dir: Path = BASE_OUTPUT_DIR) -> Path:
+    base_dir.mkdir(exist_ok=True)
+    return base_dir / filename
 
 
 class _Output(ABC):
@@ -25,7 +20,6 @@ class _Output(ABC):
                 'str': ''}
 
     def __init__(self, output_type_dir_name, params):
-        self._project_structure = _ProjectStructure()
         self._output_type_dir_name = output_type_dir_name
         self._params = params
         self._set_param_names()
@@ -36,9 +30,8 @@ class _Output(ABC):
 
     @cached_property
     def _output_type_dir(self):
-        output_type_dir = (
-            self._project_structure.output_dir / self._output_type_dir_name
-        )
+        output_type_dir = BASE_OUTPUT_DIR / self._output_type_dir_name
+        output_type_dir.mkdir(exist_ok=True, parents=True)
         return output_type_dir
 
     @staticmethod
