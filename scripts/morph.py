@@ -14,9 +14,7 @@ def _main():
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    init_vertices = jax_arrays['init_vertices']
-    all_cells = my_utils.get_all_cells(init_vertices, jax_arrays['indices'])
-    init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
+    init_areas = jax_arrays['init_areas']
 
     goal_areas = 2.0 * init_areas
     goal_elongations = 5.0 * jnp.ones_like(init_areas)

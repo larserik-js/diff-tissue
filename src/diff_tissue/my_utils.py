@@ -30,6 +30,29 @@ def calc_centroids(vertices, indices, valid_mask):
     return centroids
 
 
+class InitMetrics:
+    def __init__(self, polygons):
+        self._polygons = polygons
+
+    @cached_property
+    def _all_cells(self):
+        init_vertices = self._polygons.vertices
+        all_cells = get_all_cells(init_vertices, self._polygons.polygon_inds)
+        return all_cells
+
+    @cached_property
+    def areas(self):
+        init_areas = calc_all_areas(self._all_cells, self._polygons.valid_mask)
+        return init_areas
+
+    @cached_property
+    def elongations(self):
+        init_elongations = calc_elongations(
+            self._all_cells, self._polygons.valid_mask
+        )
+        return init_elongations
+
+
 class MappedMetrics:
     def __init__(self, polygons, shape):
         self._polygons = polygons
@@ -86,7 +109,8 @@ def calc_proximal_mask(mapped_centroids, proximal_dist):
 
 
 def _make_array_dict(
-        polygons, outer_shape, mapped_metrics, proximal_mask, knots
+        polygons, init_metrics, mapped_metrics, outer_shape, proximal_mask,
+        knots
     ):
     arrays = {
         'indices': polygons.polygon_inds,
@@ -97,11 +121,13 @@ def _make_array_dict(
         'vertex_polygons': polygons.vertex_polygons,
         'free_mask': polygons.free_mask,
         'boundary_mask': polygons.boundary_mask,
-        'outer_shape': outer_shape,
+        'init_areas': init_metrics.areas,
+        'init_elongations': init_metrics.elongations,
         'mapped_vertices': mapped_metrics.vertices,
         'mapped_centroids': mapped_metrics.centroids,
         'mapped_areas': mapped_metrics.areas,
         'mapped_elongations': mapped_metrics.elongations,
+        'outer_shape': outer_shape,
         'proximal_mask': proximal_mask,
         'left_knots': knots.left_knots,
         'center_knots': knots.center_knots,
@@ -113,19 +139,24 @@ def _make_array_dict(
 
 def get_arrays(params):
     polygons = init_systems.get_system(params.system, params.seed)
+
+    init_metrics = InitMetrics(polygons)
+
     mesh_area = polygons.mesh_area
     vertex_numbers = init_systems.VertexNumbers(polygons)
-
     outer_shape = shapes.get_outer_shape(
         params.shape, mesh_area, vertex_numbers
     )
+
     mapped_metrics = MappedMetrics(polygons, params.shape)
     proximal_mask = calc_proximal_mask(
         mapped_metrics.centroids, params.proximal_dist
     )
+
     knots = init_systems.Knots()
     arrays = _make_array_dict(
-        polygons, outer_shape, mapped_metrics, proximal_mask, knots
+        polygons, init_metrics, mapped_metrics, outer_shape, proximal_mask,
+        knots
     )
     return arrays
 
