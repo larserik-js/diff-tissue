@@ -1,6 +1,4 @@
-import pathlib
-
-from diff_tissue import mapped_fields
+from diff_tissue import mapped_fields, my_files
 
 
 def _main():
@@ -8,10 +6,7 @@ def _main():
 
     nx, ny = 100, 100
 
-    output_dir = pathlib.Path('outputs')
-    output_dir.mkdir(exist_ok=True)
-
-    mapped_fields.run(shape, nx, ny, output_dir)
+    mapped_fields.run(shape, nx, ny, my_files.BASE_OUTPUT_DIR)
 
 
 if __name__ == '__main__':
