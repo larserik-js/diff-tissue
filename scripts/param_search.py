@@ -1,3 +1,5 @@
+import pathlib
+
 import optuna
 
 from diff_tissue import my_files, parameters, shape_opt
@@ -36,8 +38,11 @@ def objective_f(trial):
 
 
 def _main():
-    output_path = my_files.get_param_search_db_file()
-    db_url = f'sqlite:///{output_path}'
+    output_dir = pathlib.Path('outputs')
+    output_dir.mkdir(exist_ok=True)
+    db_path = output_dir / 'optuna.db'
+
+    db_url = f'sqlite:///{db_path}'
     study = optuna.create_study(
         study_name='my_study',
         direction='minimize',

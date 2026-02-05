@@ -131,10 +131,5 @@ class DataHandler:
             raise NotImplementedError
 
 
-def get_param_search_db_file():
-    output_path = _ProjectStructure().output_dir / 'optuna.db'
-    return output_path
-
-
 def get_output_params_file(params):
     return OutputFile('output_params', '.txt', params).path
