@@ -22,12 +22,60 @@ def timer(func):
     return timed
 
 
+def get_all_cells(vertices, indices):
+    all_cells = vertices[indices]
+    return all_cells
+
+
 def calc_centroids(vertices, indices, valid_mask):
     polygons = vertices[indices]
     mask = valid_mask[..., None].repeat(2, axis=2)
     polygons = np.where(mask, polygons, jnp.nan)
     centroids = np.nanmean(polygons, axis=1)
     return centroids
+
+
+def calc_all_areas(all_cells, valid_mask):
+    xs = all_cells[:, 1:-1, 0]
+    y_plus_ones = all_cells[:, 2:, 1]
+    y_minus_ones = all_cells[:, :-2, 1]
+
+    valid = valid_mask[:, 1:-1] & valid_mask[:, 2:] & valid_mask[:, :-2]
+
+    first_term = xs * y_plus_ones
+    first_term = jnp.sum(first_term * valid, axis=1)
+    second_term = xs * y_minus_ones
+    second_term = jnp.sum(second_term * valid, axis=1)
+
+    # Assumes vertices are ordered counter-clockwise
+    areas = 0.5 * (first_term - second_term)
+
+    return areas
+
+
+def calc_elongations(all_cells, valid_mask):
+    xs = all_cells[:, 1:-1, 0]
+    ys = all_cells[:, 1:-1, 1]
+    valid = valid_mask[:, 1:-1]
+
+    xs_masked = jnp.where(valid, xs, jnp.nan)
+    ys_masked = jnp.where(valid, ys, jnp.nan)
+
+    x_vars = jnp.nanvar(xs_masked, axis=1)
+    y_vars = jnp.nanvar(ys_masked, axis=1)
+
+    eps = 1e-8
+    elongations = (y_vars - x_vars) / (y_vars + x_vars + eps)
+
+    return elongations
+
+
+def calc_optimal_angles(valid_mask):
+    n_vertices = valid_mask.sum(axis=1) - 2
+    interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
+    optimal_angles = jnp.pi - interior_angles
+    optimal_angles = optimal_angles[:, None]
+    return optimal_angles
 
 
 class InitMetrics:
@@ -182,54 +230,6 @@ def get_jax_arrays(params):
     arrays = get_arrays(params)
     jax_arrays = _make_jax_arrays(arrays)
     return jax_arrays
-
-
-def calc_optimal_angles(valid_mask):
-    n_vertices = valid_mask.sum(axis=1) - 2
-    interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
-    optimal_angles = jnp.pi - interior_angles
-    optimal_angles = optimal_angles[:, None]
-    return optimal_angles
-
-
-def get_all_cells(vertices, indices):
-    all_cells = vertices[indices]
-    return all_cells
-
-
-def calc_all_areas(all_cells, valid_mask):
-    xs = all_cells[:, 1:-1, 0]
-    y_plus_ones = all_cells[:, 2:, 1]
-    y_minus_ones = all_cells[:, :-2, 1]
-
-    valid = valid_mask[:, 1:-1] & valid_mask[:, 2:] & valid_mask[:, :-2]
-
-    first_term = xs * y_plus_ones
-    first_term = jnp.sum(first_term * valid, axis=1)
-    second_term = xs * y_minus_ones
-    second_term = jnp.sum(second_term * valid, axis=1)
-
-    # Assumes vertices are ordered counter-clockwise
-    areas = 0.5 * (first_term - second_term)
-
-    return areas
-
-
-def calc_elongations(all_cells, valid_mask):
-    xs = all_cells[:, 1:-1, 0]
-    ys = all_cells[:, 1:-1, 1]
-    valid = valid_mask[:, 1:-1]
-
-    xs_masked = jnp.where(valid, xs, jnp.nan)
-    ys_masked = jnp.where(valid, ys, jnp.nan)
-
-    x_vars = jnp.nanvar(xs_masked, axis=1)
-    y_vars = jnp.nanvar(ys_masked, axis=1)
-
-    eps = 1e-8
-    elongations = (y_vars - x_vars) / (y_vars + x_vars + eps)
-
-    return elongations
 
 
 def _make_poly_idx_lists(polygon_indices):
