@@ -1,4 +1,3 @@
-import pathlib
 import pickle
 
 from matplotlib import colors
@@ -25,8 +24,9 @@ def _add_colorbar(ax, cmap_vals, cmap_name):
     ax.figure.colorbar(sm, ax=ax, shrink=0.8)
 
 
-def _plot(*, coords, mapped_area_field, mapped_elongation_field):
-    mapped_fields = [mapped_area_field, mapped_elongation_field]
+def _plot(mapped_fields):
+    coords = mapped_fields.coords
+    mapped_fields = [mapped_fields.areas, mapped_fields.elongations]
 
     titles = ['Mapped areas', 'Mapped elongations']
     cmaps = ['copper', 'viridis']
@@ -35,8 +35,7 @@ def _plot(*, coords, mapped_area_field, mapped_elongation_field):
     for i, ax in enumerate(axs):
         mapped_field = mapped_fields[i]
         ax.scatter(
-            coords[:,0], coords[:,1], c=mapped_field,
-            cmap=cmaps[i], s=1.5
+            coords[:,0], coords[:,1], c=mapped_field, cmap=cmaps[i], s=1.5
         )
         _add_colorbar(ax, mapped_field, cmaps[i])
         ax.set_title(titles[i])
@@ -62,7 +61,7 @@ def _main():
     mapped_fields_file = io_utils.get_output_path(f'mapped_fields_{shape}.pkl')
     mapped_fields = _load_mapped_fields(mapped_fields_file)
 
-    fig = _plot(**mapped_fields)
+    fig = _plot(mapped_fields)
 
     _save_plot(fig, shape)
 
