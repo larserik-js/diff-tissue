@@ -2,7 +2,7 @@ import argparse
 
 import optuna
 
-from diff_tissue import my_files
+from diff_tissue import io_utils
 
 
 def _parse_args():
@@ -49,7 +49,7 @@ def _show_best_trial(study):
 def _main():
     args = _parse_args()
 
-    db_path = my_files.get_output_path('optuna.db')
+    db_path = io_utils.get_output_path('optuna.db')
     db_url = f'sqlite:///{db_path}'
     storage = optuna.storages.RDBStorage(db_url)
 

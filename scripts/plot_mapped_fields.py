@@ -5,7 +5,7 @@ from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from diff_tissue import my_files
+from diff_tissue import io_utils
 
 
 def _load_mapped_fields(input_file):
@@ -53,13 +53,13 @@ def _plot(*, coords, mapped_area_field, mapped_elongation_field):
 
 
 def _save_plot(fig, shape):
-    output_file = my_files.get_output_path(f'mapped_fields_{shape}.pdf')
+    output_file = io_utils.get_output_path(f'mapped_fields_{shape}.pdf')
     fig.savefig(output_file)
 
 
 def _main():
     shape = 'petal'
-    mapped_fields_file = my_files.get_output_path(f'mapped_fields_{shape}.pkl')
+    mapped_fields_file = io_utils.get_output_path(f'mapped_fields_{shape}.pkl')
     mapped_fields = _load_mapped_fields(mapped_fields_file)
 
     fig = _plot(**mapped_fields)

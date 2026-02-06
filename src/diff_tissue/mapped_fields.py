@@ -5,7 +5,7 @@ import numpy as np
 import shapely
 from shapely.strtree import STRtree
 
-from . import init_systems, my_files, my_utils, parameters, shapes
+from . import init_systems, io_utils, my_utils, parameters, shapes
 
 
 @dataclass
@@ -146,7 +146,7 @@ class _MappedFields:
 def run(shape, nx, ny):
     points_inside_shape = _get_points_inside_shape(shape, nx, ny)
 
-    meshes_file = my_files.get_output_path(f'meshes_{shape}.pkl')
+    meshes_file = io_utils.get_output_path(f'meshes_{shape}.pkl')
     meshes = _build_meshes(n_meshes=100, shape=shape, output_file=meshes_file)
 
     mapped_area_field, mapped_elongation_field = _get_mean_mapped_fields(
@@ -157,6 +157,6 @@ def run(shape, nx, ny):
         points_inside_shape, mapped_area_field, mapped_elongation_field
     )
 
-    output_file = my_files.get_output_path(f'mapped_fields_{shape}.pkl')
+    output_file = io_utils.get_output_path(f'mapped_fields_{shape}.pkl')
     with open(output_file, 'wb') as f:
         pickle.dump(mapped_fields, f)

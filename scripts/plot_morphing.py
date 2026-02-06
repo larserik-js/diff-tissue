@@ -1,9 +1,9 @@
-from diff_tissue import my_files, my_utils, parameters, plotting
+from diff_tissue import io_utils, my_utils, parameters, plotting
 
 
 def _get_plotting_data(params):
-    input_file = my_files.OutputFile('morphing', '.pkl', params)
-    data_handler = my_files.DataHandler(input_file)
+    input_file = io_utils.OutputFile('morphing', '.pkl', params)
+    data_handler = io_utils.DataHandler(input_file)
     growth_evolution = data_handler.load()
     return growth_evolution
 
@@ -24,7 +24,7 @@ def _main():
 
     growth_evolution = _get_plotting_data(params)
 
-    output_dir = my_files.OutputDir('morphing', params).path
+    output_dir = io_utils.OutputDir('morphing', params).path
 
     _plot(growth_evolution, output_dir, jax_arrays, params)
 

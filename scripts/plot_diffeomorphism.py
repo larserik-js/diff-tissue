@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from diff_tissue import my_files, my_utils, parameters
+from diff_tissue import io_utils, my_utils, parameters
 
 
 def _add_artists(ax, jax_arrays, vertices):
@@ -59,7 +59,7 @@ def _main():
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    output_file = my_files.OutputFile('diffeomorphism', '.pdf', params).path
+    output_file = io_utils.OutputFile('diffeomorphism', '.pdf', params).path
 
     _plot_mapping(output_file, jax_arrays)
 

@@ -1,10 +1,10 @@
 from diff_tissue.jax_bootstrap import jax, jnp
-from diff_tissue import morphing, my_files, my_utils, parameters
+from diff_tissue import morphing, io_utils, my_utils, parameters
 
 
 def _save_growth_evolution(growth_evolution, params):
-    output_file = my_files.OutputFile('morphing', '.pkl', params)
-    data_handler = my_files.DataHandler(output_file)
+    output_file = io_utils.OutputFile('morphing', '.pkl', params)
+    data_handler = io_utils.DataHandler(output_file)
     data_handler.save(growth_evolution)
 
 
