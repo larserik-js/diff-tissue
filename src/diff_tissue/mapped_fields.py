@@ -5,7 +5,7 @@ import numpy as np
 import shapely
 from shapely.strtree import STRtree
 
-from . import init_systems, my_utils, parameters, shapes
+from . import init_systems, my_files, my_utils, parameters, shapes
 
 
 @dataclass
@@ -136,29 +136,27 @@ def _get_mean_mapped_fields(meshes, points_inside_shape):
     return mean_areas, mean_elongations
 
 
-def _save_mapped_fields(coords, mapped_area_field, mapped_elongation_field,
-                        output_file):
-    output = {
-        'coords': coords,
-        'mapped_area_field': mapped_area_field,
-        'mapped_elongation_field': mapped_elongation_field
-    }
-    with open(output_file, 'wb') as f:
-        pickle.dump(output, f)
+@dataclass
+class _MappedFields:
+    coords: np.ndarray
+    areas: np.ndarray
+    elongations: np.ndarray
 
 
-def run(shape, nx, ny, output_dir):
+def run(shape, nx, ny):
     points_inside_shape = _get_points_inside_shape(shape, nx, ny)
 
-    meshes_file = output_dir / f'meshes_{shape}.pkl'
+    meshes_file = my_files.get_output_path(f'meshes_{shape}.pkl')
     meshes = _build_meshes(n_meshes=100, shape=shape, output_file=meshes_file)
 
     mapped_area_field, mapped_elongation_field = _get_mean_mapped_fields(
         meshes, points_inside_shape
     )
 
-    mapped_fields_file = output_dir / f'mapped_fields_{shape}.pkl'
-    _save_mapped_fields(
-        points_inside_shape, mapped_area_field, mapped_elongation_field,
-        mapped_fields_file
+    mapped_fields = _MappedFields(
+        points_inside_shape, mapped_area_field, mapped_elongation_field
     )
+
+    output_file = my_files.get_output_path(f'mapped_fields_{shape}.pkl')
+    with open(output_file, 'wb') as f:
+        pickle.dump(mapped_fields, f)
