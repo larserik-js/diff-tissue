@@ -4,12 +4,13 @@ from pathlib import Path
 import pickle
 
 
-BASE_OUTPUT_DIR = Path('outputs')
+BASE_OUTPUT_DIR = 'outputs'
 
 
-def get_output_path(filename: str, base_dir: Path = BASE_OUTPUT_DIR) -> Path:
-    base_dir.mkdir(exist_ok=True)
-    return base_dir / filename
+def get_output_path(filename: str, base_dir: str = BASE_OUTPUT_DIR) -> Path:
+    base_dir_path = Path(base_dir)
+    base_dir_path.mkdir(exist_ok=True)
+    return base_dir_path / filename
 
 
 class _Output(ABC):
@@ -30,7 +31,7 @@ class _Output(ABC):
 
     @cached_property
     def _output_type_dir(self):
-        output_type_dir = BASE_OUTPUT_DIR / self._output_type_dir_name
+        output_type_dir = Path(BASE_OUTPUT_DIR) / self._output_type_dir_name
         output_type_dir.mkdir(exist_ok=True, parents=True)
         return output_type_dir
 

@@ -1,6 +1,6 @@
 import optuna
 
-from diff_tissue import my_files, parameters, shape_opt
+from diff_tissue import io_utils, parameters, shape_opt
 
 
 def objective_f(trial):
@@ -25,7 +25,7 @@ def objective_f(trial):
         )
     )
     params = params.replace(
-        max_area_scaling = trial.suggest_float('max area scaling', 2.0, 9.0)
+        max_area_scaling = trial.suggest_float('max area scaling', 0.5, 2.0)
     )
     params = params.replace(seed = 3)
     params = params.replace(quiet = True)
@@ -36,7 +36,7 @@ def objective_f(trial):
 
 
 def _main():
-    db_path = my_files.get_output_path('optuna.db')
+    db_path = io_utils.get_output_path('optuna.db')
 
     db_url = f'sqlite:///{db_path}'
     study = optuna.create_study(

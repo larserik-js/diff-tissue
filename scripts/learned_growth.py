@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from diff_tissue.jax_bootstrap import jnp
-from diff_tissue import morphing, my_files, my_utils, parameters, plotting
+from diff_tissue import morphing, io_utils, my_utils, parameters, plotting
 
 
 def _assign_weighted_goals(old_polygons, goals, new_polygons):
@@ -35,8 +35,8 @@ def _assign_weighted_goals(old_polygons, goals, new_polygons):
 
 
 def _save_growth_evolution(growth_evolution, params):
-    output_file = my_files.OutputFile('learned_growth', '.pkl', params)
-    data_handler = my_files.DataHandler(output_file)
+    output_file = io_utils.OutputFile('learned_growth', '.pkl', params)
+    data_handler = io_utils.DataHandler(output_file)
     data_handler.save(growth_evolution)
 
 
@@ -58,7 +58,7 @@ def _main():
         jax_arrays['init_vertices'], jax_arrays['indices']
     )
 
-    input_file = my_files.get_output_params_file(params)
+    input_file = io_utils.get_output_params_file(params)
     df = pd.read_csv(input_file, sep='\t', index_col=0)
     
     goal_areas = df['best_goal_area'].values
@@ -87,7 +87,7 @@ def _main():
 
     _save_growth_evolution(growth_evolution, params)
 
-    output_dir = my_files.OutputDir('learned_growth', params).path
+    output_dir = io_utils.OutputDir('learned_growth', params).path
     _plot(growth_evolution, output_dir, jax_arrays, params)
 
 

@@ -1,9 +1,9 @@
-from diff_tissue import my_files, my_utils, parameters, plotting
+from diff_tissue import io_utils, my_utils, parameters, plotting
 
 
 def _get_plotting_data(params):
-    input_file = my_files.OutputFile('final_tissues', '.pkl', params)
-    data_handler = my_files.DataHandler(input_file)
+    input_file = io_utils.OutputFile('final_tissues', '.pkl', params)
+    data_handler = io_utils.DataHandler(input_file)
     final_tissues = data_handler.load()
     return final_tissues
 
@@ -24,7 +24,7 @@ def _main():
 
     final_tissues = _get_plotting_data(params)
 
-    output_dir = my_files.OutputDir('final_tissues', params).path
+    output_dir = io_utils.OutputDir('final_tissues', params).path
 
     _plot(final_tissues, output_dir, jax_arrays, params)
 

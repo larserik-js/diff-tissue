@@ -1,17 +1,17 @@
 import pandas as pd
 
-from diff_tissue import my_files, my_utils, parameters, shape_opt
+from diff_tissue import io_utils, my_utils, parameters, shape_opt
 
 
 def _save_final_tissues(final_tissues, params):
-    output_file = my_files.OutputFile('final_tissues', '.pkl', params)
-    data_handler = my_files.DataHandler(output_file)
+    output_file = io_utils.OutputFile('final_tissues', '.pkl', params)
+    data_handler = io_utils.DataHandler(output_file)
     data_handler.save(final_tissues)
 
 
 def _save_output_params(param_dict, params):
     df = pd.DataFrame(param_dict)
-    output_file = my_files.get_output_params_file(params)
+    output_file = io_utils.get_output_params_file(params)
     df.to_csv(output_file, sep='\t', index=True, header=True)
 
 

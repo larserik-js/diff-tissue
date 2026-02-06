@@ -18,13 +18,8 @@ def _calc_inverse_sigmoid(min_val, max_val, sigmoid_vals):
     return logits
 
 
-def _calc_area_scaling(min_scaling, max_scaling, logits):
-    area_scaling = _calc_sigmoid(min_scaling, max_scaling, logits)
-    return area_scaling
-
-
-def _calc_inverse_area_scaling(min_scaling, max_scaling, area_scalings):
-    logits = _calc_inverse_sigmoid(min_scaling, max_scaling, area_scalings)
+def _calc_inverse_areas(min_area, max_area, areas):
+    logits = _calc_inverse_sigmoid(min_area, max_area, areas)
     return logits
 
 
@@ -43,10 +38,15 @@ def _calc_inverse_smoothing_stds(smoothing_stds):
     return logits
 
 
-def _calc_goal_areas_(init_areas, min_area_scaling, max_area_scaling, logits):
-    goal_areas = init_areas.mean() * _calc_area_scaling(
-        min_area_scaling, max_area_scaling, logits
-    )
+def _calc_goal_area_bounds(mapped_areas, params):
+    min_goal_area = mapped_areas.min() / params.growth_scale
+    max_goal_area = mapped_areas.max() * params.max_area_scaling
+    return (min_goal_area, max_goal_area)
+
+
+def _calc_goal_areas_(goal_area_bounds, ar_logits):
+    min_goal_area, max_goal_area = goal_area_bounds
+    goal_areas = _calc_sigmoid(min_goal_area, max_goal_area, ar_logits)
     return goal_areas
 
 
@@ -58,12 +58,9 @@ def _knots_to_full_shape(lc_goals, n_left_logits, weights):
 
 
 def _calc_goal_areas(
-        init_areas, min_area_scaling, max_area_scaling, ar_logits,
-        proximal_mask, knots, knot_ctx
+        goal_area_bounds, ar_logits, proximal_mask, knots, knot_ctx
     ):
-    goal_areas = _calc_goal_areas_(
-        init_areas, min_area_scaling, max_area_scaling, ar_logits
-    )
+    goal_areas = _calc_goal_areas_(goal_area_bounds, ar_logits)
 
     if knots:
         goal_areas = _knots_to_full_shape(
@@ -120,12 +117,11 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
     return shape_loss
 
 
-def _loss_f(ar_logits, el_logits, knot_ctx, init_areas, min_dist_mask,
+def _loss_f(ar_logits, el_logits, knot_ctx, goal_area_bounds, min_dist_mask,
             n_growth_steps, jax_arrays, params):
-    min_area_scaling = 1 / params.growth_scale
     goal_areas = _calc_goal_areas(
-        init_areas, min_area_scaling, params.max_area_scaling, ar_logits,
-        jax_arrays['proximal_mask'], False, knot_ctx
+        goal_area_bounds, ar_logits, jax_arrays['proximal_mask'], False,
+        knot_ctx
     )
     goal_elongations = _calc_goal_elongations(
         el_logits, jax_arrays['proximal_mask'], False, knot_ctx
@@ -146,16 +142,15 @@ def _loss_f(ar_logits, el_logits, knot_ctx, init_areas, min_dist_mask,
 
 
 def _loss_f_knots(
-        ar_logits, el_logits, std_logits, knot_ctx, init_areas, min_dist_mask,
-        n_growth_steps, jax_arrays, params
+        ar_logits, el_logits, std_logits, knot_ctx, goal_area_bounds,
+        min_dist_mask, n_growth_steps, jax_arrays, params
     ):
     updated_knot_weights = _calc_knot_weights(std_logits, knot_ctx.dist_vecs)
     knot_ctx = knot_ctx.replace(knot_weights=updated_knot_weights)
 
-    min_area_scaling = 1 / params.growth_scale
     goal_areas = _calc_goal_areas(
-        init_areas, min_area_scaling, params.max_area_scaling, ar_logits,
-        jax_arrays['proximal_mask'], True, knot_ctx
+        goal_area_bounds, ar_logits, jax_arrays['proximal_mask'], True,
+        knot_ctx
     )
     goal_elongations = _calc_goal_elongations(
         el_logits, jax_arrays['proximal_mask'], True, knot_ctx
@@ -221,18 +216,6 @@ def _calc_mean_closest_metric(metrics, closest_poly_idx_by_knots, jax_arrays):
     return mean_closest_metrics
 
 
-def _get_knots_area_scalings(mapped_areas, closest_poly_idx_by_knots,
-                             init_areas, jax_arrays):
-    mean_mapped_areas = _calc_mean_closest_metric(
-        mapped_areas, closest_poly_idx_by_knots, jax_arrays
-    )
-    mean_init_areas = _calc_mean_closest_metric(
-        init_areas, closest_poly_idx_by_knots, jax_arrays
-    )
-    knots_area_scalings = mean_mapped_areas / mean_init_areas
-    return knots_area_scalings
-
-
 def _calc_std_logits(jax_arrays):
     knots_x_diff = (
         jax_arrays['center_knots'][0,0] - jax_arrays['left_knots'][-1,0]
@@ -246,32 +229,25 @@ def _calc_std_logits(jax_arrays):
     return std_logits
 
 
-def _calc_logits(params, area_scalings, elongations):
-    min_area_scaling = 1 / params.growth_scale
-    max_area_scaling = params.max_area_scaling
-    area_scalings = area_scalings.clip(
-        min_area_scaling + 1e-8, max_area_scaling - 1e-8
-    )
-    ar_logits = _calc_inverse_area_scaling(
-        min_area_scaling, max_area_scaling, area_scalings
-    )
+def _calc_logits(areas, elongations, goal_area_bounds):
+    min_area, max_area = goal_area_bounds
+    areas = areas.clip(min_area + 1e-8, max_area - 1e-8)
+    ar_logits = _calc_inverse_areas(min_area, max_area, areas)
     el_logits = _calc_inverse_elongations(elongations)
-
     return ar_logits, el_logits
 
 
-def _get_poly_init_logits(params, mapped_areas, mapped_elongations, init_areas):
-    mapped_area_scalings = mapped_areas / init_areas
-
+def _get_poly_init_logits(mapped_areas, mapped_elongations, goal_area_bounds):
     ar_logits, el_logits = _calc_logits(
-        params, mapped_area_scalings, mapped_elongations
+        mapped_areas, mapped_elongations, goal_area_bounds
     )
     init_logits = (ar_logits, el_logits)
     return init_logits
 
 
-def _get_knot_init_logits(jax_arrays, params, mapped_areas, mapped_elongations,
-                          init_areas):
+def _get_knot_init_logits(
+        jax_arrays, mapped_areas, mapped_elongations, goal_area_bounds
+    ):
     knot_positions = ['left', 'center']
     left_and_center_ar_logits = []
     left_and_center_el_logits = []
@@ -281,14 +257,14 @@ def _get_knot_init_logits(jax_arrays, params, mapped_areas, mapped_elongations,
             knots, jax_arrays
         )
 
-        area_scalings = _get_knots_area_scalings(
-            mapped_areas, closest_polygon_by_knots, init_areas, jax_arrays
+        areas = _calc_mean_closest_metric(
+            mapped_areas, closest_polygon_by_knots, jax_arrays
         )
         elongations = _calc_mean_closest_metric(
             mapped_elongations, closest_polygon_by_knots, jax_arrays
         )
         ar_logits, el_logits = _calc_logits(
-            params, area_scalings, elongations
+            areas, elongations, goal_area_bounds
         )
         left_and_center_ar_logits.append(ar_logits)
         left_and_center_el_logits.append(el_logits)
@@ -301,21 +277,16 @@ def _get_knot_init_logits(jax_arrays, params, mapped_areas, mapped_elongations,
     return init_logits
 
 
-def _get_init_logits(jax_arrays, params):
-    all_cells = my_utils.get_all_cells(
-        jax_arrays['init_vertices'], jax_arrays['indices']
-    )
-    init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-
+def _get_init_logits(goal_area_bounds, jax_arrays, params):
     if params.knots:
         init_logits = _get_knot_init_logits(
-            jax_arrays, params, jax_arrays['mapped_areas'],
-            jax_arrays['mapped_elongations'], init_areas
+            jax_arrays, jax_arrays['mapped_areas'],
+            jax_arrays['mapped_elongations'], goal_area_bounds
         )
     else:
         init_logits = _get_poly_init_logits(
-            params, jax_arrays['mapped_areas'],
-            jax_arrays['mapped_elongations'], init_areas
+            jax_arrays['mapped_areas'], jax_arrays['mapped_elongations'],
+            goal_area_bounds
         )
     return init_logits
 
@@ -387,9 +358,8 @@ class _BestState:
     final_elongations: jnp.ndarray
 
 
-def _assemble_tabular_output(init_areas, best):
+def _assemble_tabular_output(best):
     tabular_output = {
-        'init_area': init_areas,
         'best_goal_area': best.goal_areas,
         'best_goal_elongation': best.goal_elongations,
         'final_area': best.final_areas,
@@ -398,12 +368,8 @@ def _assemble_tabular_output(init_areas, best):
     return tabular_output
 
 
-def _iterate_towards_shape(logits, jax_arrays, params):
+def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
     vertices = jax_arrays['init_vertices']
-    all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
-    init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-
-    min_area_scaling = 1 / params.growth_scale
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
 
@@ -428,14 +394,14 @@ def _iterate_towards_shape(logits, jax_arrays, params):
         if params.knots:
             (loss, aux_data), grads = (
                 _calc_loss_val_grads_knots(
-                    *logits, knot_ctx, init_areas, min_dist_mask,
+                    *logits, knot_ctx, goal_area_bounds, min_dist_mask,
                     params.n_growth_steps, jax_arrays, params
                 )
             )
         else:
             (loss, aux_data), grads = (
                 _calc_loss_val_grads(
-                    *logits, knot_ctx, init_areas, min_dist_mask,
+                    *logits, knot_ctx, goal_area_bounds, min_dist_mask,
                     params.n_growth_steps, jax_arrays, params
                 )
             )
@@ -452,9 +418,8 @@ def _iterate_towards_shape(logits, jax_arrays, params):
 
             best.final_vertices = vertices
             best.goal_areas = _calc_goal_areas(
-                init_areas, min_area_scaling, params.max_area_scaling,
-                ar_logits, jax_arrays['proximal_mask'], params.knots,
-                knot_ctx
+                goal_area_bounds, ar_logits, jax_arrays['proximal_mask'],
+                params.knots, knot_ctx
             )
             best.goal_elongations = _calc_goal_elongations(
                 el_logits, jax_arrays['proximal_mask'], params.knots,
@@ -487,7 +452,7 @@ def _iterate_towards_shape(logits, jax_arrays, params):
 
     final_tissues = jnp.array(final_tissues)
 
-    tabular_output = _assemble_tabular_output(init_areas, best)
+    tabular_output = _assemble_tabular_output(best)
 
     return best.loss, final_tissues, best, tabular_output
 
@@ -495,10 +460,14 @@ def _iterate_towards_shape(logits, jax_arrays, params):
 def run(params):
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    init_logits = _get_init_logits(jax_arrays, params)
+    goal_area_bounds = _calc_goal_area_bounds(
+        jax_arrays['mapped_areas'], params
+    )
+
+    init_logits = _get_init_logits(goal_area_bounds, jax_arrays, params)
 
     best_loss, final_tissues, best, tabular_output = _iterate_towards_shape(
-        init_logits, jax_arrays, params
+        init_logits, goal_area_bounds, jax_arrays, params
     )
 
     return best_loss, final_tissues, best, tabular_output
