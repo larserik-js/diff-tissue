@@ -83,20 +83,20 @@ class Params:
             'cli_flag': 'elw'
         }
     )
-    max_area_scaling: float = struct.field(
-        default=9.0,
-        pytree_node=True,
-        metadata={
-            'help': 'Maximal area scaling.',
-            'cli_flag': 'marsc'
-        }
-    )
     proximal_dist: float = struct.field(
         default=0.0,
         pytree_node=True,
         metadata={
             'help': 'Distance from base for proximal polygons.',
             'cli_flag': 'pd'
+        }
+    )
+    max_area_scaling: float = struct.field(
+        default=9.0,
+        pytree_node=True,
+        metadata={
+            'help': 'Maximal area scaling.',
+            'cli_flag': 'marsc'
         }
     )
     growth_scale: float = struct.field(
