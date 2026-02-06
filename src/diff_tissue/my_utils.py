@@ -22,125 +22,17 @@ def timer(func):
     return timed
 
 
+def get_all_cells(vertices, indices):
+    all_cells = vertices[indices]
+    return all_cells
+
+
 def calc_centroids(vertices, indices, valid_mask):
     polygons = vertices[indices]
     mask = valid_mask[..., None].repeat(2, axis=2)
     polygons = np.where(mask, polygons, jnp.nan)
     centroids = np.nanmean(polygons, axis=1)
     return centroids
-
-
-class MappedMetrics:
-    def __init__(self, polygons, shape):
-        self._polygons = polygons
-        self._shape = shape
-
-    @cached_property
-    def vertices(self):
-        outer_shape = shapes.get_outer_shape(
-            self._shape, self._polygons.mesh_area,
-            init_systems.VertexNumbers(self._polygons)
-        )
-        vertices_ = diffeomorphism.get_mapped_vertices(
-            self._polygons.vertices, self._polygons.polygon_inds,
-            self._polygons.boundary_mask, outer_shape
-        )
-        return vertices_
-
-    @cached_property
-    def centroids(self):
-        centroids_ = calc_centroids(
-            self.vertices, self._polygons.polygon_inds,
-            self._polygons.valid_mask
-        )
-        return centroids_
-
-
-def calc_proximal_mask(mapped_centroids, proximal_dist):
-    y_dists_from_base = (
-        mapped_centroids[:,1] - init_systems.Coords.base_origin[1]
-    )
-    proximal_mask = (y_dists_from_base <= proximal_dist)
-    return proximal_mask
-
-
-def _make_array_dict(
-        polygons, outer_shape, mapped_metrics, proximal_mask, knots
-    ):
-    arrays = {
-        'indices': polygons.polygon_inds,
-        'valid_mask': polygons.valid_mask,
-        'init_vertices': polygons.vertices,
-        'poly_neighbors': polygons.poly_neighbors,
-        'vertex_neighbors': polygons.vertex_neighbors,
-        'vertex_polygons': polygons.vertex_polygons,
-        'free_mask': polygons.free_mask,
-        'boundary_mask': polygons.boundary_mask,
-        'outer_shape': outer_shape,
-        'mapped_vertices': mapped_metrics.vertices,
-        'mapped_centroids': mapped_metrics.centroids,
-        'proximal_mask': proximal_mask,
-        'left_knots': knots.left_knots,
-        'center_knots': knots.center_knots,
-        'right_knots': knots.right_knots,
-        'all_knots': knots.all_knots
-    }
-    return arrays
-
-
-def get_arrays(params):
-    polygons = init_systems.get_system(params.system)
-    mesh_area = polygons.mesh_area
-    vertex_numbers = init_systems.VertexNumbers(polygons)
-
-    outer_shape = shapes.get_outer_shape(
-        params.shape, mesh_area, vertex_numbers
-    )
-    mapped_metrics = MappedMetrics(polygons, params.shape)
-    proximal_mask = calc_proximal_mask(
-        mapped_metrics.centroids, params.proximal_dist
-    )
-    knots = init_systems.Knots()
-    arrays = _make_array_dict(
-        polygons, outer_shape, mapped_metrics, proximal_mask, knots
-    )
-    return arrays
-
-
-def _get_device():
-    return jax.devices('cpu')[0]
-
-
-def _send_to_device(jax_array):
-    return jax.device_put(jax_array, device=_get_device())
-
-
-def to_jax(np_array):
-    return _send_to_device(jnp.array(np_array))
-
-
-def _make_jax_arrays(arrays):
-    jax_arrays = {name: to_jax(array) for name, array in arrays.items()}
-    return jax_arrays
-
-
-def get_jax_arrays(params):
-    arrays = get_arrays(params)
-    jax_arrays = _make_jax_arrays(arrays)
-    return jax_arrays
-
-
-def calc_optimal_angles(valid_mask):
-    n_vertices = valid_mask.sum(axis=1) - 2
-    interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
-    optimal_angles = jnp.pi - interior_angles
-    optimal_angles = optimal_angles[:, None]
-    return optimal_angles
-
-
-def get_all_cells(vertices, indices):
-    all_cells = vertices[indices]
-    return all_cells
 
 
 def calc_all_areas(all_cells, valid_mask):
@@ -176,6 +68,168 @@ def calc_elongations(all_cells, valid_mask):
     elongations = (y_vars - x_vars) / (y_vars + x_vars + eps)
 
     return elongations
+
+
+def calc_optimal_angles(valid_mask):
+    n_vertices = valid_mask.sum(axis=1) - 2
+    interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
+    optimal_angles = jnp.pi - interior_angles
+    optimal_angles = optimal_angles[:, None]
+    return optimal_angles
+
+
+class InitMetrics:
+    def __init__(self, polygons):
+        self._polygons = polygons
+
+    @cached_property
+    def _all_cells(self):
+        init_vertices = self._polygons.vertices
+        all_cells = get_all_cells(init_vertices, self._polygons.polygon_inds)
+        return all_cells
+
+    @cached_property
+    def areas(self):
+        init_areas = calc_all_areas(self._all_cells, self._polygons.valid_mask)
+        return init_areas
+
+    @cached_property
+    def elongations(self):
+        init_elongations = calc_elongations(
+            self._all_cells, self._polygons.valid_mask
+        )
+        return init_elongations
+
+
+class MappedMetrics:
+    def __init__(self, polygons, shape):
+        self._polygons = polygons
+        self._shape = shape
+
+    @cached_property
+    def vertices(self):
+        outer_shape = shapes.get_outer_shape(
+            self._shape, self._polygons.mesh_area,
+            init_systems.VertexNumbers(self._polygons)
+        )
+        vertices_ = diffeomorphism.get_mapped_vertices(
+            self._polygons.vertices, self._polygons.polygon_inds,
+            self._polygons.boundary_mask, outer_shape
+        )
+        return vertices_
+
+    @cached_property
+    def _all_mapped_cells(self):
+        all_mapped_cells = get_all_cells(
+            self.vertices, self._polygons.polygon_inds
+        )
+        return all_mapped_cells
+
+    @cached_property
+    def centroids(self):
+        centroids_ = calc_centroids(
+            self.vertices, self._polygons.polygon_inds,
+            self._polygons.valid_mask
+        )
+        return centroids_
+
+    @cached_property
+    def areas(self):
+        areas_ = calc_all_areas(
+            self._all_mapped_cells, self._polygons.valid_mask
+        )
+        return areas_
+
+    @cached_property
+    def elongations(self):
+        elongations_ = calc_elongations(
+            self._all_mapped_cells, self._polygons.valid_mask
+        )
+        return elongations_
+
+
+def calc_proximal_mask(mapped_centroids, proximal_dist):
+    y_dists_from_base = (
+        mapped_centroids[:,1] - init_systems.Coords.base_origin[1]
+    )
+    proximal_mask = (y_dists_from_base <= proximal_dist)
+    return proximal_mask
+
+
+def _make_array_dict(
+        polygons, init_metrics, mapped_metrics, outer_shape, proximal_mask,
+        knots
+    ):
+    arrays = {
+        'indices': polygons.polygon_inds,
+        'valid_mask': polygons.valid_mask,
+        'init_vertices': polygons.vertices,
+        'poly_neighbors': polygons.poly_neighbors,
+        'vertex_neighbors': polygons.vertex_neighbors,
+        'vertex_polygons': polygons.vertex_polygons,
+        'free_mask': polygons.free_mask,
+        'boundary_mask': polygons.boundary_mask,
+        'init_areas': init_metrics.areas,
+        'init_elongations': init_metrics.elongations,
+        'mapped_vertices': mapped_metrics.vertices,
+        'mapped_centroids': mapped_metrics.centroids,
+        'mapped_areas': mapped_metrics.areas,
+        'mapped_elongations': mapped_metrics.elongations,
+        'outer_shape': outer_shape,
+        'proximal_mask': proximal_mask,
+        'left_knots': knots.left_knots,
+        'center_knots': knots.center_knots,
+        'right_knots': knots.right_knots,
+        'all_knots': knots.all_knots
+    }
+    return arrays
+
+
+def get_arrays(params):
+    polygons = init_systems.get_system(params.system, params.seed)
+
+    init_metrics = InitMetrics(polygons)
+
+    mesh_area = polygons.mesh_area
+    vertex_numbers = init_systems.VertexNumbers(polygons)
+    outer_shape = shapes.get_outer_shape(
+        params.shape, mesh_area, vertex_numbers
+    )
+
+    mapped_metrics = MappedMetrics(polygons, params.shape)
+    proximal_mask = calc_proximal_mask(
+        mapped_metrics.centroids, params.proximal_dist
+    )
+
+    knots = init_systems.Knots()
+    arrays = _make_array_dict(
+        polygons, init_metrics, mapped_metrics, outer_shape, proximal_mask,
+        knots
+    )
+    return arrays
+
+
+def _get_device():
+    return jax.devices('cpu')[0]
+
+
+def _send_to_device(jax_array):
+    return jax.device_put(jax_array, device=_get_device())
+
+
+def to_jax(np_array):
+    return _send_to_device(jnp.array(np_array))
+
+
+def _make_jax_arrays(arrays):
+    jax_arrays = {name: to_jax(array) for name, array in arrays.items()}
+    return jax_arrays
+
+
+def get_jax_arrays(params):
+    arrays = get_arrays(params)
+    jax_arrays = _make_jax_arrays(arrays)
+    return jax_arrays
 
 
 def _make_poly_idx_lists(polygon_indices):

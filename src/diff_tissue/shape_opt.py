@@ -302,27 +302,20 @@ def _get_knot_init_logits(jax_arrays, params, mapped_areas, mapped_elongations,
 
 
 def _get_init_logits(jax_arrays, params):
-    all_mapped_cells = my_utils.get_all_cells(
-        jax_arrays['mapped_vertices'], jax_arrays['indices']
-    )
-    mapped_areas = my_utils.calc_all_areas(
-        all_mapped_cells, jax_arrays['valid_mask']
-    )
     all_cells = my_utils.get_all_cells(
         jax_arrays['init_vertices'], jax_arrays['indices']
     )
     init_areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    mapped_elongations = my_utils.calc_elongations(
-        all_mapped_cells, jax_arrays['valid_mask']
-    )
 
     if params.knots:
         init_logits = _get_knot_init_logits(
-            jax_arrays, params, mapped_areas, mapped_elongations, init_areas
+            jax_arrays, params, jax_arrays['mapped_areas'],
+            jax_arrays['mapped_elongations'], init_areas
         )
     else:
         init_logits = _get_poly_init_logits(
-            params, mapped_areas, mapped_elongations, init_areas
+            params, jax_arrays['mapped_areas'],
+            jax_arrays['mapped_elongations'], init_areas
         )
     return init_logits
 
@@ -500,8 +493,6 @@ def _iterate_towards_shape(logits, jax_arrays, params):
 
 
 def run(params):
-    np.random.seed(params.seed)
-
     jax_arrays = my_utils.get_jax_arrays(params)
 
     init_logits = _get_init_logits(jax_arrays, params)

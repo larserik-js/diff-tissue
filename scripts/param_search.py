@@ -36,8 +36,9 @@ def objective_f(trial):
 
 
 def _main():
-    output_path = my_files.get_param_search_db_file()
-    db_url = f'sqlite:///{output_path}'
+    db_path = my_files.get_output_path('optuna.db')
+
+    db_url = f'sqlite:///{db_path}'
     study = optuna.create_study(
         study_name='my_study',
         direction='minimize',

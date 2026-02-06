@@ -1,5 +1,3 @@
-import numpy as np
-
 from diff_tissue import my_files, my_utils, parameters, plotting
 
 
@@ -21,8 +19,6 @@ def _plot(growth_evolution, output_dir, jax_arrays, params):
 
 def _main():
     params = parameters.get_params_from_cli()
-
-    np.random.seed(params.seed)
 
     jax_arrays = my_utils.get_jax_arrays(params)
 
