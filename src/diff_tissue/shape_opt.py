@@ -38,9 +38,9 @@ def _calc_inverse_smoothing_stds(smoothing_stds):
     return logits
 
 
-def _calc_goal_area_bounds(mapped_areas, growth_scale):
-    min_goal_area = mapped_areas.min() / growth_scale
-    max_goal_area = mapped_areas.max() * 1.1
+def _calc_goal_area_bounds(mapped_areas, params):
+    min_goal_area = mapped_areas.min() / params.growth_scale
+    max_goal_area = mapped_areas.max() * params.max_area_scaling
     return (min_goal_area, max_goal_area)
 
 
@@ -277,11 +277,7 @@ def _get_knot_init_logits(
     return init_logits
 
 
-def _get_init_logits(jax_arrays, params):
-    goal_area_bounds = _calc_goal_area_bounds(
-        jax_arrays['mapped_areas'], params.growth_scale
-    )
-
+def _get_init_logits(goal_area_bounds, jax_arrays, params):
     if params.knots:
         init_logits = _get_knot_init_logits(
             jax_arrays, jax_arrays['mapped_areas'],
@@ -289,8 +285,8 @@ def _get_init_logits(jax_arrays, params):
         )
     else:
         init_logits = _get_poly_init_logits(
-            jax_arrays['mapped_areas'],
-            jax_arrays['mapped_elongations'], goal_area_bounds
+            jax_arrays['mapped_areas'], jax_arrays['mapped_elongations'],
+            goal_area_bounds
         )
     return init_logits
 
@@ -372,12 +368,8 @@ def _assemble_tabular_output(best):
     return tabular_output
 
 
-def _iterate_towards_shape(logits, jax_arrays, params):
+def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
     vertices = jax_arrays['init_vertices']
-
-    goal_area_bounds = _calc_goal_area_bounds(
-        jax_arrays['mapped_areas'], params.growth_scale
-    )
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
 
@@ -468,10 +460,14 @@ def _iterate_towards_shape(logits, jax_arrays, params):
 def run(params):
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    init_logits = _get_init_logits(jax_arrays, params)
+    goal_area_bounds = _calc_goal_area_bounds(
+        jax_arrays['mapped_areas'], params
+    )
+
+    init_logits = _get_init_logits(goal_area_bounds, jax_arrays, params)
 
     best_loss, final_tissues, best, tabular_output = _iterate_towards_shape(
-        init_logits, jax_arrays, params
+        init_logits, goal_area_bounds, jax_arrays, params
     )
 
     return best_loss, final_tissues, best, tabular_output

@@ -92,10 +92,10 @@ class Params:
         }
     )
     max_area_scaling: float = struct.field(
-        default=9.0,
+        default=1.0,
         pytree_node=True,
         metadata={
-            'help': 'Maximal area scaling.',
+            'help': 'Maximum area scaling.',
             'cli_flag': 'marsc'
         }
     )
