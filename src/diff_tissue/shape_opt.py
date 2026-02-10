@@ -111,7 +111,9 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
     diff_vectors = final_vertices[:,None] - outer_shape
     dists = jnp.linalg.norm(diff_vectors, axis=2)
     dists_cubed = dists**3
-    masked_dists = jnp.where(min_dist_mask, dists_cubed, jnp.inf)
+    masked_dists = jnp.asarray(
+        jnp.where(min_dist_mask, dists_cubed, jnp.inf)
+    )
     min_cubed_dists = jnp.min(masked_dists, axis=1)
     shape_loss = jnp.sum(min_cubed_dists * boundary_mask)
     return shape_loss
@@ -132,7 +134,7 @@ def _loss_f(ar_logits, el_logits, knot_ctx, goal_area_bounds, min_dist_mask,
     )
     final_vertices = growth_evolution[-1]
 
-    loss = _calc_shape_loss(
+    loss = params.shape_loss_weight * _calc_shape_loss(
         final_vertices, jax_arrays['boundary_mask'], jax_arrays['outer_shape'],
         min_dist_mask
     )
