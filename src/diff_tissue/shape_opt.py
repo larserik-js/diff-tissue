@@ -119,16 +119,30 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
     return shape_loss
 
 
-def _loss_fn(logits, knot_ctx, goal_area_bounds, min_dist_mask,
-            n_growth_steps, jax_arrays, params):
-    ar_logits, el_logits = logits
+def _update_knot_ctx(logits, knot_ctx, knots):
+    if knots:
+        std_logits = logits[2]
+        updated_knot_weights = _calc_knot_weights(
+            std_logits, knot_ctx.dist_vecs
+        )
+        knot_ctx = knot_ctx.replace(knot_weights=updated_knot_weights)
+    return knot_ctx
+
+
+def _loss_fn(
+        logits, knot_ctx, goal_area_bounds, min_dist_mask, n_growth_steps,
+        jax_arrays, params
+    ):
+    ar_logits, el_logits = logits[:2]
+
+    knot_ctx = _update_knot_ctx(logits, knot_ctx, params.knots)
 
     goal_areas = _calc_goal_areas(
-        goal_area_bounds, ar_logits, jax_arrays['proximal_mask'], False,
+        goal_area_bounds, ar_logits, jax_arrays['proximal_mask'], params.knots,
         knot_ctx
     )
     goal_elongations = _calc_goal_elongations(
-        el_logits, jax_arrays['proximal_mask'], False, knot_ctx
+        el_logits, jax_arrays['proximal_mask'], params.knots, knot_ctx
     )
 
     growth_evolution = morphing.iterate(
@@ -145,49 +159,10 @@ def _loss_fn(logits, knot_ctx, goal_area_bounds, min_dist_mask,
     return loss, aux_data
 
 
-def _loss_fn_knots(
-        logits, knot_ctx, goal_area_bounds, min_dist_mask, n_growth_steps,
-        jax_arrays, params
-    ):
-    ar_logits, el_logits, std_logits = logits
-
-    updated_knot_weights = _calc_knot_weights(std_logits, knot_ctx.dist_vecs)
-    knot_ctx = knot_ctx.replace(knot_weights=updated_knot_weights)
-
-    goal_areas = _calc_goal_areas(
-        goal_area_bounds, ar_logits, jax_arrays['proximal_mask'], True,
-        knot_ctx
-    )
-    goal_elongations = _calc_goal_elongations(
-        el_logits, jax_arrays['proximal_mask'], True, knot_ctx
-    )
-
-    growth_evolution = morphing.iterate(
-        goal_areas, goal_elongations, n_growth_steps, jax_arrays, params
-    )
-    final_vertices = growth_evolution[-1]
-
-    loss = _calc_shape_loss(
-        final_vertices, jax_arrays['boundary_mask'], jax_arrays['outer_shape'],
-        min_dist_mask
-    )
-    aux_data = (final_vertices, knot_ctx)
-
-    return loss, aux_data
-
-
-def _get_loss_fn(knots):
-    if knots:
-        loss_fn = jax.jit(
-            jax.value_and_grad(_loss_fn_knots, has_aux=True, argnums=0),
-            static_argnames=['n_growth_steps']
-        )
-    else:
-        loss_fn = jax.jit(
-            jax.value_and_grad(_loss_fn, has_aux=True, argnums=0),
-            static_argnames=['n_growth_steps']
-        )
-    return loss_fn
+loss_fn = jax.jit(
+    jax.value_and_grad(_loss_fn, has_aux=True, argnums=0),
+    static_argnames=['n_growth_steps']
+)
 
 
 def _calc_knots_to_mapped_centroids_dist_vecs(knots, jax_arrays):
@@ -385,8 +360,6 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
     knot_ctx = _get_knot_ctx(params.knots, jax_arrays)
 
     optimizer = _MyOptimizer(logits)
-
-    loss_fn = _get_loss_fn(params.knots)
 
     best = _BestState(
         loss = jnp.inf,
