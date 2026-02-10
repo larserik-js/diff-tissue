@@ -119,7 +119,7 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
     return shape_loss
 
 
-def _loss_f(ar_logits, el_logits, knot_ctx, goal_area_bounds, min_dist_mask,
+def _loss_fn(ar_logits, el_logits, knot_ctx, goal_area_bounds, min_dist_mask,
             n_growth_steps, jax_arrays, params):
     goal_areas = _calc_goal_areas(
         goal_area_bounds, ar_logits, jax_arrays['proximal_mask'], False,
@@ -143,7 +143,7 @@ def _loss_f(ar_logits, el_logits, knot_ctx, goal_area_bounds, min_dist_mask,
     return loss, aux_data
 
 
-def _loss_f_knots(
+def _loss_fn_knots(
         ar_logits, el_logits, std_logits, knot_ctx, goal_area_bounds,
         min_dist_mask, n_growth_steps, jax_arrays, params
     ):
@@ -172,16 +172,19 @@ def _loss_f_knots(
     return loss, aux_data
 
 
-_calc_loss_val_grads = jax.jit(
-    jax.value_and_grad(_loss_f, has_aux=True, argnums=(0, 1)),
-    static_argnames=['n_growth_steps']
-)
+def _get_loss_fn(knots):
+    if knots:
+        loss_fn = jax.jit(
+            jax.value_and_grad(_loss_fn_knots, has_aux=True, argnums=(0, 1, 2)),
+            static_argnames=['n_growth_steps']
+        )
+    else:
+        loss_fn = jax.jit(
+            jax.value_and_grad(_loss_fn, has_aux=True, argnums=(0, 1)),
+            static_argnames=['n_growth_steps']
+        )
+    return loss_fn
 
-
-_calc_loss_val_grads_knots = jax.jit(
-    jax.value_and_grad(_loss_f_knots, has_aux=True, argnums=(0, 1, 2)),
-    static_argnames=['n_growth_steps']
-)
 
 def _calc_knots_to_mapped_centroids_dist_vecs(knots, jax_arrays):
     dist_vecs = jax_arrays['mapped_centroids'][:, None] - knots[None, :]
@@ -379,6 +382,8 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
 
     optimizer = _MyOptimizer(logits)
 
+    loss_fn = _get_loss_fn(params.knots)
+
     best = _BestState(
         loss = jnp.inf,
         final_vertices = jnp.array([]),
@@ -393,20 +398,12 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
     steps_since_best_loss = 0
 
     for shape_step in range(params.n_shape_steps):
-        if params.knots:
-            (loss, aux_data), grads = (
-                _calc_loss_val_grads_knots(
-                    *logits, knot_ctx, goal_area_bounds, min_dist_mask,
-                    params.n_growth_steps, jax_arrays, params
-                )
+        (loss, aux_data), grads = (
+            loss_fn(
+                *logits, knot_ctx, goal_area_bounds, min_dist_mask,
+                params.n_growth_steps, jax_arrays, params
             )
-        else:
-            (loss, aux_data), grads = (
-                _calc_loss_val_grads(
-                    *logits, knot_ctx, goal_area_bounds, min_dist_mask,
-                    params.n_growth_steps, jax_arrays, params
-                )
-            )
+        )
         vertices, knot_ctx = aux_data
 
         if not params.quiet:
