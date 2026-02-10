@@ -119,8 +119,10 @@ def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
     return shape_loss
 
 
-def _loss_fn(ar_logits, el_logits, knot_ctx, goal_area_bounds, min_dist_mask,
+def _loss_fn(logits, knot_ctx, goal_area_bounds, min_dist_mask,
             n_growth_steps, jax_arrays, params):
+    ar_logits, el_logits = logits
+
     goal_areas = _calc_goal_areas(
         goal_area_bounds, ar_logits, jax_arrays['proximal_mask'], False,
         knot_ctx
@@ -144,9 +146,11 @@ def _loss_fn(ar_logits, el_logits, knot_ctx, goal_area_bounds, min_dist_mask,
 
 
 def _loss_fn_knots(
-        ar_logits, el_logits, std_logits, knot_ctx, goal_area_bounds,
-        min_dist_mask, n_growth_steps, jax_arrays, params
+        logits, knot_ctx, goal_area_bounds, min_dist_mask, n_growth_steps,
+        jax_arrays, params
     ):
+    ar_logits, el_logits, std_logits = logits
+
     updated_knot_weights = _calc_knot_weights(std_logits, knot_ctx.dist_vecs)
     knot_ctx = knot_ctx.replace(knot_weights=updated_knot_weights)
 
@@ -175,12 +179,12 @@ def _loss_fn_knots(
 def _get_loss_fn(knots):
     if knots:
         loss_fn = jax.jit(
-            jax.value_and_grad(_loss_fn_knots, has_aux=True, argnums=(0, 1, 2)),
+            jax.value_and_grad(_loss_fn_knots, has_aux=True, argnums=0),
             static_argnames=['n_growth_steps']
         )
     else:
         loss_fn = jax.jit(
-            jax.value_and_grad(_loss_fn, has_aux=True, argnums=(0, 1)),
+            jax.value_and_grad(_loss_fn, has_aux=True, argnums=0),
             static_argnames=['n_growth_steps']
         )
     return loss_fn
@@ -400,7 +404,7 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
     for shape_step in range(params.n_shape_steps):
         (loss, aux_data), grads = (
             loss_fn(
-                *logits, knot_ctx, goal_area_bounds, min_dist_mask,
+                logits, knot_ctx, goal_area_bounds, min_dist_mask,
                 params.n_growth_steps, jax_arrays, params
             )
         )
