@@ -107,16 +107,42 @@ def _calc_knot_weights(std_logits, dist_vecs):
     return knot_weights
 
 
-def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
-    diff_vectors = final_vertices[:,None] - outer_shape
-    dists = jnp.linalg.norm(diff_vectors, axis=2)
-    dists_cubed = dists**3
-    masked_dists = jnp.asarray(
-        jnp.where(min_dist_mask, dists_cubed, jnp.inf)
+def _make_min_dist_mask(jax_arrays):
+    min_dist_mask = jnp.ones(
+        (jax_arrays['init_vertices'].shape[0],
+         jax_arrays['outer_shape'].shape[0]),
+         dtype=bool
     )
-    min_cubed_dists = jnp.min(masked_dists, axis=1)
-    shape_loss = jnp.sum(min_cubed_dists * boundary_mask)
-    return shape_loss
+    fixed_mask = jnp.any(~jax_arrays['free_mask'], axis=1)
+
+    outer_shape_basal_mask = jnp.isclose(
+        jax_arrays['outer_shape'][:,1], init_systems.Coords.base_origin[1]
+    )
+    min_dist_mask = min_dist_mask.at[fixed_mask].set(outer_shape_basal_mask)
+    return min_dist_mask
+
+
+@struct.dataclass
+class _KnotCtx:
+    n_left_logits: int = struct.field(pytree_node=False)
+    dist_vecs: jnp.ndarray
+    knot_weights: jnp.ndarray
+
+
+def _get_knot_ctx(knots, jax_arrays):
+    if knots:
+        dist_vecs = _calc_knots_to_mapped_centroids_dist_vecs(
+            jax_arrays['all_knots'], jax_arrays
+        )
+        knot_ctx = _KnotCtx(
+            n_left_logits = jax_arrays['left_knots'].shape[0],
+            dist_vecs = dist_vecs,
+            knot_weights = jnp.array([])
+        )
+    else:
+        knot_ctx = None
+
+    return knot_ctx
 
 
 def _update_knot_ctx(logits, knot_ctx, knots):
@@ -127,6 +153,18 @@ def _update_knot_ctx(logits, knot_ctx, knots):
         )
         knot_ctx = knot_ctx.replace(knot_weights=updated_knot_weights)
     return knot_ctx
+
+
+def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
+    diff_vectors = final_vertices[:,None] - outer_shape
+    dists = jnp.linalg.norm(diff_vectors, axis=2)
+    dists_cubed = dists**3
+    masked_dists = jnp.asarray(
+        jnp.where(min_dist_mask, dists_cubed, jnp.inf)
+    )
+    min_cubed_dists = jnp.min(masked_dists, axis=1)
+    shape_loss = jnp.sum(min_cubed_dists * boundary_mask)
+    return shape_loss
 
 
 def _loss_fn(
@@ -292,44 +330,6 @@ class _MyOptimizer:
         updates, self._state = self._optimizer.update(grads, self._state)
         logits = optax.apply_updates(logits, updates)
         return logits
-
-
-def _make_min_dist_mask(jax_arrays):
-    min_dist_mask = jnp.ones(
-        (jax_arrays['init_vertices'].shape[0],
-         jax_arrays['outer_shape'].shape[0]),
-         dtype=bool
-    )
-    fixed_mask = jnp.any(~jax_arrays['free_mask'], axis=1)
-
-    outer_shape_basal_mask = jnp.isclose(
-        jax_arrays['outer_shape'][:,1], init_systems.Coords.base_origin[1]
-    )
-    min_dist_mask = min_dist_mask.at[fixed_mask].set(outer_shape_basal_mask)
-    return min_dist_mask
-
-
-@struct.dataclass
-class _KnotCtx:
-    n_left_logits: int = struct.field(pytree_node=False)
-    dist_vecs: jnp.ndarray
-    knot_weights: jnp.ndarray
-
-
-def _get_knot_ctx(knots, jax_arrays):
-    if knots:
-        dist_vecs = _calc_knots_to_mapped_centroids_dist_vecs(
-            jax_arrays['all_knots'], jax_arrays
-        )
-        knot_ctx = _KnotCtx(
-            n_left_logits = jax_arrays['left_knots'].shape[0],
-            dist_vecs = dist_vecs,
-            knot_weights = jnp.array([])
-        )
-    else:
-        knot_ctx = None
-
-    return knot_ctx
 
 
 @dataclass
