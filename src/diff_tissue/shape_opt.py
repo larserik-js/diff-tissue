@@ -156,14 +156,37 @@ def _update_knot_ctx(logits, knot_ctx, knots):
 
 
 def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
-    diff_vectors = final_vertices[:,None] - outer_shape
-    dists = jnp.linalg.norm(diff_vectors, axis=2)
+    closed_outer_shape = jnp.concatenate([outer_shape, outer_shape[:1]], axis=0)
+
+    a = closed_outer_shape[:-1] # (M, 2)
+    b = closed_outer_shape[1:] # (M, 2)
+    outer_shape_segs = b - a # (M, 2)
+
+    # Expand dimensions for broadcasting
+    # final_vertices -> (N, 1, 2)
+    # segments -> (1, M, 2)
+    p = final_vertices[:, None, :]
+    a = a[None, :, :]
+    outer_shape_segs = outer_shape_segs[None, :, :]
+
+    ap = p - a # (N, M, 2)
+
+    denom = jnp.sum(outer_shape_segs * outer_shape_segs, axis=2) # (1, M)
+    t = jnp.sum(ap * outer_shape_segs, axis=2) / denom # (N, M)
+
+    t = jax.nn.sigmoid(10.0 * (t - 0.5)) # Instead of clipping to [0, 1]
+
+    projection = a + t[..., None] * outer_shape_segs # (N, M, 2)
+
+    dists = jnp.linalg.norm(p - projection, axis=2) # (N, M)
     dists_cubed = dists**3
+
     masked_dists = jnp.asarray(
         jnp.where(min_dist_mask, dists_cubed, jnp.inf)
     )
     min_cubed_dists = jnp.min(masked_dists, axis=1)
     shape_loss = jnp.sum(min_cubed_dists * boundary_mask)
+
     return shape_loss
 
 
