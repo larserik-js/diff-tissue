@@ -111,11 +111,19 @@ class _Shape(ABC):
             raise ValueError('System and mesh areas do not match!')
 
     @cached_property
-    def outer_shape(self):
+    def vertices(self):
         outer_shape = self._transform_raw_shape()
         shape_area = self._calc_shape_area(outer_shape)
         self._validate_rescaled_area(shape_area)
         return outer_shape
+
+    @cached_property
+    def segments(self):
+        closed_outer_shape = np.concatenate(
+            [self.vertices, self.vertices[:1]], axis=0
+        )
+        segments_ = closed_outer_shape[1:] - closed_outer_shape[:-1]
+        return segments_
 
 
 class _NonConvexShape(_Shape):
@@ -218,4 +226,4 @@ def get_outer_shape(shape, mesh_area, vertex_numbers):
             shape = _Triangle(mesh_area, vertex_numbers)
         case _:
             raise ValueError('Invalid outer shape!')
-    return shape.outer_shape
+    return shape

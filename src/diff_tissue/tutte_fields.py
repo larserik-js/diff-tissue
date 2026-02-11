@@ -21,7 +21,7 @@ def _get_general_outer_shape(shape):
     outer_shape = shapes.get_outer_shape(
         shape, polygons.mesh_area, vertex_numbers
     )
-    return outer_shape
+    return outer_shape.vertices
 
 
 def _make_samples(nx, ny, outer_shape):

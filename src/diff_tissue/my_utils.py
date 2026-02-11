@@ -114,7 +114,7 @@ class TutteMetrics:
         )
         vertices_ = tutte.get_mapped_vertices(
             self._polygons.vertices, self._polygons.polygon_inds,
-            self._polygons.boundary_mask, outer_shape
+            self._polygons.boundary_mask, outer_shape.vertices
         )
         return vertices_
 
@@ -175,7 +175,8 @@ def _make_array_dict(
         'tutte_centroids': tutte_metrics.centroids,
         'tutte_areas': tutte_metrics.areas,
         'tutte_elongations': tutte_metrics.elongations,
-        'outer_shape': outer_shape,
+        'outer_shape': outer_shape.vertices,
+        'outer_shape_segments': outer_shape.segments,
         'proximal_mask': proximal_mask,
         'left_knots': knots.left_knots,
         'center_knots': knots.center_knots,
@@ -203,8 +204,7 @@ def get_arrays(params):
 
     knots = init_systems.Knots()
     arrays = _make_array_dict(
-        polygons, init_metrics, tutte_metrics, outer_shape, proximal_mask,
-        knots
+        polygons, init_metrics, tutte_metrics, outer_shape, proximal_mask, knots
     )
     return arrays
 

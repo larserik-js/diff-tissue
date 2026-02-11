@@ -155,33 +155,33 @@ def _update_knot_ctx(logits, knot_ctx, knots):
     return knot_ctx
 
 
-def _calc_outer_shape_segments(outer_shape):
-    closed_outer_shape = jnp.concatenate([outer_shape, outer_shape[:1]], axis=0)
-    segments = closed_outer_shape[1:] - closed_outer_shape[:-1]
-    return segments
+def _calc_dists_squared(outer_shape, segments, final_vertices):
+    dist_vecs = final_vertices - outer_shape # (N, M, 2)
+
+    denom = jnp.sum(segments * segments, axis=2) # (1, M)
+    t = jnp.sum(dist_vecs * segments, axis=2) / denom # (N, M)
+    t = jax.nn.sigmoid(10.0 * (t - 0.5)) # Instead of clipping to [0, 1]
+
+    projection = outer_shape + t[..., None] * segments # (N, M, 2)
+    dists = jnp.linalg.norm(final_vertices - projection, axis=2) # (N, M)
+    dists_squared = dists**2
+    return dists_squared
 
 
-def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
-    outer_shape_segs = _calc_outer_shape_segments(outer_shape) # (M, 2)
-
+def _calc_shape_loss(
+        final_vertices, boundary_mask, outer_shape, outer_shape_segments,
+        min_dist_mask
+    ):
     # Expand dimensions for broadcasting
     # final_vertices -> (N, 1, 2)
     # outer_shape_segs -> (1, M, 2)
     final_vertices = final_vertices[:, None, :]
     outer_shape = outer_shape[None, :, :]
-    outer_shape_segs = outer_shape_segs[None, :, :]
+    outer_shape_segments = outer_shape_segments[None, :, :]
 
-    dist_vecs = final_vertices - outer_shape # (N, M, 2)
-
-    denom = jnp.sum(outer_shape_segs * outer_shape_segs, axis=2) # (1, M)
-    t = jnp.sum(dist_vecs * outer_shape_segs, axis=2) / denom # (N, M)
-
-    t = jax.nn.sigmoid(10.0 * (t - 0.5)) # Instead of clipping to [0, 1]
-
-    projection = outer_shape + t[..., None] * outer_shape_segs # (N, M, 2)
-
-    dists = jnp.linalg.norm(final_vertices - projection, axis=2) # (N, M)
-    dists_squared = dists**2
+    dists_squared = _calc_dists_squared(
+        outer_shape, outer_shape_segments, final_vertices
+    )
 
     masked_dists = jnp.asarray(
         jnp.where(min_dist_mask, dists_squared, jnp.inf)
@@ -215,7 +215,7 @@ def _loss_fn(
 
     loss = params.shape_loss_weight * _calc_shape_loss(
         final_vertices, jax_arrays['boundary_mask'], jax_arrays['outer_shape'],
-        min_dist_mask
+        jax_arrays['outer_shape_segments'], min_dist_mask
     )
     aux_data = (final_vertices, knot_ctx)
 
