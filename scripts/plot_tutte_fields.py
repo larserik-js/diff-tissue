@@ -4,7 +4,7 @@ from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from diff_tissue import io_utils
+from diff_tissue import io_utils, tutte_fields
 
 
 def _load_tutte_fields(input_file):
@@ -58,10 +58,10 @@ def _save_plot(fig, shape):
 
 def _main():
     shape = 'petal'
-    tutte_fields_file = io_utils.get_output_path(f'tutte_fields_{shape}.pkl')
-    tutte_fields = _load_tutte_fields(tutte_fields_file)
+    tutte_fields_file = tutte_fields.get_tutte_fields_file(shape)
+    tutte_fields_ = _load_tutte_fields(tutte_fields_file)
 
-    fig = _plot(tutte_fields)
+    fig = _plot(tutte_fields_)
 
     _save_plot(fig, shape)
 

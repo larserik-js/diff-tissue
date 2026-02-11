@@ -12,7 +12,7 @@ def _main():
 
     tutte_fields_ = tutte_fields.run(shape, nx, ny, meshes_file)
 
-    tutte_fields_file = io_utils.get_output_path(f'tutte_fields_{shape}.pkl')
+    tutte_fields_file = tutte_fields.get_tutte_fields_file(shape)
     with open(tutte_fields_file, 'wb') as f:
         pickle.dump(tutte_fields_, f)
 

@@ -5,7 +5,7 @@ import numpy as np
 import shapely
 from shapely.strtree import STRtree
 
-from . import init_systems, my_utils, parameters, shapes
+from . import init_systems, io_utils, my_utils, parameters, shapes
 
 
 @dataclass
@@ -141,6 +141,11 @@ class _TutteFields:
     coords: np.ndarray
     areas: np.ndarray
     elongations: np.ndarray
+
+
+def get_tutte_fields_file(shape):
+    tutte_fields_file = io_utils.get_output_path(f'tutte_fields_{shape}.pkl')
+    return tutte_fields_file
 
 
 def run(shape, nx, ny, meshes_file):
