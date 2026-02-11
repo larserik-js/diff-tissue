@@ -38,9 +38,9 @@ def _calc_inverse_smoothing_stds(smoothing_stds):
     return logits
 
 
-def _calc_goal_area_bounds(mapped_areas, params):
-    min_goal_area = mapped_areas.min() / params.growth_scale
-    max_goal_area = mapped_areas.max() * params.max_area_scaling
+def _calc_goal_area_bounds(tutte_areas, params):
+    min_goal_area = tutte_areas.min() / params.growth_scale
+    max_goal_area = tutte_areas.max() * params.max_area_scaling
     return (min_goal_area, max_goal_area)
 
 
@@ -131,7 +131,7 @@ class _KnotCtx:
 
 def _get_knot_ctx(knots, jax_arrays):
     if knots:
-        dist_vecs = _calc_knots_to_mapped_centroids_dist_vecs(
+        dist_vecs = _calc_knots_to_tutte_centroids_dist_vecs(
             jax_arrays['all_knots'], jax_arrays
         )
         knot_ctx = _KnotCtx(
@@ -203,13 +203,13 @@ loss_fn = jax.jit(
 )
 
 
-def _calc_knots_to_mapped_centroids_dist_vecs(knots, jax_arrays):
-    dist_vecs = jax_arrays['mapped_centroids'][:, None] - knots[None, :]
+def _calc_knots_to_tutte_centroids_dist_vecs(knots, jax_arrays):
+    dist_vecs = jax_arrays['tutte_centroids'][:, None] - knots[None, :]
     return dist_vecs
 
 
 def _find_closest_polygon_by_knots(knots, jax_arrays):
-    dist_vecs = _calc_knots_to_mapped_centroids_dist_vecs(knots, jax_arrays)
+    dist_vecs = _calc_knots_to_tutte_centroids_dist_vecs(knots, jax_arrays)
     dists = jnp.linalg.norm(dist_vecs, axis=2)
     closest_inds = jnp.argmin(dists, axis=0)
     return closest_inds
@@ -259,16 +259,16 @@ def _calc_logits(areas, elongations, goal_area_bounds):
     return ar_logits, el_logits
 
 
-def _get_poly_init_logits(mapped_areas, mapped_elongations, goal_area_bounds):
+def _get_poly_init_logits(tutte_areas, tutte_elongations, goal_area_bounds):
     ar_logits, el_logits = _calc_logits(
-        mapped_areas, mapped_elongations, goal_area_bounds
+        tutte_areas, tutte_elongations, goal_area_bounds
     )
     init_logits = (ar_logits, el_logits)
     return init_logits
 
 
 def _get_knot_init_logits(
-        jax_arrays, mapped_areas, mapped_elongations, goal_area_bounds
+        jax_arrays, tutte_areas, tutte_elongations, goal_area_bounds
     ):
     knot_positions = ['left', 'center']
     left_and_center_ar_logits = []
@@ -280,10 +280,10 @@ def _get_knot_init_logits(
         )
 
         areas = _calc_mean_closest_metric(
-            mapped_areas, closest_polygon_by_knots, jax_arrays
+            tutte_areas, closest_polygon_by_knots, jax_arrays
         )
         elongations = _calc_mean_closest_metric(
-            mapped_elongations, closest_polygon_by_knots, jax_arrays
+            tutte_elongations, closest_polygon_by_knots, jax_arrays
         )
         ar_logits, el_logits = _calc_logits(
             areas, elongations, goal_area_bounds
@@ -302,12 +302,12 @@ def _get_knot_init_logits(
 def _get_init_logits(goal_area_bounds, jax_arrays, params):
     if params.knots:
         init_logits = _get_knot_init_logits(
-            jax_arrays, jax_arrays['mapped_areas'],
-            jax_arrays['mapped_elongations'], goal_area_bounds
+            jax_arrays, jax_arrays['tutte_areas'],
+            jax_arrays['tutte_elongations'], goal_area_bounds
         )
     else:
         init_logits = _get_poly_init_logits(
-            jax_arrays['mapped_areas'], jax_arrays['mapped_elongations'],
+            jax_arrays['tutte_areas'], jax_arrays['tutte_elongations'],
             goal_area_bounds
         )
     return init_logits
@@ -437,7 +437,7 @@ def run(params):
     jax_arrays = my_utils.get_jax_arrays(params)
 
     goal_area_bounds = _calc_goal_area_bounds(
-        jax_arrays['mapped_areas'], params
+        jax_arrays['tutte_areas'], params
     )
 
     init_logits = _get_init_logits(goal_area_bounds, jax_arrays, params)

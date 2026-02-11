@@ -7,10 +7,10 @@ import numpy as np
 from diff_tissue import io_utils
 
 
-def _load_mapped_fields(input_file):
+def _load_tutte_fields(input_file):
     with open(input_file, 'rb') as f:
-        mapped_fields = pickle.load(f)
-    return mapped_fields
+        tutte_fields = pickle.load(f)
+    return tutte_fields
 
 
 def _add_colorbar(ax, cmap_vals, cmap_name):
@@ -24,20 +24,20 @@ def _add_colorbar(ax, cmap_vals, cmap_name):
     ax.figure.colorbar(sm, ax=ax, shrink=0.8)
 
 
-def _plot(mapped_fields):
-    coords = mapped_fields.coords
-    mapped_fields = [mapped_fields.areas, mapped_fields.elongations]
+def _plot(tutte_fields):
+    coords = tutte_fields.coords
+    tutte_fields = [tutte_fields.areas, tutte_fields.elongations]
 
     titles = ['Mapped areas', 'Mapped elongations']
     cmaps = ['copper', 'viridis']
 
     fig, axs = plt.subplots(2, figsize=(5,6))
     for i, ax in enumerate(axs):
-        mapped_field = mapped_fields[i]
+        tutte_field = tutte_fields[i]
         ax.scatter(
-            coords[:,0], coords[:,1], c=mapped_field, cmap=cmaps[i], s=1.5
+            coords[:,0], coords[:,1], c=tutte_field, cmap=cmaps[i], s=1.5
         )
-        _add_colorbar(ax, mapped_field, cmaps[i])
+        _add_colorbar(ax, tutte_field, cmaps[i])
         ax.set_title(titles[i])
         ax.set_aspect('equal')
         ax.set_xlim(-11.0, 11.0)
@@ -52,16 +52,16 @@ def _plot(mapped_fields):
 
 
 def _save_plot(fig, shape):
-    output_file = io_utils.get_output_path(f'mapped_fields_{shape}.pdf')
+    output_file = io_utils.get_output_path(f'tutte_fields_{shape}.pdf')
     fig.savefig(output_file)
 
 
 def _main():
     shape = 'petal'
-    mapped_fields_file = io_utils.get_output_path(f'mapped_fields_{shape}.pkl')
-    mapped_fields = _load_mapped_fields(mapped_fields_file)
+    tutte_fields_file = io_utils.get_output_path(f'tutte_fields_{shape}.pkl')
+    tutte_fields = _load_tutte_fields(tutte_fields_file)
 
-    fig = _plot(mapped_fields)
+    fig = _plot(tutte_fields)
 
     _save_plot(fig, shape)
 
