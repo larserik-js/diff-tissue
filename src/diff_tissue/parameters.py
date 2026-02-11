@@ -83,6 +83,14 @@ class Params:
             'cli_flag': 'elw'
         }
     )
+    shape_loss_weight: float = struct.field(
+        default=1.0,
+        pytree_node=True,
+        metadata={
+            'help': 'Shape loss weight.',
+            'cli_flag': 'slw'
+        }
+    )
     proximal_dist: float = struct.field(
         default=0.0,
         pytree_node=True,

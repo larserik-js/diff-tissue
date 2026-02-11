@@ -38,9 +38,9 @@ def _calc_inverse_smoothing_stds(smoothing_stds):
     return logits
 
 
-def _calc_goal_area_bounds(mapped_areas, params):
-    min_goal_area = mapped_areas.min() / params.growth_scale
-    max_goal_area = mapped_areas.max() * params.max_area_scaling
+def _calc_goal_area_bounds(tutte_areas, params):
+    min_goal_area = tutte_areas.min() / params.growth_scale
+    max_goal_area = tutte_areas.max() * params.max_area_scaling
     return (min_goal_area, max_goal_area)
 
 
@@ -107,53 +107,106 @@ def _calc_knot_weights(std_logits, dist_vecs):
     return knot_weights
 
 
-def _calc_shape_loss(final_vertices, boundary_mask, outer_shape, min_dist_mask):
-    diff_vectors = final_vertices[:,None] - outer_shape
-    dists = jnp.linalg.norm(diff_vectors, axis=2)
-    dists_cubed = dists**3
-    masked_dists = jnp.where(min_dist_mask, dists_cubed, jnp.inf)
-    min_cubed_dists = jnp.min(masked_dists, axis=1)
-    shape_loss = jnp.sum(min_cubed_dists * boundary_mask)
+def _make_min_dist_mask(jax_arrays):
+    min_dist_mask = jnp.ones(
+        (jax_arrays['init_vertices'].shape[0],
+         jax_arrays['outer_shape'].shape[0]),
+         dtype=bool
+    )
+    fixed_mask = jnp.any(~jax_arrays['free_mask'], axis=1)
+
+    outer_shape_basal_mask = jnp.isclose(
+        jax_arrays['outer_shape'][:,1], init_systems.Coords.base_origin[1]
+    )
+    min_dist_mask = min_dist_mask.at[fixed_mask].set(outer_shape_basal_mask)
+    return min_dist_mask
+
+
+@struct.dataclass
+class _KnotCtx:
+    n_left_logits: int = struct.field(pytree_node=False)
+    dist_vecs: jnp.ndarray
+    knot_weights: jnp.ndarray
+
+
+def _get_knot_ctx(knots, jax_arrays):
+    if knots:
+        dist_vecs = _calc_knots_to_tutte_centroids_dist_vecs(
+            jax_arrays['all_knots'], jax_arrays
+        )
+        knot_ctx = _KnotCtx(
+            n_left_logits = jax_arrays['left_knots'].shape[0],
+            dist_vecs = dist_vecs,
+            knot_weights = jnp.array([])
+        )
+    else:
+        knot_ctx = None
+
+    return knot_ctx
+
+
+def _update_knot_ctx(logits, knot_ctx, knots):
+    if knots:
+        std_logits = logits[2]
+        updated_knot_weights = _calc_knot_weights(
+            std_logits, knot_ctx.dist_vecs
+        )
+        knot_ctx = knot_ctx.replace(knot_weights=updated_knot_weights)
+    return knot_ctx
+
+
+def _expand_for_broadcasting(outer_shape, segments, final_vertices):
+    outer_shape = outer_shape[None, :, :] # (1, M, 2)
+    segments = segments[None, :, :] # (1, M, 2)
+    final_vertices = final_vertices[:, None, :] # (N, 1, 2)
+    return outer_shape, segments, final_vertices
+
+
+def _calc_dists_squared(outer_shape, segments, final_vertices):
+    outer_shape, segments, final_vertices = _expand_for_broadcasting(
+        outer_shape, segments, final_vertices
+    )
+    dist_vecs = final_vertices - outer_shape # (N, M, 2)
+
+    denom = jnp.sum(segments * segments, axis=2) # (1, M)
+    t = jnp.sum(dist_vecs * segments, axis=2) / denom # (N, M)
+    t = jax.nn.sigmoid(10.0 * (t - 0.5)) # Instead of clipping to [0, 1]
+
+    projection = outer_shape + t[..., None] * segments # (N, M, 2)
+    dists = jnp.linalg.norm(final_vertices - projection, axis=2) # (N, M)
+    dists_squared = dists**2
+    return dists_squared
+
+
+def _calc_shape_loss(
+        final_vertices, boundary_mask, outer_shape, outer_shape_segments,
+        min_dist_mask
+    ):
+    dists_squared = _calc_dists_squared(
+        outer_shape, outer_shape_segments, final_vertices
+    )
+    masked_dists = jnp.asarray(jnp.where(min_dist_mask, dists_squared, jnp.inf))
+    min_squared_dists = jnp.min(masked_dists, axis=1)
+
+    shape_loss = jnp.sum(min_squared_dists * boundary_mask)
+
     return shape_loss
 
 
-def _loss_f(ar_logits, el_logits, knot_ctx, goal_area_bounds, min_dist_mask,
-            n_growth_steps, jax_arrays, params):
-    goal_areas = _calc_goal_areas(
-        goal_area_bounds, ar_logits, jax_arrays['proximal_mask'], False,
-        knot_ctx
-    )
-    goal_elongations = _calc_goal_elongations(
-        el_logits, jax_arrays['proximal_mask'], False, knot_ctx
-    )
-
-    growth_evolution = morphing.iterate(
-        goal_areas, goal_elongations, n_growth_steps, jax_arrays, params
-    )
-    final_vertices = growth_evolution[-1]
-
-    loss = _calc_shape_loss(
-        final_vertices, jax_arrays['boundary_mask'], jax_arrays['outer_shape'],
-        min_dist_mask
-    )
-    aux_data = (final_vertices, knot_ctx)
-
-    return loss, aux_data
-
-
-def _loss_f_knots(
-        ar_logits, el_logits, std_logits, knot_ctx, goal_area_bounds,
-        min_dist_mask, n_growth_steps, jax_arrays, params
+def _loss_fn(
+        logits, knot_ctx, goal_area_bounds, min_dist_mask, n_growth_steps,
+        jax_arrays, params
     ):
-    updated_knot_weights = _calc_knot_weights(std_logits, knot_ctx.dist_vecs)
-    knot_ctx = knot_ctx.replace(knot_weights=updated_knot_weights)
+    ar_logits, el_logits = logits[:2]
+
+    knot_ctx = _update_knot_ctx(logits, knot_ctx, params.knots)
 
     goal_areas = _calc_goal_areas(
-        goal_area_bounds, ar_logits, jax_arrays['proximal_mask'], True,
+        goal_area_bounds, ar_logits, jax_arrays['proximal_mask'], params.knots,
         knot_ctx
     )
     goal_elongations = _calc_goal_elongations(
-        el_logits, jax_arrays['proximal_mask'], True, knot_ctx
+        el_logits, jax_arrays['proximal_mask'], params.knots, knot_ctx
     )
 
     growth_evolution = morphing.iterate(
@@ -161,33 +214,28 @@ def _loss_f_knots(
     )
     final_vertices = growth_evolution[-1]
 
-    loss = _calc_shape_loss(
+    loss = params.shape_loss_weight * _calc_shape_loss(
         final_vertices, jax_arrays['boundary_mask'], jax_arrays['outer_shape'],
-        min_dist_mask
+        jax_arrays['outer_shape_segments'], min_dist_mask
     )
     aux_data = (final_vertices, knot_ctx)
 
     return loss, aux_data
 
 
-_calc_loss_val_grads = jax.jit(
-    jax.value_and_grad(_loss_f, has_aux=True, argnums=(0, 1)),
+loss_fn = jax.jit(
+    jax.value_and_grad(_loss_fn, has_aux=True, argnums=0),
     static_argnames=['n_growth_steps']
 )
 
 
-_calc_loss_val_grads_knots = jax.jit(
-    jax.value_and_grad(_loss_f_knots, has_aux=True, argnums=(0, 1, 2)),
-    static_argnames=['n_growth_steps']
-)
-
-def _calc_knots_to_mapped_centroids_dist_vecs(knots, jax_arrays):
-    dist_vecs = jax_arrays['mapped_centroids'][:, None] - knots[None, :]
+def _calc_knots_to_tutte_centroids_dist_vecs(knots, jax_arrays):
+    dist_vecs = jax_arrays['tutte_centroids'][:, None] - knots[None, :]
     return dist_vecs
 
 
 def _find_closest_polygon_by_knots(knots, jax_arrays):
-    dist_vecs = _calc_knots_to_mapped_centroids_dist_vecs(knots, jax_arrays)
+    dist_vecs = _calc_knots_to_tutte_centroids_dist_vecs(knots, jax_arrays)
     dists = jnp.linalg.norm(dist_vecs, axis=2)
     closest_inds = jnp.argmin(dists, axis=0)
     return closest_inds
@@ -237,16 +285,16 @@ def _calc_logits(areas, elongations, goal_area_bounds):
     return ar_logits, el_logits
 
 
-def _get_poly_init_logits(mapped_areas, mapped_elongations, goal_area_bounds):
+def _get_poly_init_logits(tutte_areas, tutte_elongations, goal_area_bounds):
     ar_logits, el_logits = _calc_logits(
-        mapped_areas, mapped_elongations, goal_area_bounds
+        tutte_areas, tutte_elongations, goal_area_bounds
     )
     init_logits = (ar_logits, el_logits)
     return init_logits
 
 
 def _get_knot_init_logits(
-        jax_arrays, mapped_areas, mapped_elongations, goal_area_bounds
+        jax_arrays, tutte_areas, tutte_elongations, goal_area_bounds
     ):
     knot_positions = ['left', 'center']
     left_and_center_ar_logits = []
@@ -258,10 +306,10 @@ def _get_knot_init_logits(
         )
 
         areas = _calc_mean_closest_metric(
-            mapped_areas, closest_polygon_by_knots, jax_arrays
+            tutte_areas, closest_polygon_by_knots, jax_arrays
         )
         elongations = _calc_mean_closest_metric(
-            mapped_elongations, closest_polygon_by_knots, jax_arrays
+            tutte_elongations, closest_polygon_by_knots, jax_arrays
         )
         ar_logits, el_logits = _calc_logits(
             areas, elongations, goal_area_bounds
@@ -280,12 +328,12 @@ def _get_knot_init_logits(
 def _get_init_logits(goal_area_bounds, jax_arrays, params):
     if params.knots:
         init_logits = _get_knot_init_logits(
-            jax_arrays, jax_arrays['mapped_areas'],
-            jax_arrays['mapped_elongations'], goal_area_bounds
+            jax_arrays, jax_arrays['tutte_areas'],
+            jax_arrays['tutte_elongations'], goal_area_bounds
         )
     else:
         init_logits = _get_poly_init_logits(
-            jax_arrays['mapped_areas'], jax_arrays['mapped_elongations'],
+            jax_arrays['tutte_areas'], jax_arrays['tutte_elongations'],
             goal_area_bounds
         )
     return init_logits
@@ -308,44 +356,6 @@ class _MyOptimizer:
         updates, self._state = self._optimizer.update(grads, self._state)
         logits = optax.apply_updates(logits, updates)
         return logits
-
-
-def _make_min_dist_mask(jax_arrays):
-    min_dist_mask = jnp.ones(
-        (jax_arrays['init_vertices'].shape[0],
-         jax_arrays['outer_shape'].shape[0]),
-         dtype=bool
-    )
-    fixed_mask = jnp.any(~jax_arrays['free_mask'], axis=1)
-
-    outer_shape_basal_mask = jnp.isclose(
-        jax_arrays['outer_shape'][:,1], init_systems.Coords.base_origin[1]
-    )
-    min_dist_mask = min_dist_mask.at[fixed_mask].set(outer_shape_basal_mask)
-    return min_dist_mask
-
-
-@struct.dataclass
-class _KnotCtx:
-    n_left_logits: int = struct.field(pytree_node=False)
-    dist_vecs: jnp.ndarray
-    knot_weights: jnp.ndarray
-
-
-def _get_knot_ctx(knots, jax_arrays):
-    if knots:
-        dist_vecs = _calc_knots_to_mapped_centroids_dist_vecs(
-            jax_arrays['all_knots'], jax_arrays
-        )
-        knot_ctx = _KnotCtx(
-            n_left_logits = jax_arrays['left_knots'].shape[0],
-            dist_vecs = dist_vecs,
-            knot_weights = jnp.array([])
-        )
-    else:
-        knot_ctx = None
-
-    return knot_ctx
 
 
 @dataclass
@@ -391,20 +401,12 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
     steps_since_best_loss = 0
 
     for shape_step in range(params.n_shape_steps):
-        if params.knots:
-            (loss, aux_data), grads = (
-                _calc_loss_val_grads_knots(
-                    *logits, knot_ctx, goal_area_bounds, min_dist_mask,
-                    params.n_growth_steps, jax_arrays, params
-                )
+        (loss, aux_data), grads = (
+            loss_fn(
+                logits, knot_ctx, goal_area_bounds, min_dist_mask,
+                params.n_growth_steps, jax_arrays, params
             )
-        else:
-            (loss, aux_data), grads = (
-                _calc_loss_val_grads(
-                    *logits, knot_ctx, goal_area_bounds, min_dist_mask,
-                    params.n_growth_steps, jax_arrays, params
-                )
-            )
+        )
         vertices, knot_ctx = aux_data
 
         if not params.quiet:
@@ -461,7 +463,7 @@ def run(params):
     jax_arrays = my_utils.get_jax_arrays(params)
 
     goal_area_bounds = _calc_goal_area_bounds(
-        jax_arrays['mapped_areas'], params
+        jax_arrays['tutte_areas'], params
     )
 
     init_logits = _get_init_logits(goal_area_bounds, jax_arrays, params)

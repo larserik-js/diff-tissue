@@ -21,7 +21,7 @@ def _get_general_outer_shape(shape):
     outer_shape = shapes.get_outer_shape(
         shape, polygons.mesh_area, vertex_numbers
     )
-    return outer_shape
+    return outer_shape.vertices
 
 
 def _make_samples(nx, ny, outer_shape):
@@ -69,17 +69,17 @@ def _build_meshes(n_meshes, shape, output_file):
 
             params = params.replace(seed=i)
             polygons = init_systems.get_system(params.system, params.seed)
-            mapped_vertices = (
-                my_utils.MappedMetrics(polygons, params.shape).vertices
+            tutte_vertices = (
+                my_utils.TutteMetrics(polygons, params.shape).vertices
             )
             shapely_polygons = my_utils.get_shapely_polygons(
-                mapped_vertices, polygons.polygon_inds
+                tutte_vertices, polygons.polygon_inds
             )
-            mapped_metrics = my_utils.MappedMetrics(polygons, shape)
+            tutte_metrics = my_utils.TutteMetrics(polygons, shape)
 
             mesh = _Mesh(
-                shapely_polygons, np.array(mapped_metrics.areas),
-                np.array(mapped_metrics.elongations)
+                shapely_polygons, np.array(tutte_metrics.areas),
+                np.array(tutte_metrics.elongations)
             )
             meshes.append(mesh)
 
@@ -116,7 +116,7 @@ def _calc_mean_metrics(all_sampled_metrics: list):
     return mean_metrics
 
 
-def _get_mean_mapped_fields(meshes, points_inside_shape):
+def _get_fields(meshes, points_inside_shape):
     """
     Sample all meshes and average their scalar fields.
     """
@@ -137,10 +137,15 @@ def _get_mean_mapped_fields(meshes, points_inside_shape):
 
 
 @dataclass
-class _MappedFields:
+class _TutteFields:
     coords: np.ndarray
     areas: np.ndarray
     elongations: np.ndarray
+
+
+def get_tutte_fields_file(shape):
+    tutte_fields_file = io_utils.get_output_path(f'tutte_fields_{shape}.pkl')
+    return tutte_fields_file
 
 
 def run(shape, nx, ny, meshes_file):
@@ -148,12 +153,10 @@ def run(shape, nx, ny, meshes_file):
 
     meshes = _build_meshes(n_meshes=100, shape=shape, output_file=meshes_file)
 
-    mapped_area_field, mapped_elongation_field = _get_mean_mapped_fields(
-        meshes, points_inside_shape
+    area_field, elongation_field = _get_fields(meshes, points_inside_shape)
+
+    tutte_fields_ = _TutteFields(
+        points_inside_shape, area_field, elongation_field
     )
 
-    mapped_fields_ = _MappedFields(
-        points_inside_shape, mapped_area_field, mapped_elongation_field
-    )
-
-    return mapped_fields_
+    return tutte_fields_

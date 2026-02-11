@@ -5,7 +5,7 @@ import numpy as np
 from shapely.geometry import Polygon
 
 from .jax_bootstrap import jax, jnp
-from . import diffeomorphism, init_systems, shapes
+from . import init_systems, shapes, tutte
 
 
 def timer(func):
@@ -101,7 +101,7 @@ class InitMetrics:
         return init_elongations
 
 
-class MappedMetrics:
+class TutteMetrics:
     def __init__(self, polygons, shape):
         self._polygons = polygons
         self._shape = shape
@@ -112,18 +112,18 @@ class MappedMetrics:
             self._shape, self._polygons.mesh_area,
             init_systems.VertexNumbers(self._polygons)
         )
-        vertices_ = diffeomorphism.get_mapped_vertices(
+        vertices_ = tutte.get_mapped_vertices(
             self._polygons.vertices, self._polygons.polygon_inds,
-            self._polygons.boundary_mask, outer_shape
+            self._polygons.boundary_mask, outer_shape.vertices
         )
         return vertices_
 
     @cached_property
-    def _all_mapped_cells(self):
-        all_mapped_cells = get_all_cells(
+    def _all_cells(self):
+        all_cells = get_all_cells(
             self.vertices, self._polygons.polygon_inds
         )
-        return all_mapped_cells
+        return all_cells
 
     @cached_property
     def centroids(self):
@@ -136,28 +136,28 @@ class MappedMetrics:
     @cached_property
     def areas(self):
         areas_ = calc_all_areas(
-            self._all_mapped_cells, self._polygons.valid_mask
+            self._all_cells, self._polygons.valid_mask
         )
         return areas_
 
     @cached_property
     def elongations(self):
         elongations_ = calc_elongations(
-            self._all_mapped_cells, self._polygons.valid_mask
+            self._all_cells, self._polygons.valid_mask
         )
         return elongations_
 
 
-def calc_proximal_mask(mapped_centroids, proximal_dist):
+def calc_proximal_mask(tutte_centroids, proximal_dist):
     y_dists_from_base = (
-        mapped_centroids[:,1] - init_systems.Coords.base_origin[1]
+        tutte_centroids[:,1] - init_systems.Coords.base_origin[1]
     )
     proximal_mask = (y_dists_from_base <= proximal_dist)
     return proximal_mask
 
 
 def _make_array_dict(
-        polygons, init_metrics, mapped_metrics, outer_shape, proximal_mask,
+        polygons, init_metrics, tutte_metrics, outer_shape, proximal_mask,
         knots
     ):
     arrays = {
@@ -171,11 +171,12 @@ def _make_array_dict(
         'boundary_mask': polygons.boundary_mask,
         'init_areas': init_metrics.areas,
         'init_elongations': init_metrics.elongations,
-        'mapped_vertices': mapped_metrics.vertices,
-        'mapped_centroids': mapped_metrics.centroids,
-        'mapped_areas': mapped_metrics.areas,
-        'mapped_elongations': mapped_metrics.elongations,
-        'outer_shape': outer_shape,
+        'tutte_vertices': tutte_metrics.vertices,
+        'tutte_centroids': tutte_metrics.centroids,
+        'tutte_areas': tutte_metrics.areas,
+        'tutte_elongations': tutte_metrics.elongations,
+        'outer_shape': outer_shape.vertices,
+        'outer_shape_segments': outer_shape.segments,
         'proximal_mask': proximal_mask,
         'left_knots': knots.left_knots,
         'center_knots': knots.center_knots,
@@ -196,15 +197,14 @@ def get_arrays(params):
         params.shape, mesh_area, vertex_numbers
     )
 
-    mapped_metrics = MappedMetrics(polygons, params.shape)
+    tutte_metrics = TutteMetrics(polygons, params.shape)
     proximal_mask = calc_proximal_mask(
-        mapped_metrics.centroids, params.proximal_dist
+        tutte_metrics.centroids, params.proximal_dist
     )
 
     knots = init_systems.Knots()
     arrays = _make_array_dict(
-        polygons, init_metrics, mapped_metrics, outer_shape, proximal_mask,
-        knots
+        polygons, init_metrics, tutte_metrics, outer_shape, proximal_mask, knots
     )
     return arrays
 
