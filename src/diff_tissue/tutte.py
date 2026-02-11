@@ -17,15 +17,81 @@ def _cells_to_edges(polygons):
     return list(edges)
 
 
-def _tutte_embedding(n_vertices, edges, boundary_nodes, boundary_positions):
+def _mean_value_weights(vertices, edges, eps=1e-12):
+    """
+    Symmetric mean value (Floater) weights per undirected edge.
+    Builds directed MVC weights around each vertex using angularly-sorted
+    neighbors, then symmetrizes: w_ij = 0.5*(w_ij_dir + w_ji_dir).
+    """
+    n = len(vertices)
+    nbrs = [[] for _ in range(n)]
+    for i, j in edges:
+        nbrs[i].append(j)
+        nbrs[j].append(i)
+
+    W_dir = {}
+    for i in range(n):
+        Ni = nbrs[i]
+        m = len(Ni)
+        if m < 2:
+            continue
+
+        vi = vertices[i]
+        vecs = vertices[Ni] - vi
+        ang = np.arctan2(vecs[:, 1], vecs[:, 0])
+        order = np.argsort(ang)
+
+        Ni = [Ni[k] for k in order]
+        vecs = vecs[order]
+
+        lens = np.linalg.norm(vecs, axis=1)
+        lens = np.maximum(lens, eps)
+
+        u = vecs / lens[:, None]
+        u_prev = np.roll(u, 1, axis=0)
+        u_next = np.roll(u, -1, axis=0)
+
+        dots_prev = np.clip(np.sum(u_prev * u, axis=1), -1.0, 1.0)
+        dots_next = np.clip(np.sum(u * u_next, axis=1), -1.0, 1.0)
+
+        alpha_prev = np.arccos(dots_prev)
+        alpha_next = np.arccos(dots_next)
+
+        w = (np.tan(alpha_prev / 2.0) + np.tan(alpha_next / 2.0)) / lens
+
+        for j, wij in zip(Ni, w):
+            if np.isfinite(wij) and wij > 0:
+                W_dir[(i, j)] = float(wij)
+
+    W = {}
+    for (i, j), wij in W_dir.items():
+        wji = W_dir.get((j, i), 0.0)
+        w = 0.5 * (wij + wji)
+        if w > 0:
+            a, b = (i, j) if i < j else (j, i)
+            W[(a, b)] = w
+
+    # Fallback to uniform weights for any edge that got no MVC weight
+    for i, j in edges:
+        a, b = (i, j) if i < j else (j, i)
+        if (a, b) not in W:
+            W[(a, b)] = 1.0
+
+    return W
+
+
+def _tutte_embedding(init_vertices, edges, boundary_nodes, boundary_positions):
+    n_vertices = len(init_vertices)
     free = np.setdiff1d(np.arange(n_vertices), boundary_nodes)
 
+    W = _mean_value_weights(init_vertices, edges)
+
     L = scipy.sparse.lil_matrix((n_vertices, n_vertices))
-    for i, j in edges:
-        L[i, i] += 1
-        L[j, j] += 1
-        L[i, j] -= 1
-        L[j, i] -= 1
+    for (i, j), w in W.items():
+        L[i, i] += w
+        L[j, j] += w
+        L[i, j] -= w
+        L[j, i] -= w
     L = L.tocsr()
 
     B = np.zeros((n_vertices, 2))
@@ -36,6 +102,7 @@ def _tutte_embedding(n_vertices, edges, boundary_nodes, boundary_positions):
     rhs = -L_fb @ B[boundary_nodes]
 
     U_free = scipy.sparse.linalg.spsolve(L_ff, rhs)
+
     UV = np.zeros((n_vertices, 2))
     UV[boundary_nodes] = B[boundary_nodes]
     UV[free] = U_free
@@ -59,9 +126,10 @@ def _best_cyclic_shift(A, B):
     return best_s
 
 
-def _map_to_given_shape(init_vertices, polygons, sorted_boundary_inds,
-                        sorted_outer_shape, boundary_offset=0,
-                        auto_align=False):
+def _map_to_given_shape(
+        init_vertices, polygons, sorted_boundary_inds, sorted_outer_shape,
+        boundary_offset=0, auto_align=False
+    ):
     # validate sizes
     m = len(sorted_boundary_inds)
     if len(sorted_outer_shape) != m:
@@ -76,7 +144,7 @@ def _map_to_given_shape(init_vertices, polygons, sorted_boundary_inds,
     theta = 2 * np.pi * (np.arange(m) / m)
     circle_positions = np.column_stack([np.cos(theta), np.sin(theta)])
     UV_init = _tutte_embedding(
-        len(init_vertices), edges, sorted_boundary_inds, circle_positions
+        init_vertices, edges, sorted_boundary_inds, circle_positions
     )
 
     # Step 2: rotate / align target boundary
@@ -87,7 +155,7 @@ def _map_to_given_shape(init_vertices, polygons, sorted_boundary_inds,
 
     # Step 3: embed target shape
     mapped_positions = _tutte_embedding(
-        len(init_vertices), edges, sorted_boundary_inds, target_positions
+        init_vertices, edges, sorted_boundary_inds, target_positions
     )
 
     return UV_init, mapped_positions, edges
@@ -125,7 +193,6 @@ def get_mapped_vertices(
     sorted_boundary_inds = np.array(sorted_boundary_inds)
 
     ccw_boundary_vertices = init_vertices[sorted_boundary_inds]
-
     bottom_right_idx = _get_bottom_right_idx(ccw_boundary_vertices)
     sorted_boundary_inds = np.roll(
         sorted_boundary_inds, -bottom_right_idx, axis=0
@@ -141,9 +208,11 @@ def get_mapped_vertices(
     )
     sorted_inds = np.array(sorted_inds)
     outer_shape = outer_shape[sorted_inds]
+
     bottom_right_idx = _get_bottom_right_idx(outer_shape)
     sorted_outer_shape = np.roll(outer_shape, -bottom_right_idx, axis=0)
-    UV_init, mapped_vertices, edges = _map_to_given_shape(
+
+    _, mapped_vertices, _ = _map_to_given_shape(
         init_vertices, polygons, sorted_boundary_inds, sorted_outer_shape
     )
 
