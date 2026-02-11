@@ -155,7 +155,17 @@ def _update_knot_ctx(logits, knot_ctx, knots):
     return knot_ctx
 
 
+def _expand_for_broadcasting(outer_shape, segments, final_vertices):
+    outer_shape = outer_shape[None, :, :] # (1, M, 2)
+    segments = segments[None, :, :] # (1, M, 2)
+    final_vertices = final_vertices[:, None, :] # (N, 1, 2)
+    return outer_shape, segments, final_vertices
+
+
 def _calc_dists_squared(outer_shape, segments, final_vertices):
+    outer_shape, segments, final_vertices = _expand_for_broadcasting(
+        outer_shape, segments, final_vertices
+    )
     dist_vecs = final_vertices - outer_shape # (N, M, 2)
 
     denom = jnp.sum(segments * segments, axis=2) # (1, M)
@@ -172,22 +182,13 @@ def _calc_shape_loss(
         final_vertices, boundary_mask, outer_shape, outer_shape_segments,
         min_dist_mask
     ):
-    # Expand dimensions for broadcasting
-    # final_vertices -> (N, 1, 2)
-    # outer_shape_segs -> (1, M, 2)
-    final_vertices = final_vertices[:, None, :]
-    outer_shape = outer_shape[None, :, :]
-    outer_shape_segments = outer_shape_segments[None, :, :]
-
     dists_squared = _calc_dists_squared(
         outer_shape, outer_shape_segments, final_vertices
     )
+    masked_dists = jnp.asarray(jnp.where(min_dist_mask, dists_squared, jnp.inf))
+    min_squared_dists = jnp.min(masked_dists, axis=1)
 
-    masked_dists = jnp.asarray(
-        jnp.where(min_dist_mask, dists_squared, jnp.inf)
-    )
-    min_cubed_dists = jnp.min(masked_dists, axis=1)
-    shape_loss = jnp.sum(min_cubed_dists * boundary_mask)
+    shape_loss = jnp.sum(min_squared_dists * boundary_mask)
 
     return shape_loss
 
