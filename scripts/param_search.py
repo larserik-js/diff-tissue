@@ -20,8 +20,8 @@ def objective_f(trial):
         )
     )
     params = params.replace(
-        elongation_loss_weight = trial.suggest_float(
-            'elongation loss weight', 1.0, 1e4, log=True
+        anisotropy_loss_weight = trial.suggest_float(
+            'anisotropy loss weight', 1.0, 1e4, log=True
         )
     )
     params = params.replace(

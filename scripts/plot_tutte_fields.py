@@ -18,9 +18,9 @@ def _add_colorbar(ax, cmap_vals, cmap_name):
 
 def _plot(tutte_fields):
     coords = tutte_fields.coords
-    tutte_fields = [tutte_fields.areas, tutte_fields.elongations]
+    tutte_fields = [tutte_fields.areas, tutte_fields.anisotropies]
 
-    titles = ['Mapped areas', 'Mapped elongations']
+    titles = ['Tutte areas', 'Tutte anisotropies']
     cmaps = ['copper', 'viridis']
 
     fig, axs = plt.subplots(2, figsize=(5,6))

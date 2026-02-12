@@ -26,12 +26,12 @@ def _plot_mapping(output_file, jax_arrays):
     ax.set_aspect('equal')
     ax.set_title('Initial mesh')
 
-    # Mapped mesh
+    # Tutte mesh
     ax = axs[1]
     tutte_vertices = jax_arrays['tutte_vertices']
     _add_artists(ax, jax_arrays, tutte_vertices)
     ax.set_aspect('equal')
-    ax.set_title('Mapped mesh')
+    ax.set_title('Tutte mesh')
 
     # Vector field from initial to Tutte
     ax = axs[2]
@@ -48,7 +48,7 @@ def _plot_mapping(output_file, jax_arrays):
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     ax.set_aspect('equal')
-    ax.set_title("Vector Field: Initial → Mapped")
+    ax.set_title("Vector Field: Initial → Tutte")
 
     fig.tight_layout()
     fig.savefig(output_file)

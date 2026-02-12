@@ -15,7 +15,7 @@ OUTPUT_TYPE_DIR = 'tutte_fields'
 class _Mesh:
     polygons: list
     areas: np.ndarray
-    elongations: np.ndarray
+    anisotropies: np.ndarray
 
 
 def _get_general_outer_shape(shape):
@@ -77,7 +77,7 @@ def _build_meshes(shape, n_meshes=100):
 
         mesh = _Mesh(
             shapely_polygons, np.array(tutte_metrics.areas),
-            np.array(tutte_metrics.elongations)
+            np.array(tutte_metrics.anisotropies)
         )
         meshes.append(mesh)
 
@@ -97,12 +97,12 @@ def _sample_mesh(mesh: _Mesh, points_inside_shape: np.ndarray):
     point_inds, poly_inds = matches
 
     sampled_areas = np.full(len(points_inside_shape), np.nan)
-    sampled_elongations = np.full(len(points_inside_shape), np.nan)
+    sampled_anisotropies = np.full(len(points_inside_shape), np.nan)
 
     sampled_areas[point_inds] = mesh.areas[poly_inds]
-    sampled_elongations[point_inds] = mesh.elongations[poly_inds]
+    sampled_anisotropies[point_inds] = mesh.anisotropies[poly_inds]
 
-    return sampled_areas, sampled_elongations
+    return sampled_areas, sampled_anisotropies
 
 
 def _calc_mean_metrics(all_sampled_metrics: list):
@@ -116,26 +116,26 @@ def _get_fields(meshes, points_inside_shape):
     Sample all meshes and average their scalar fields.
     """
     all_sampled_areas = []
-    all_sampled_elongations = []
+    all_sampled_anisotropies = []
 
     for mesh in meshes:
-        sampled_areas, sampled_elongations = _sample_mesh(
+        sampled_areas, sampled_anisotropies = _sample_mesh(
             mesh, points_inside_shape
         )
         all_sampled_areas.append(sampled_areas)
-        all_sampled_elongations.append(sampled_elongations)
+        all_sampled_anisotropies.append(sampled_anisotropies)
 
     mean_areas = _calc_mean_metrics(all_sampled_areas)
-    mean_elongations = _calc_mean_metrics(all_sampled_elongations)
+    mean_anisotropies = _calc_mean_metrics(all_sampled_anisotropies)
 
-    return mean_areas, mean_elongations
+    return mean_areas, mean_anisotropies
 
 
 @dataclass
 class _TutteFields:
     coords: np.ndarray
     areas: np.ndarray
-    elongations: np.ndarray
+    anisotropies: np.ndarray
 
 
 def _get_meshes(output_manager, shape):
@@ -155,10 +155,10 @@ def _generate_fields(output_manager, shape):
 
     meshes = _get_meshes(output_manager, shape)
 
-    area_field, elongation_field = _get_fields(meshes, points_inside_shape)
+    area_field, anisotropy_field = _get_fields(meshes, points_inside_shape)
 
     tutte_fields_ = _TutteFields(
-        points_inside_shape, area_field, elongation_field
+        points_inside_shape, area_field, anisotropy_field
     )
 
     return tutte_fields_

@@ -53,7 +53,7 @@ def calc_all_areas(all_cells, valid_mask):
     return areas
 
 
-def calc_elongations(all_cells, valid_mask):
+def calc_anisotropies(all_cells, valid_mask):
     xs = all_cells[:, 1:-1, 0]
     ys = all_cells[:, 1:-1, 1]
     valid = valid_mask[:, 1:-1]
@@ -65,9 +65,9 @@ def calc_elongations(all_cells, valid_mask):
     y_vars = jnp.nanvar(ys_masked, axis=1)
 
     eps = 1e-8
-    elongations = (y_vars - x_vars) / (y_vars + x_vars + eps)
+    anisotropies = (y_vars - x_vars) / (y_vars + x_vars + eps)
 
-    return elongations
+    return anisotropies
 
 
 def calc_optimal_angles(valid_mask):
@@ -94,11 +94,11 @@ class InitMetrics:
         return init_areas
 
     @cached_property
-    def elongations(self):
-        init_elongations = calc_elongations(
+    def anisotropies(self):
+        init_anisotropies = calc_anisotropies(
             self._all_cells, self._polygons.valid_mask
         )
-        return init_elongations
+        return init_anisotropies
 
 
 class TutteMetrics:
@@ -141,11 +141,11 @@ class TutteMetrics:
         return areas_
 
     @cached_property
-    def elongations(self):
-        elongations_ = calc_elongations(
+    def anisotropies(self):
+        anisotropies_ = calc_anisotropies(
             self._all_cells, self._polygons.valid_mask
         )
-        return elongations_
+        return anisotropies_
 
 
 def calc_proximal_mask(tutte_centroids, proximal_dist):
@@ -170,11 +170,11 @@ def _make_array_dict(
         'free_mask': polygons.free_mask,
         'boundary_mask': polygons.boundary_mask,
         'init_areas': init_metrics.areas,
-        'init_elongations': init_metrics.elongations,
+        'init_anisotropies': init_metrics.anisotropies,
         'tutte_vertices': tutte_metrics.vertices,
         'tutte_centroids': tutte_metrics.centroids,
         'tutte_areas': tutte_metrics.areas,
-        'tutte_elongations': tutte_metrics.elongations,
+        'tutte_anisotropies': tutte_metrics.anisotropies,
         'outer_shape': outer_shape.vertices,
         'outer_shape_segments': outer_shape.segments,
         'proximal_mask': proximal_mask,

@@ -62,7 +62,7 @@ def _main():
     df = pd.read_csv(input_file, sep='\t', index_col=0)
     
     goal_areas = df['best_goal_area'].values
-    goal_elongations = df['best_goal_elongation'].values
+    goal_anisotropies = df['best_goal_anisotropy'].values
 
     # Regenerate new system
     params = params.replace(seed=10000)
@@ -74,14 +74,14 @@ def _main():
     resulting_areas = _assign_weighted_goals(
         old_polygons, goal_areas, new_polygons
     )
-    resulting_elongations = _assign_weighted_goals(
-        old_polygons, goal_elongations, new_polygons
+    resulting_anisotropies = _assign_weighted_goals(
+        old_polygons, goal_anisotropies, new_polygons
     )
 
     jax_arrays = my_utils._make_jax_arrays(new_arrays)
 
     growth_evolution = morphing.iterate(
-        resulting_areas, resulting_elongations, params.n_growth_steps,
+        resulting_areas, resulting_anisotropies, params.n_growth_steps,
         jax_arrays, params
     )
 
