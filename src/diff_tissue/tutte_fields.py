@@ -8,6 +8,9 @@ from shapely.strtree import STRtree
 from . import init_systems, io_utils, my_utils, parameters, shapes
 
 
+OUTPUT_TYPE_DIR = 'tutte_fields'
+
+
 @dataclass
 class _Mesh:
     polygons: list
@@ -52,39 +55,31 @@ def _get_points_inside_shape(shape, nx, ny):
     return points_inside_shape
 
 
-def _build_meshes(n_meshes, shape, output_file):
-    if output_file.exists():
-        with open(output_file, 'rb') as f:
-            meshes = pickle.load(f)
-        return meshes
-    else:
-        params = parameters.Params()
-        params = params.replace(shape=shape)
-        meshes = []
+def _build_meshes(shape, n_meshes=100):
+    params = parameters.Params()
+    params = params.replace(shape=shape)
+    meshes = []
 
-        print('Building meshes...')
-        for i in range(n_meshes):
-            if (i+1)%10 == 0:
-                print(f'{i+1} / {n_meshes}')
+    print('Building meshes...')
+    for i in range(n_meshes):
+        if (i+1)%10 == 0:
+            print(f'{i+1} / {n_meshes}')
 
-            params = params.replace(seed=i)
-            polygons = init_systems.get_system(params.system, params.seed)
-            tutte_vertices = (
-                my_utils.TutteMetrics(polygons, params.shape).vertices
-            )
-            shapely_polygons = my_utils.get_shapely_polygons(
-                tutte_vertices, polygons.polygon_inds
-            )
-            tutte_metrics = my_utils.TutteMetrics(polygons, shape)
+        params = params.replace(seed=i)
+        polygons = init_systems.get_system(params.system, params.seed)
+        tutte_vertices = (
+            my_utils.TutteMetrics(polygons, params.shape).vertices
+        )
+        shapely_polygons = my_utils.get_shapely_polygons(
+            tutte_vertices, polygons.polygon_inds
+        )
+        tutte_metrics = my_utils.TutteMetrics(polygons, shape)
 
-            mesh = _Mesh(
-                shapely_polygons, np.array(tutte_metrics.areas),
-                np.array(tutte_metrics.elongations)
-            )
-            meshes.append(mesh)
-
-        with open(output_file, 'wb') as f:
-            pickle.dump(meshes, f)
+        mesh = _Mesh(
+            shapely_polygons, np.array(tutte_metrics.areas),
+            np.array(tutte_metrics.elongations)
+        )
+        meshes.append(mesh)
 
     return meshes
 
@@ -143,15 +138,22 @@ class _TutteFields:
     elongations: np.ndarray
 
 
-def get_tutte_fields_file(shape):
-    tutte_fields_file = io_utils.get_output_path(f'tutte_fields_{shape}.pkl')
-    return tutte_fields_file
+def _get_meshes(output_manager, shape):
+    meshes_file = output_manager.cache_path(f'meshes__{shape}.pkl')
+    if meshes_file.exists():
+        with open(meshes_file, 'rb') as f:
+            meshes = pickle.load(f)
+    else:
+        meshes = _build_meshes(shape)
+        with open(meshes_file, 'wb') as f:
+            pickle.dump(meshes, f)
+    return meshes
 
 
-def run(shape, nx, ny, meshes_file):
-    points_inside_shape = _get_points_inside_shape(shape, nx, ny)
+def _generate_fields(output_manager, shape):
+    points_inside_shape = _get_points_inside_shape(shape, nx=100, ny=100)
 
-    meshes = _build_meshes(n_meshes=100, shape=shape, output_file=meshes_file)
+    meshes = _get_meshes(output_manager, shape)
 
     area_field, elongation_field = _get_fields(meshes, points_inside_shape)
 
@@ -159,4 +161,18 @@ def run(shape, nx, ny, meshes_file):
         points_inside_shape, area_field, elongation_field
     )
 
+    return tutte_fields_
+
+
+def get_fields(shape):
+    output_manager = io_utils.OutputManager(OUTPUT_TYPE_DIR)
+
+    tutte_fields_file = output_manager.cache_path(f'fields__{shape}.pkl')
+    if tutte_fields_file.exists():
+        with open(tutte_fields_file, 'rb') as f:
+            tutte_fields_ = pickle.load(f)
+    else:
+        tutte_fields_ = _generate_fields(output_manager, shape)
+        with open(tutte_fields_file, 'wb') as f:
+            pickle.dump(tutte_fields_, f)
     return tutte_fields_

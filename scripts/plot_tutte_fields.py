@@ -1,16 +1,8 @@
-import pickle
-
 from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 
 from diff_tissue import io_utils, tutte_fields
-
-
-def _load_tutte_fields(input_file):
-    with open(input_file, 'rb') as f:
-        tutte_fields = pickle.load(f)
-    return tutte_fields
 
 
 def _add_colorbar(ax, cmap_vals, cmap_name):
@@ -52,14 +44,15 @@ def _plot(tutte_fields):
 
 
 def _save_plot(fig, shape):
-    output_file = io_utils.get_output_path(f'tutte_fields_{shape}.pdf')
+    output_manager = io_utils.OutputManager(f'{tutte_fields.OUTPUT_TYPE_DIR}')
+    output_file = output_manager.file_path(f'tutte_fields__{shape}.pdf')
     fig.savefig(output_file)
 
 
 def _main():
     shape = 'petal'
-    tutte_fields_file = tutte_fields.get_tutte_fields_file(shape)
-    tutte_fields_ = _load_tutte_fields(tutte_fields_file)
+
+    tutte_fields_ = tutte_fields.get_fields(shape)
 
     fig = _plot(tutte_fields_)
 

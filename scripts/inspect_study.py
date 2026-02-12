@@ -49,7 +49,8 @@ def _show_best_trial(study):
 def _main():
     args = _parse_args()
 
-    db_path = io_utils.get_output_path('optuna.db')
+    output_manager = io_utils.OutputManager(None)
+    db_path = output_manager.file_path('optuna.db')
     db_url = f'sqlite:///{db_path}'
     storage = optuna.storages.RDBStorage(db_url)
 

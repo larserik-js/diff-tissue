@@ -7,10 +7,26 @@ import pickle
 BASE_OUTPUT_DIR = 'outputs'
 
 
-def get_output_path(filename: str, base_dir: str = BASE_OUTPUT_DIR) -> Path:
-    base_dir_path = Path(base_dir)
-    base_dir_path.mkdir(exist_ok=True)
-    return base_dir_path / filename
+class OutputManager:
+    def __init__(self, output_type_dir: str | None):
+        self._output_type_dir = output_type_dir
+
+    @property
+    def _root(self):
+        if self._output_type_dir is None:
+            return Path(BASE_OUTPUT_DIR)
+        else:
+            return Path(BASE_OUTPUT_DIR) / self._output_type_dir
+
+    def _prepare(self, path: Path) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def file_path(self, filename: str) -> Path:
+        return self._prepare(self._root / filename)
+
+    def cache_path(self, filename: str) -> Path:
+        return self._prepare(self._root / 'cache' / filename)
 
 
 class _Output(ABC):
