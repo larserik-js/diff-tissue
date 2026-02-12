@@ -5,7 +5,9 @@ import pickle
 
 
 class OutputManager:
-    def __init__(self, output_type_dir: str | None, base_dir: str = 'outputs'):
+    def __init__(
+            self, output_type_dir: str | None, base_dir: str = 'outputs'
+        ):
         self._output_type_dir = output_type_dir
         self._base_dir = base_dir
 
