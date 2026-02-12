@@ -4,19 +4,17 @@ from pathlib import Path
 import pickle
 
 
-BASE_OUTPUT_DIR = 'outputs'
-
-
 class OutputManager:
-    def __init__(self, output_type_dir: str | None):
+    def __init__(self, output_type_dir: str | None, base_dir: str = 'outputs'):
         self._output_type_dir = output_type_dir
+        self._base_dir = base_dir
 
     @property
     def _root(self):
         if self._output_type_dir is None:
-            return Path(BASE_OUTPUT_DIR)
+            return Path(self._base_dir)
         else:
-            return Path(BASE_OUTPUT_DIR) / self._output_type_dir
+            return Path(self._base_dir) / self._output_type_dir
 
     def _prepare(self, path: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -47,7 +45,7 @@ class _Output(ABC):
 
     @cached_property
     def _output_type_dir(self):
-        output_type_dir = Path(BASE_OUTPUT_DIR) / self._output_type_dir_name
+        output_type_dir = Path('outputs') / self._output_type_dir_name
         output_type_dir.mkdir(exist_ok=True, parents=True)
         return output_type_dir
 
