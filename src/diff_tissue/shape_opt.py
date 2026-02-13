@@ -342,6 +342,11 @@ class _BestState:
     final_anisotropies: jnp.ndarray
 
 
+def _validate(final_areas):
+    all_areas_positive = ~jnp.any(final_areas < 0.0)
+    return all_areas_positive
+
+
 def _assemble_tabular_output(best):
     tabular_output = {
         'best_goal_area': best.goal_areas,
@@ -388,7 +393,12 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
 
         ar_logits, an_logits = logits[:2]
 
-        if loss < best.loss:
+        all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
+        final_areas = my_utils.calc_all_areas(
+            all_cells, jax_arrays['valid_mask']
+        )
+
+        if loss < best.loss and _validate(final_areas):
             best.loss = loss
             steps_since_best_loss = 0
 
@@ -402,10 +412,7 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
                 knot_ctx
             )
 
-            all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
-            best.final_areas = my_utils.calc_all_areas(
-                all_cells, jax_arrays['valid_mask']
-            )
+            best.final_areas = final_areas
             best.final_anisotropies = my_utils.calc_anisotropies(
                 all_cells, jax_arrays['valid_mask']
             )
