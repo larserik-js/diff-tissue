@@ -164,15 +164,13 @@ def _generate_fields(output_manager, shape):
     return tutte_fields_
 
 
-def get_fields(shape):
-    output_manager = io_utils.OutputManager(OUTPUT_TYPE_DIR)
-
-    tutte_fields_file = output_manager.cache_path(f'fields__{shape}.pkl')
+def get_fields(shape, output):
+    tutte_fields_file = output.cache_path(f'fields__{shape}.pkl')
     if tutte_fields_file.exists():
         with open(tutte_fields_file, 'rb') as f:
             tutte_fields_ = pickle.load(f)
     else:
-        tutte_fields_ = _generate_fields(output_manager, shape)
+        tutte_fields_ = _generate_fields(output, shape)
         with open(tutte_fields_file, 'wb') as f:
             pickle.dump(tutte_fields_, f)
     return tutte_fields_

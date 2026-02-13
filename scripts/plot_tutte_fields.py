@@ -50,9 +50,11 @@ def _save_plot(fig, shape):
 
 
 def _main():
+    output = io_utils.OutputManager(tutte_fields.OUTPUT_TYPE_DIR)
+
     shape = 'petal'
 
-    tutte_fields_ = tutte_fields.get_fields(shape)
+    tutte_fields_ = tutte_fields.get_fields(shape, output)
 
     fig = _plot(tutte_fields_)
 
