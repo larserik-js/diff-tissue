@@ -1,13 +1,11 @@
-from abc import ABC, abstractmethod
+from dataclasses import fields
 from functools import cached_property
 from pathlib import Path
 import pickle
 
 
 class OutputManager:
-    def __init__(
-            self, output_type_dir: str | None, base_dir: str = 'outputs'
-        ):
+    def __init__(self, output_type_dir: str | None, base_dir: str = 'outputs'):
         self._output_type_dir = output_type_dir
         self._base_dir = base_dir
 
@@ -29,7 +27,7 @@ class OutputManager:
         return self._prepare(self._root / 'cache' / filename)
 
 
-class _Output(ABC):
+class _Output:
     _formats = {'bool': '',
                 'int': 'd',
                 'float': '.7f',
@@ -39,11 +37,6 @@ class _Output(ABC):
     def __init__(self, output_type_dir_name, params):
         self._output_type_dir_name = output_type_dir_name
         self._params = params
-        self._set_param_names()
-
-    @abstractmethod
-    def _set_param_names(self):
-        pass
 
     @cached_property
     def _output_type_dir(self):
@@ -67,9 +60,10 @@ class _Output(ABC):
 
     def _concatenate_param_val_pairs(self):
         param_name_vals = []
-        for name in self._param_names:
+        for field in fields(self._params):
+            cli_flag = field.metadata.get('cli_flag')
             param_name_val = self._format_param_val_str(
-                name, getattr(self._params, name)
+                cli_flag, getattr(self._params, field.name)
             )
             param_name_vals.append(param_name_val)
 
@@ -87,9 +81,6 @@ class OutputDir(_Output):
         super().__init__(output_type_dir, params)
         self._make()
 
-    def _set_param_names(self):
-        self._param_names = self._params.get_names()
-
     @cached_property
     def path(self):
         path = self._make_param_path()
@@ -103,9 +94,6 @@ class OutputFile(_Output):
     def __init__(self, output_type_dir, suffix, params):
         super().__init__(output_type_dir, params)
         self._suffix = suffix
-
-    def _set_param_names(self):
-        self._param_names = self._params.get_names()
 
     @cached_property
     def path(self):

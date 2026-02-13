@@ -124,10 +124,6 @@ class Params:
         }
     )
 
-    def get_names(self):
-        names = list(self.__dataclass_fields__.keys())
-        return names
-
 
 def get_params_from_cli():
     parser = argparse.ArgumentParser()
