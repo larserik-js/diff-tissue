@@ -1,6 +1,6 @@
 [project]
 name = "diff-tissue"
-version = "0.3.0"
+version = "0.4.0"
 description = "Library and scripts for differentiable tissue growth project."
 readme = "README.md"
 requires-python = ">=3.12"
