@@ -131,7 +131,7 @@ class _KnotCtx:
 def _get_knot_ctx(knots, jax_arrays):
     if knots:
         dist_vecs = _calc_knots_to_tutte_centroids_dist_vecs(
-            jax_arrays['all_knots'], jax_arrays
+            jax_arrays['all_knots'], jax_arrays['tutte_centroids']
         )
         knot_ctx = _KnotCtx(
             n_left_logits = jax_arrays['left_knots'].shape[0],
@@ -228,13 +228,13 @@ loss_fn = jax.jit(
 )
 
 
-def _calc_knots_to_tutte_centroids_dist_vecs(knots, jax_arrays):
-    dist_vecs = jax_arrays['tutte_centroids'][:, None] - knots[None, :]
+def _calc_knots_to_tutte_centroids_dist_vecs(knots, tutte_centroids):
+    dist_vecs = tutte_centroids[:, None] - knots[None, :]
     return dist_vecs
 
 
-def _find_closest_polygon_by_knots(knots, jax_arrays):
-    dist_vecs = _calc_knots_to_tutte_centroids_dist_vecs(knots, jax_arrays)
+def _find_closest_polygon_by_knots(knots, tutte_centroids):
+    dist_vecs = _calc_knots_to_tutte_centroids_dist_vecs(knots, tutte_centroids)
     dists = jnp.linalg.norm(dist_vecs, axis=2)
     closest_inds = jnp.argmin(dists, axis=0)
     return closest_inds
@@ -270,7 +270,8 @@ def _get_poly_init_logits(tutte_areas, tutte_anisotropies, goal_area_bounds):
 
 
 def _get_knot_init_logits(
-        jax_arrays, tutte_areas, tutte_anisotropies, goal_area_bounds
+        jax_arrays, tutte_centroids, tutte_areas, tutte_anisotropies,
+        goal_area_bounds
     ):
     knot_positions = ['left', 'center']
     left_and_center_ar_logits = []
@@ -278,7 +279,7 @@ def _get_knot_init_logits(
     for pos in knot_positions:
         knots = jax_arrays[pos + '_knots']
         closest_polygon_by_knots = _find_closest_polygon_by_knots(
-            knots, jax_arrays
+            knots, tutte_centroids
         )
         closest_poly_areas = tutte_areas[closest_polygon_by_knots]
         closest_poly_anisotropies = tutte_anisotropies[closest_polygon_by_knots]
@@ -300,8 +301,9 @@ def _get_knot_init_logits(
 def _get_init_logits(goal_area_bounds, jax_arrays, params):
     if params.knots:
         init_logits = _get_knot_init_logits(
-            jax_arrays, jax_arrays['tutte_areas'],
-            jax_arrays['tutte_anisotropies'], goal_area_bounds
+            jax_arrays, jax_arrays['tutte_centroids'],
+            jax_arrays['tutte_areas'], jax_arrays['tutte_anisotropies'],
+            goal_area_bounds
         )
     else:
         init_logits = _get_poly_init_logits(
