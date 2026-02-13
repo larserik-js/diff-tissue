@@ -20,8 +20,8 @@ def objective_f(trial):
         )
     )
     params = params.replace(
-        elongation_loss_weight = trial.suggest_float(
-            'elongation loss weight', 1.0, 1e4, log=True
+        anisotropy_loss_weight = trial.suggest_float(
+            'anisotropy loss weight', 1.0, 1e4, log=True
         )
     )
     params = params.replace(
@@ -36,7 +36,8 @@ def objective_f(trial):
 
 
 def _main():
-    db_path = io_utils.get_output_path('optuna.db')
+    output_manager = io_utils.OutputManager(None)
+    db_path = output_manager.file_path('optuna.db')
 
     db_url = f'sqlite:///{db_path}'
     study = optuna.create_study(

@@ -26,18 +26,18 @@ def _calc_all_angles_loss(all_cells, valid_mask, optimal_angles):
     return angles_loss
 
 
-def _calc_elongations_loss(target_elongations, elongations):
-    elongation_diffs = target_elongations - elongations
-    elongations_loss = jnp.sum(jnp.square(elongation_diffs))
-    return elongations_loss
+def _calc_anisotropies_loss(target_anisotropies, anisotropies):
+    anisotropy_diffs = target_anisotropies - anisotropies
+    anisotropies_loss = jnp.sum(jnp.square(anisotropy_diffs))
+    return anisotropies_loss
 
 
-def _calc_growth_loss(vertices, target_areas, target_elongations,
+def _calc_growth_loss(vertices, target_areas, target_anisotropies,
                       optimal_angles, jax_arrays, params):
     all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
 
     areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    elongations = my_utils.calc_elongations(all_cells, jax_arrays['valid_mask'])
+    anisotropies = my_utils.calc_anisotropies(all_cells, jax_arrays['valid_mask'])
 
     areas_loss = params.areas_loss_weight * _calc_areas_loss(
         target_areas, areas
@@ -45,13 +45,13 @@ def _calc_growth_loss(vertices, target_areas, target_elongations,
     angles_loss = params.angles_loss_weight * _calc_all_angles_loss(
         all_cells, jax_arrays['valid_mask'], optimal_angles
     )
-    elongations_loss = (
-        params.elongation_loss_weight * _calc_elongations_loss(
-            target_elongations, elongations
+    anisotropies_loss = (
+        params.anisotropy_loss_weight * _calc_anisotropies_loss(
+            target_anisotropies, anisotropies
         )
     )
 
-    loss = areas_loss + angles_loss + elongations_loss
+    loss = areas_loss + angles_loss + anisotropies_loss
 
     return loss
 
@@ -61,11 +61,11 @@ def _update_targets(init_targets, goals, t_frac):
     return targets
 
 
-def _lbfgs_solve(vertices, target_areas, target_elongations, optimal_angles,
+def _lbfgs_solve(vertices, target_areas, target_anisotropies, optimal_angles,
                  jax_arrays, params):
     solver = jaxopt.LBFGS(fun=_calc_growth_loss, maxiter=50)
     result = solver.run(
-        vertices, target_areas, target_elongations, optimal_angles, jax_arrays,
+        vertices, target_areas, target_anisotropies, optimal_angles, jax_arrays,
         params
     )
     updated_vertices = result.params
@@ -73,16 +73,16 @@ def _lbfgs_solve(vertices, target_areas, target_elongations, optimal_angles,
     return updated_vertices
 
 
-def _update_vertices(vertices, t, init_areas, goal_areas, init_elongations,
-                     goal_elongations, optimal_angles, jax_arrays, params):
+def _update_vertices(vertices, t, init_areas, goal_areas, init_anisotropies,
+                     goal_anisotropies, optimal_angles, jax_arrays, params):
     t_frac = t / params.n_growth_steps
     target_areas = _update_targets(init_areas, goal_areas, t_frac)
-    target_elongations = _update_targets(
-        init_elongations, goal_elongations, t_frac
+    target_anisotropies = _update_targets(
+        init_anisotropies, goal_anisotropies, t_frac
     )
 
     updated_vertices = _lbfgs_solve(
-        vertices, target_areas, target_elongations, optimal_angles, jax_arrays,
+        vertices, target_areas, target_anisotropies, optimal_angles, jax_arrays,
         params
     )
     updated_vertices = jnp.where(
@@ -92,31 +92,31 @@ def _update_vertices(vertices, t, init_areas, goal_areas, init_elongations,
     return updated_vertices
 
 
-def iterate(goal_areas, goal_elongations, n_steps, jax_arrays, params):
+def iterate(goal_areas, goal_anisotropies, n_steps, jax_arrays, params):
     init_vertices = jax_arrays['init_vertices']
 
     init_areas = jax_arrays['init_areas']
-    init_elongations = jax_arrays['init_elongations']
+    init_anisotropies = jax_arrays['init_anisotropies']
     optimal_angles = my_utils.calc_optimal_angles(jax_arrays['valid_mask'])
 
     def update_step(carry, t):
-        (vertices, init_areas, init_elongations, goal_areas,
-         goal_elongations) = carry
+        (vertices, init_areas, init_anisotropies, goal_areas,
+         goal_anisotropies) = carry
 
         vertices = _update_vertices(
-            vertices, t, init_areas, goal_areas, init_elongations,
-            goal_elongations, optimal_angles, jax_arrays, params
+            vertices, t, init_areas, goal_areas, init_anisotropies,
+            goal_anisotropies, optimal_angles, jax_arrays, params
         )
 
         carry = (
-            vertices, init_areas, init_elongations, goal_areas, goal_elongations
+            vertices, init_areas, init_anisotropies, goal_areas, goal_anisotropies
         )
 
         return carry, vertices
 
     init_carry = (
-        init_vertices, init_areas, init_elongations, goal_areas,
-        goal_elongations
+        init_vertices, init_areas, init_anisotropies, goal_areas,
+        goal_anisotropies
     )
     _, growth_evolution = jax.lax.scan(
         update_step, init_carry, jnp.arange(n_steps)

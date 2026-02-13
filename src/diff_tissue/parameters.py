@@ -75,11 +75,11 @@ class Params:
             'cli_flag': 'anlw'
         }
     )
-    elongation_loss_weight: float = struct.field(
+    anisotropy_loss_weight: float = struct.field(
         default=300.0,
         pytree_node=True,
         metadata={
-            'help': 'Elongations loss weight.',
+            'help': 'Anisotropies loss weight.',
             'cli_flag': 'elw'
         }
     )
@@ -123,10 +123,6 @@ class Params:
             'cli_flag': 'seed'
         }
     )
-
-    def get_names(self):
-        names = list(self.__dataclass_fields__.keys())
-        return names
 
 
 def get_params_from_cli():

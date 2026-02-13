@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 
@@ -40,20 +42,24 @@ def _save_growth_evolution(growth_evolution, params):
     data_handler.save(growth_evolution)
 
 
-def _plot(growth_evolution, output_dir, jax_arrays, params):
-    figure = plotting.MorphFigure(output_dir, jax_arrays, params)
-
-    for t, vertices in enumerate(growth_evolution):
+def plot(results, output_dir):
+    figure = plotting.MorphFigure(
+        output_dir, results.new_jax_arrays, results.new_params
+    )
+    for t, vertices in enumerate(results.growth_evolution):
         if t%10 == 0:
             figure.save_plot(vertices, t)
     figure.save_plot(vertices, t)
 
 
-def _main():
-    params = parameters.get_params_from_cli()
+@dataclass
+class _Results:
+    growth_evolution: jnp.ndarray
+    new_jax_arrays: dict
+    new_params: parameters.Params
 
-    jax_arrays = my_utils.get_jax_arrays(params)
 
+def run(jax_arrays, params):
     old_polygons = my_utils.get_shapely_polygons(
         jax_arrays['init_vertices'], jax_arrays['indices']
     )
@@ -62,34 +68,32 @@ def _main():
     df = pd.read_csv(input_file, sep='\t', index_col=0)
     
     goal_areas = df['best_goal_area'].values
-    goal_elongations = df['best_goal_elongation'].values
+    goal_anisotropies = df['best_goal_anisotropy'].values
 
     # Regenerate new system
-    params = params.replace(seed=10000)
-    new_arrays = my_utils.get_jax_arrays(params)
+    new_params = params.replace(seed=params.seed)
+    new_jax_arrays = my_utils.get_jax_arrays(new_params)
     new_polygons = my_utils.get_shapely_polygons(
-        new_arrays['init_vertices'], new_arrays['indices']
+        new_jax_arrays['init_vertices'], new_jax_arrays['indices']
     )
 
     resulting_areas = _assign_weighted_goals(
         old_polygons, goal_areas, new_polygons
     )
-    resulting_elongations = _assign_weighted_goals(
-        old_polygons, goal_elongations, new_polygons
+    resulting_anisotropies = _assign_weighted_goals(
+        old_polygons, goal_anisotropies, new_polygons
     )
-
-    jax_arrays = my_utils._make_jax_arrays(new_arrays)
 
     growth_evolution = morphing.iterate(
-        resulting_areas, resulting_elongations, params.n_growth_steps,
-        jax_arrays, params
+        resulting_areas, resulting_anisotropies, new_params.n_growth_steps,
+        jax_arrays, new_params
     )
 
-    _save_growth_evolution(growth_evolution, params)
+    _save_growth_evolution(growth_evolution, new_params)
 
-    output_dir = io_utils.OutputDir('learned_growth', params).path
-    _plot(growth_evolution, output_dir, jax_arrays, params)
+    results = _Results(
+        growth_evolution=growth_evolution, new_jax_arrays=new_jax_arrays,
+        new_params=new_params
+    )
 
-
-if __name__ == '__main__':
-    _main()
+    return results
