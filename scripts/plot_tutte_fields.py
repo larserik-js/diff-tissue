@@ -43,14 +43,15 @@ def _plot(tutte_fields):
     return fig
 
 
-def _save_plot(fig, shape):
-    output_manager = io_utils.OutputManager(f'{tutte_fields.OUTPUT_TYPE_DIR}')
-    output_file = output_manager.file_path(f'tutte_fields__{shape}.pdf')
+def _save_plot(fig, shape, output):
+    output_file = output.file_path(f'tutte_fields__{shape}.pdf')
     fig.savefig(output_file)
 
 
 def _main():
-    output = io_utils.OutputManager(tutte_fields.OUTPUT_TYPE_DIR)
+    output = io_utils.OutputManager(
+        f'{tutte_fields.OUTPUT_TYPE_DIR}', base_dir='outputs'
+    )
 
     shape = 'petal'
 
@@ -58,7 +59,7 @@ def _main():
 
     fig = _plot(tutte_fields_)
 
-    _save_plot(fig, shape)
+    _save_plot(fig, shape, output)
 
 
 if __name__ == '__main__':

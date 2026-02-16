@@ -7,7 +7,7 @@ from . import parameters
 
 
 class OutputManager:
-    def __init__(self, output_type_dir: str | None, base_dir: str = 'outputs'):
+    def __init__(self, output_type_dir: str | None, base_dir: str):
         self._output_type_dir = output_type_dir
         self._base_dir = base_dir
 
@@ -116,7 +116,7 @@ def save_pkl(path, data):
 
 
 def get_output_params_file(params):
-    output = OutputManager('output_params')
+    output = OutputManager('output_params', base_dir='outputs')
     param_string = parameters.ParamStringFormatter(params).param_string
     output_file = output.file_path(f'{param_string}.txt')
     return output_file

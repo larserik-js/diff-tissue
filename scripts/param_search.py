@@ -37,7 +37,7 @@ def objective_f(trial):
 
 
 def _main():
-    output_manager = io_utils.OutputManager(None)
+    output_manager = io_utils.OutputManager(None, base_dir='outputs')
     db_path = output_manager.file_path('optuna.db')
 
     db_url = f'sqlite:///{db_path}'
