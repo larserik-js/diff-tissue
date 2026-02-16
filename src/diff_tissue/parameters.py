@@ -1,5 +1,6 @@
 import argparse
 from dataclasses import fields
+from functools import cached_property
 
 from .jax_bootstrap import struct
 
@@ -155,3 +156,45 @@ def get_params_from_cli():
     args = vars(parser.parse_args())
 
     return Params(**args)
+
+
+class ParamStringFormatter:
+    _formats = {'bool': '',
+                'int': 'd',
+                'float': '.7f',
+                'float64': '.7f',
+                'str': ''}
+
+    def __init__(self, params: Params):
+        self._params = params
+
+    @staticmethod
+    def _get_val_type(val):
+        type_ = type(val)
+        type_str = type_.__name__
+        return type_str
+
+    def _format_param_val_str(self, name, val):
+        val_type = self._get_val_type(val)
+        format_ = self._formats[val_type]
+        param_name_val = name + '=' + format(val, format_)
+        if val_type == 'float' or val_type == 'float64':
+            param_name_val = param_name_val.rstrip('0').rstrip('.')
+        return param_name_val
+
+    def _join_param_val_pairs(self):
+        param_name_vals = []
+
+        for field in fields(self._params):
+            cli_flag = field.metadata.get('cli_flag')
+            param_name_val = self._format_param_val_str(
+                cli_flag, getattr(self._params, field.name)
+            )
+            param_name_vals.append(param_name_val)
+        param_path_str = '__'.join(param_name_vals)
+        return param_path_str
+
+    @cached_property
+    def param_string(self):
+        joined_param_names = self._join_param_val_pairs()
+        return joined_param_names
