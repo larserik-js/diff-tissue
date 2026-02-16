@@ -22,11 +22,11 @@ class OutputManager:
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
-    def file_path(self, filename: str) -> Path:
-        return self._prepare(self._root / filename)
+    def file_path(self, *parts: str) -> Path:
+        return self._prepare(self._root / Path(*parts))
 
-    def cache_path(self, filename: str) -> Path:
-        return self._prepare(self._root / 'cache' / filename)
+    def cache_path(self, *parts: str) -> Path:
+        return self._prepare(self._root / 'cache' / Path(*parts))
 
 
 class _Output:
