@@ -9,12 +9,14 @@ def _get_plotting_data(params):
 
 
 def _plot(growth_evolution, output_dir, jax_arrays, params):
-    figure = plotting.MorphFigure(output_dir, jax_arrays, params)
+    figure = plotting.MorphFigure(jax_arrays, params)
 
     for t, vertices in enumerate(growth_evolution):
         if t%10 == 0:
-            figure.save_plot(vertices, t)
-    figure.save_plot(vertices, t)
+            fig_path = output_dir / f'step={t:03d}.png'
+            figure.save_plot(vertices, fig_path)
+    fig_path = output_dir / f'step={t:03d}.png'
+    figure.save_plot(vertices, fig_path)
 
 
 def _main():

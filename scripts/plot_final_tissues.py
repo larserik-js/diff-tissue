@@ -9,12 +9,14 @@ def _get_plotting_data(params):
 
 
 def _plot(final_tissues, output_dir, jax_arrays, params):
-    figure = plotting.MorphFigure(output_dir, jax_arrays, params)
+    figure = plotting.MorphFigure(jax_arrays, params)
 
     for t, vertices in enumerate(final_tissues):
         if t%10 == 0:
-            figure.save_plot(vertices, t, enumerate=True)
-    figure.save_plot(vertices, t, enumerate=True)
+            fig_path = output_dir / f'step={t:03d}.png'
+            figure.save_plot(vertices, fig_path, enumerate=True)
+    fig_path = output_dir / f'step={t:03d}.png'
+    figure.save_plot(vertices, fig_path, enumerate=True)
 
 
 def _main():

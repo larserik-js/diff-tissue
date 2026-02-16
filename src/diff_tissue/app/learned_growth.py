@@ -43,13 +43,13 @@ def _save_growth_evolution(growth_evolution, params):
 
 
 def plot(results, output_dir):
-    figure = plotting.MorphFigure(
-        output_dir, results.new_jax_arrays, results.new_params
-    )
+    figure = plotting.MorphFigure(results.new_jax_arrays, results.new_params)
     for t, vertices in enumerate(results.growth_evolution):
         if t%10 == 0:
-            figure.save_plot(vertices, t)
-    figure.save_plot(vertices, t)
+            fig_path = output_dir / f'step={t:03d}.png'
+            figure.save_plot(vertices, fig_path)
+    fig_path = output_dir / f'step={t:03d}.png'
+    figure.save_plot(vertices, fig_path)
 
 
 @dataclass

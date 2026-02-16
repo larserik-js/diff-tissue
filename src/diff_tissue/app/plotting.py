@@ -12,8 +12,9 @@ def _get_polygons(vertices, indices, valid_mask):
 
 
 class _Artists:
-    def __init__(self, ax, init_vertices, outer_shape, all_knots, jax_arrays,
-                 params):
+    def __init__(
+            self, ax, init_vertices, outer_shape, all_knots, jax_arrays, params
+        ):
         self._ax = ax
         self._init_vertices = init_vertices
         self._outer_shape = outer_shape
@@ -107,22 +108,17 @@ class _Artists:
 
 
 class _Figure:
-    def __init__(self, output_dir):
-        self._output_dir = output_dir
-
     @staticmethod
     def _close(outer_shape):
         closed_outer_shape = np.vstack([outer_shape, outer_shape[0]])
         return closed_outer_shape
 
-    def _save(self, step):
-        fig_path = self._output_dir / f'step={step:03d}.png'
+    def _save(self, fig_path):
         self._fig.savefig(fig_path, dpi=100)
 
 
 class MorphFigure(_Figure):
-    def __init__(self, output_dir, jax_arrays, params):
-        super().__init__(output_dir)
+    def __init__(self, jax_arrays, params):
         self._fig, ax = plt.subplots(figsize=(10, 10))
         self._init_vertices = jax_arrays['init_vertices']
         self._closed_outer_shape = self._close(jax_arrays['outer_shape'])
@@ -131,14 +127,13 @@ class MorphFigure(_Figure):
             jax_arrays['all_knots'], jax_arrays, params
         )
 
-    def save_plot(self, vertices, step, enumerate=False):
+    def save_plot(self, vertices, fig_path, enumerate=False):
         self._morph_artists.plot(vertices, enumerate)
-        self._save(step)
+        self._save(fig_path)
 
 
 class MorphGrowthFigure(_Figure):
-    def __init__(self, output_dir, jax_arrays, params):
-        super().__init__(output_dir)
+    def __init__(self, jax_arrays, params):
         self._total_steps = params.n_growth_steps
         self._scale = params.growth_scale
         self._fig = plt.figure(figsize=(8, 10))
@@ -174,6 +169,6 @@ class MorphGrowthFigure(_Figure):
         scaled_vertices = self._scale_vertices(vertices, step)
         self._growth_artists.plot(scaled_vertices, enumerate)
 
-    def save_plot(self, vertices, step, enumerate=False):
+    def save_plot(self, vertices, step, fig_path, enumerate=False):
         self._plot(vertices, step, enumerate)
-        self._save(step)
+        self._save(fig_path)
