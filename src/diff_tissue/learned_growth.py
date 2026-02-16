@@ -37,7 +37,7 @@ def _assign_weighted_goals(old_polygons, goals, new_polygons):
 
 
 def _save_growth_evolution(growth_evolution, params):
-    output_path = io_utils.OutputFile('learned_growth', '.pkl', params)
+    output_path = io_utils.OutputFile('learned_growth', '.pkl', params).path
     io_utils.save_pkl(output_path, growth_evolution)
 
 

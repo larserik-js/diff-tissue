@@ -2,7 +2,7 @@ from diff_tissue import io_utils, my_utils, parameters, plotting
 
 
 def _get_plotting_data(params):
-    input_path = io_utils.OutputFile('best_growth', '.pkl', params)
+    input_path = io_utils.OutputFile('best_growth', '.pkl', params).path
     best_growth_evolution = io_utils.load_pkl(input_path)
     return best_growth_evolution
 

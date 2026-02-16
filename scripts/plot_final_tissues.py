@@ -2,7 +2,7 @@ from diff_tissue import io_utils, my_utils, parameters, plotting
 
 
 def _get_plotting_data(params):
-    input_path = io_utils.OutputFile('final_tissues', '.pkl', params)
+    input_path = io_utils.OutputFile('final_tissues', '.pkl', params).path
     final_tissues = io_utils.load_pkl(input_path)
     return final_tissues
 

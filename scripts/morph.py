@@ -3,7 +3,7 @@ from diff_tissue import morphing, io_utils, my_utils, parameters
 
 
 def _save_growth_evolution(growth_evolution, params):
-    output_path = io_utils.OutputFile('morphing', '.pkl', params)
+    output_path = io_utils.OutputFile('morphing', '.pkl', params).path
     io_utils.save_pkl(output_path, growth_evolution)
 
 

@@ -2,7 +2,7 @@ from diff_tissue import io_utils, my_utils, parameters, plotting
 
 
 def _get_plotting_data(params):
-    input_path = io_utils.OutputFile('morphing', '.pkl', params)
+    input_path = io_utils.OutputFile('morphing', '.pkl', params).path
     growth_evolution = io_utils.load_pkl(input_path)
     return growth_evolution
 

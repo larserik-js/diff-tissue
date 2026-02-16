@@ -4,7 +4,7 @@ from diff_tissue import io_utils, my_utils, parameters, shape_opt
 
 
 def _save_final_tissues(final_tissues, params):
-    output_path = io_utils.OutputFile('final_tissues', '.pkl', params)
+    output_path = io_utils.OutputFile('final_tissues', '.pkl', params).path
     io_utils.save_pkl(output_path, final_tissues)
 
 
