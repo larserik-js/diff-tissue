@@ -4,9 +4,8 @@ from diff_tissue import io_utils, my_utils, parameters, shape_opt
 
 
 def _save_final_tissues(final_tissues, params):
-    output_file = io_utils.OutputFile('final_tissues', '.pkl', params)
-    data_handler = io_utils.DataHandler(output_file)
-    data_handler.save(final_tissues)
+    output_path = io_utils.OutputFile('final_tissues', '.pkl', params)
+    io_utils.save_pkl(output_path, final_tissues)
 
 
 def _save_output_params(param_dict, params):

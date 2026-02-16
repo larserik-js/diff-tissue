@@ -5,9 +5,8 @@ from diff_tissue import morphing, io_utils, my_utils, parameters
 
 
 def _save_best_growth_evolution(growth_evolution, params):
-    output_file = io_utils.OutputFile('best_growth', '.pkl', params)
-    data_handler = io_utils.DataHandler(output_file)
-    data_handler.save(growth_evolution)
+    output_path = io_utils.OutputFile('best_growth', '.pkl', params)
+    io_utils.save_pkl(output_path, growth_evolution)
 
 
 def main():

@@ -102,31 +102,15 @@ class OutputFile(_Output):
         return path
 
 
-class DataHandler:
-    def __init__(self, file):
-        self._file_path = file.path
+def load_pkl(path):
+    with open(path, 'rb') as f:
+        data = pickle.load(f)
+    return data
 
-    def _load_pkl(self):
-        with open(self._file_path, 'rb') as f:
-            data = pickle.load(f)
-        return data
 
-    def _save_pkl(self, data):
-        with open(self._file_path, 'wb') as f:
-            pickle.dump(data, f)
-
-    def load(self):
-        if self._file_path.suffix == '.pkl':
-            data = self._load_pkl()
-        else:
-            raise NotImplementedError
-        return data
-
-    def save(self, data):
-        if self._file_path.suffix == '.pkl':
-            self._save_pkl(data)
-        else:
-            raise NotImplementedError
+def save_pkl(path, data):
+    with open(path, 'wb') as f:
+        pickle.dump(data, f)
 
 
 def get_output_params_file(params):
