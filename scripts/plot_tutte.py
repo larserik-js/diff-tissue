@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from diff_tissue import io_utils, my_utils, parameters
+from diff_tissue.core import my_utils
+from diff_tissue.app import io_utils, parameters
 
 
 def _add_artists(ax, jax_arrays, vertices):

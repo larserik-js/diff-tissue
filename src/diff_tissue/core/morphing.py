@@ -37,7 +37,9 @@ def _calc_growth_loss(vertices, target_areas, target_anisotropies,
     all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
 
     areas = my_utils.calc_all_areas(all_cells, jax_arrays['valid_mask'])
-    anisotropies = my_utils.calc_anisotropies(all_cells, jax_arrays['valid_mask'])
+    anisotropies = my_utils.calc_anisotropies(
+        all_cells, jax_arrays['valid_mask']
+    )
 
     areas_loss = params.areas_loss_weight * _calc_areas_loss(
         target_areas, areas
@@ -109,7 +111,8 @@ def iterate(goal_areas, goal_anisotropies, n_steps, jax_arrays, params):
         )
 
         carry = (
-            vertices, init_areas, init_anisotropies, goal_areas, goal_anisotropies
+            vertices, init_areas, init_anisotropies, goal_areas,
+            goal_anisotropies
         )
 
         return carry, vertices

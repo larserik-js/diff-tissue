@@ -2,7 +2,7 @@ from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from diff_tissue import io_utils, tutte_fields
+from diff_tissue.app import io_utils, tutte_fields
 
 
 def _add_colorbar(ax, cmap_vals, cmap_name):

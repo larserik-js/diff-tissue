@@ -1,4 +1,5 @@
-from diff_tissue import io_utils, learned_growth, my_utils, parameters
+from diff_tissue.core import my_utils
+from diff_tissue.app import io_utils, learned_growth, parameters
 
 
 def _main():

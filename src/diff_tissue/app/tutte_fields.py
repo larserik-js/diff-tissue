@@ -5,7 +5,8 @@ import numpy as np
 import shapely
 from shapely.strtree import STRtree
 
-from . import init_systems, io_utils, my_utils, parameters, shapes
+from ..core import init_systems, my_utils, shapes
+from . import parameters
 
 
 OUTPUT_TYPE_DIR = 'tutte_fields'

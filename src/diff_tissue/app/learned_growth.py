@@ -3,8 +3,9 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from diff_tissue.jax_bootstrap import jnp
-from diff_tissue import morphing, io_utils, my_utils, parameters, plotting
+from ..core.jax_bootstrap import jnp
+from ..core import morphing, my_utils
+from . import io_utils, parameters, plotting
 
 
 def _assign_weighted_goals(old_polygons, goals, new_polygons):

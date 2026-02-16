@@ -1,4 +1,5 @@
-from diff_tissue import io_utils, my_utils, parameters, plotting
+from diff_tissue.core import my_utils
+from diff_tissue.app import io_utils, parameters, plotting
 
 
 def _get_plotting_data(params):

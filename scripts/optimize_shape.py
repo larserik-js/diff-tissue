@@ -1,6 +1,7 @@
 import pandas as pd
 
-from diff_tissue import io_utils, my_utils, parameters, shape_opt
+from diff_tissue.core import my_utils, shape_opt
+from diff_tissue.app import io_utils, parameters
 
 
 def _save_final_tissues(final_tissues, params):

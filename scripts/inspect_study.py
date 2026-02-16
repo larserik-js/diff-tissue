@@ -2,7 +2,7 @@ import argparse
 
 import optuna
 
-from diff_tissue import io_utils
+from diff_tissue.app import io_utils
 
 
 def _parse_args():

@@ -1,6 +1,7 @@
 import optuna
 
-from diff_tissue import io_utils, parameters, shape_opt
+from diff_tissue.core import shape_opt
+from diff_tissue.app import io_utils, parameters
 
 
 def objective_f(trial):

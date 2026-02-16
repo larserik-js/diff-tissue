@@ -1,7 +1,8 @@
 import pandas as pd
 
-from diff_tissue.jax_bootstrap import jax
-from diff_tissue import morphing, io_utils, my_utils, parameters
+from diff_tissue.core.jax_bootstrap import jax
+from diff_tissue.core import morphing, my_utils
+from diff_tissue.app import io_utils, parameters
 
 
 def _save_best_growth_evolution(growth_evolution, params):

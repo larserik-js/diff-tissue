@@ -2,7 +2,7 @@ import argparse
 from dataclasses import fields
 from functools import cached_property
 
-from .jax_bootstrap import struct
+from ..core.jax_bootstrap import struct
 
 
 @struct.dataclass
