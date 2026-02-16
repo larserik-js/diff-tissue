@@ -3,6 +3,8 @@ from functools import cached_property
 from pathlib import Path
 import pickle
 
+from . import parameters
+
 
 class OutputManager:
     def __init__(self, output_type_dir: str | None, base_dir: str = 'outputs'):
@@ -114,4 +116,7 @@ def save_pkl(path, data):
 
 
 def get_output_params_file(params):
-    return OutputFile('output_params', '.txt', params).path
+    output = OutputManager('output_params')
+    param_string = parameters.ParamStringFormatter(params).param_string
+    output_file = output.file_path(f'{param_string}.txt')
+    return output_file
