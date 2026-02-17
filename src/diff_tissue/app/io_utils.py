@@ -117,6 +117,6 @@ def save_pkl(path, data):
 
 def get_output_params_file(params):
     output = OutputManager('output_params', base_dir='outputs')
-    param_string = parameters.ParamStringFormatter(params).param_string
+    param_string = parameters.get_param_string(params)
     output_file = output.file_path(f'{param_string}.txt')
     return output_file

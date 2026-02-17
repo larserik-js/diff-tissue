@@ -158,7 +158,7 @@ def get_params_from_cli():
     return Params(**args)
 
 
-class ParamStringFormatter:
+class _ParamStringFormatter:
     _formats = {'bool': '',
                 'int': 'd',
                 'float': '.7f',
@@ -198,3 +198,8 @@ class ParamStringFormatter:
     def param_string(self):
         joined_param_names = self._join_param_val_pairs()
         return joined_param_names
+
+
+def get_param_string(params):
+    param_string = f'{_ParamStringFormatter(params).param_string}'
+    return param_string
