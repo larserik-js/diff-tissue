@@ -1,14 +1,14 @@
 import pandas as pd
 
 from ..core import my_utils
-from . import io_utils, plotting
+from ..core import shape_opt as shape_opt_core
+from . import io_utils, morphing, parameters, plotting
 
 
-FINAL_TISSUES_DIR = 'final_tissues'
 BEST_GROWTH_DIR = 'best_growth'
 
 
-def save_output_params(tabular_output, params):
+def _save_output_params(tabular_output, params):
     df = pd.DataFrame(tabular_output)
     output_file = io_utils.get_output_params_file(params)
     df.to_csv(output_file, sep='\t', index=True, header=True)
@@ -23,7 +23,9 @@ def load_output_params(params):
     return best_goal_areas, best_goal_anisotropies
 
 
-def plot_final_tissues(final_tissues, output, param_string, jax_arrays, params):
+def _plot_final_tissues(
+        final_tissues, output, param_string, jax_arrays, params
+    ):
     figure = plotting.MorphFigure(jax_arrays, params)
 
     for t, vertices in enumerate(final_tissues):
@@ -32,6 +34,41 @@ def plot_final_tissues(final_tissues, output, param_string, jax_arrays, params):
             figure.save_plot(vertices, fig_path, enumerate=True)
     fig_path = output.file_path(param_string, f'step={t:03d}.png')
     figure.save_plot(vertices, fig_path, enumerate=True)
+
+
+def optimize_shape(params, base_dir='outputs'):
+    jax_arrays = my_utils.get_jax_arrays(params)
+    param_string = parameters.get_param_string(params)
+
+    output = io_utils.OutputManager('final_tissues', base_dir=base_dir)
+    _, final_tissues, _, tabular_output = shape_opt_core.run(params)
+
+    _save_output_params(tabular_output, params)
+
+    cache_path = output.cache_path(f'{param_string}.pkl')
+
+    io_utils.save_pkl(cache_path, final_tissues)
+
+    final_tissues = io_utils.load_pkl(cache_path)
+
+    _plot_final_tissues(
+        final_tissues, output, param_string, jax_arrays, params
+    )
+
+
+def get_best_growth_evolution(
+        best_goal_areas, best_goal_anisotropies, jax_arrays, params, cache_path
+    ):
+    if cache_path.exists():
+        best_growth_evolution = io_utils.load_pkl(cache_path)
+    else:
+        best_growth_evolution = morphing.jiterate(
+            best_goal_areas, best_goal_anisotropies, params.n_growth_steps,
+            jax_arrays, params
+        )
+        io_utils.save_pkl(cache_path, best_growth_evolution)
+
+    return best_growth_evolution
 
 
 def plot_best_growth(
