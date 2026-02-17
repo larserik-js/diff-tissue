@@ -3,7 +3,7 @@ from . import my_utils
 
 
 def _calc_areas_loss(target_areas, areas):
-    areas_loss = jnp.sum((target_areas - areas) ** 2)
+    areas_loss = jnp.sum(jnp.square((areas - target_areas) / target_areas))
     return areas_loss
 
 
