@@ -69,7 +69,7 @@ class Params:
         metadata={"help": "Areas loss weight.", "cli_flag": "arlw"},
     )
     angles_loss_weight: float = struct.field(
-        default=150.0,
+        default=1200.0,
         pytree_node=True,
         metadata={"help": "Angles loss weight.", "cli_flag": "anlw"},
     )
