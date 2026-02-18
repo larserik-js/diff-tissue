@@ -418,7 +418,7 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
             )
 
             if not params.quiet:
-                print(f'(Stored params with new best loss.)')
+                print('(Stored params with new best loss.)')
                 print('')
         else:
             steps_since_best_loss += 1
@@ -427,7 +427,7 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
 
         if steps_since_best_loss >= 20 and best.loss != jnp.inf:
             if not params.quiet:
-                print(f'(Stopped - iteration diverged.)')
+                print('(Stopped - iteration diverged.)')
                 print('')
             break
         else:
