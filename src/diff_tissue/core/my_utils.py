@@ -70,6 +70,23 @@ def calc_anisotropies(all_cells, valid_mask):
     return anisotropies
 
 
+def calc_masked_cosines(all_cells, valid_mask):
+    edges = all_cells[:, 1:] - all_cells[:, :-1]
+    epsilon = 1e-7
+    norms = jnp.linalg.norm(edges + epsilon, axis=2)
+    dot_products = jnp.sum(edges[:, :-1] * edges[:, 1:], axis=2)
+
+    cosines = dot_products / (epsilon + norms[:, :-1] * norms[:, 1:])
+    clip_value = 1.0 - epsilon
+    cosines = jnp.clip(cosines, -clip_value, clip_value)
+
+    valid = valid_mask[:, 1:] & valid_mask[:, :-1]
+    valid = valid[:, 1:] & valid[:, :-1]
+    masked_cosines = jnp.where(valid, cosines, jnp.nan)
+
+    return masked_cosines
+
+
 def calc_optimal_angles(valid_mask):
     n_vertices = valid_mask.sum(axis=1) - 2
     interior_angles = (n_vertices - 2) * jnp.pi / n_vertices

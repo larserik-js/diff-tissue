@@ -7,22 +7,10 @@ def _calc_areas_loss(target_areas, areas):
     return areas_loss
 
 
-def _calc_all_angles_loss(all_cells, valid_mask, optimal_angles):
-    edges = all_cells[:, 1:] - all_cells[:, :-1]
-    epsilon = 1e-7
-    norms = jnp.linalg.norm(edges + epsilon, axis=2)
-    dot_products = jnp.sum(edges[:, :-1] * edges[:, 1:], axis=2)
-
-    cosines = dot_products / (epsilon + norms[:, :-1] * norms[:, 1:])
-    clip_value = 1.0 - epsilon
-    cosines = jnp.clip(cosines, -clip_value, clip_value)
-
+def _calc_angles_loss(masked_cosines, optimal_angles):
     optimal_cosines = jnp.cos(optimal_angles)
-    valid = valid_mask[:, 1:] & valid_mask[:, :-1]
-    valid = valid[:, 1:] & valid[:, :-1]
-
-    angles_loss = jnp.sum((cosines - optimal_cosines)**2 * valid)
-
+    squared_diffs = jnp.square(masked_cosines - optimal_cosines)
+    angles_loss = jnp.nansum(squared_diffs)
     return angles_loss
 
 
@@ -40,12 +28,15 @@ def _calc_growth_loss(vertices, target_areas, target_anisotropies,
     anisotropies = my_utils.calc_anisotropies(
         all_cells, jax_arrays['valid_mask']
     )
+    masked_cosines = my_utils.calc_masked_cosines(
+        all_cells, jax_arrays['valid_mask']
+    )
 
     areas_loss = params.areas_loss_weight * _calc_areas_loss(
         target_areas, areas
     )
-    angles_loss = params.angles_loss_weight * _calc_all_angles_loss(
-        all_cells, jax_arrays['valid_mask'], optimal_angles
+    angles_loss = params.angles_loss_weight * _calc_angles_loss(
+        masked_cosines, optimal_angles
     )
     anisotropies_loss = (
         params.anisotropy_loss_weight * _calc_anisotropies_loss(
