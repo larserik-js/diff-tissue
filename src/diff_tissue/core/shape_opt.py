@@ -394,7 +394,7 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
         ar_logits, an_logits = logits[:2]
 
         all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
-        final_areas = my_utils.calc_all_areas(
+        final_areas = my_utils.calc_areas(
             all_cells, jax_arrays['valid_mask']
         )
 

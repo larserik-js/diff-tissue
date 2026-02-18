@@ -4,7 +4,7 @@ import timeit
 import numpy as np
 from shapely.geometry import Polygon
 
-from .jax_bootstrap import jax, jnp
+from .jax_bootstrap import jax, jnp, struct
 from . import init_systems, shapes, tutte
 
 
@@ -35,7 +35,7 @@ def calc_centroids(vertices, indices, valid_mask):
     return centroids
 
 
-def calc_all_areas(all_cells, valid_mask):
+def calc_areas(all_cells, valid_mask):
     xs = all_cells[:, 1:-1, 0]
     y_plus_ones = all_cells[:, 2:, 1]
     y_minus_ones = all_cells[:, :-2, 1]
@@ -95,6 +95,46 @@ def calc_optimal_angles(valid_mask):
     return optimal_angles
 
 
+@struct.dataclass
+class PolyMetrics:
+    _indices: jnp.ndarray = struct.field(pytree_node=True)
+    _valid_mask: jnp.ndarray = struct.field(pytree_node=True)
+
+    masked_cosines: jnp.ndarray = struct.field(pytree_node=True)
+    areas: jnp.ndarray = struct.field(pytree_node=True)
+    anisotropies: jnp.ndarray = struct.field(pytree_node=True)
+
+    @classmethod
+    def create(cls, vertices, indices, valid_mask):
+        """
+        Compute the initial values of masked_cosines, areas, and anisotropies
+        based on the vertices and static fields.
+        """
+        all_cells = get_all_cells(vertices, indices)
+        masked_cosines = calc_masked_cosines(all_cells, valid_mask)
+        areas = calc_areas(all_cells, valid_mask)
+        anisotropies = calc_anisotropies(all_cells, valid_mask)
+        return cls(
+            _indices=indices,
+            _valid_mask=valid_mask,
+            masked_cosines=masked_cosines,
+            areas=areas,
+            anisotropies=anisotropies
+        )
+
+    def update(self, vertices):
+        all_cells = get_all_cells(vertices, self._indices)
+
+        masked_cosines = calc_masked_cosines(all_cells, self._valid_mask)
+        areas = calc_areas(all_cells, self._valid_mask)
+        anisotropies = calc_anisotropies(all_cells, self._valid_mask)
+
+        return self.replace(
+            masked_cosines=masked_cosines, areas=areas,
+            anisotropies=anisotropies
+        )
+
+
 class InitMetrics:
     def __init__(self, polygons):
         self._polygons = polygons
@@ -107,7 +147,7 @@ class InitMetrics:
 
     @cached_property
     def areas(self):
-        init_areas = calc_all_areas(self._all_cells, self._polygons.valid_mask)
+        init_areas = calc_areas(self._all_cells, self._polygons.valid_mask)
         return init_areas
 
     @cached_property
@@ -152,7 +192,7 @@ class TutteMetrics:
 
     @cached_property
     def areas(self):
-        areas_ = calc_all_areas(
+        areas_ = calc_areas(
             self._all_cells, self._polygons.valid_mask
         )
         return areas_
