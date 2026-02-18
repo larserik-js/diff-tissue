@@ -37,20 +37,21 @@ def _plot_final_tissues(
 
 
 def optimize_shape(params, base_dir='outputs'):
-    jax_arrays = my_utils.get_jax_arrays(params)
-    param_string = parameters.get_param_string(params)
-
     output = io_utils.OutputManager('final_tissues', base_dir=base_dir)
-    _, final_tissues, _, tabular_output = shape_opt_core.run(params)
 
-    _save_output_params(tabular_output, params)
-
+    param_string = parameters.get_param_string(params)
     cache_path = output.cache_path(f'{param_string}.pkl')
 
-    io_utils.save_pkl(cache_path, final_tissues)
+    if cache_path.exists():
+        final_tissues = io_utils.load_pkl(cache_path)
+    else:
+        _, final_tissues, _, tabular_output = shape_opt_core.run(params)
 
-    final_tissues = io_utils.load_pkl(cache_path)
+        _save_output_params(tabular_output, params)
 
+        io_utils.save_pkl(cache_path, final_tissues)
+
+    jax_arrays = my_utils.get_jax_arrays(params)
     _plot_final_tissues(
         final_tissues, output, param_string, jax_arrays, params
     )
