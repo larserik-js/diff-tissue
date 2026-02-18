@@ -100,62 +100,37 @@ class PolyMetrics:
     _indices: jnp.ndarray = struct.field(pytree_node=True)
     _valid_mask: jnp.ndarray = struct.field(pytree_node=True)
 
-    masked_cosines: jnp.ndarray = struct.field(pytree_node=True)
     areas: jnp.ndarray = struct.field(pytree_node=True)
     anisotropies: jnp.ndarray = struct.field(pytree_node=True)
+    masked_cosines: jnp.ndarray = struct.field(pytree_node=True)
 
     @classmethod
     def create(cls, vertices, indices, valid_mask):
-        """
-        Compute the initial values of masked_cosines, areas, and anisotropies
-        based on the vertices and static fields.
-        """
         all_cells = get_all_cells(vertices, indices)
-        masked_cosines = calc_masked_cosines(all_cells, valid_mask)
+
         areas = calc_areas(all_cells, valid_mask)
         anisotropies = calc_anisotropies(all_cells, valid_mask)
+        masked_cosines = calc_masked_cosines(all_cells, valid_mask)
+
         return cls(
             _indices=indices,
             _valid_mask=valid_mask,
-            masked_cosines=masked_cosines,
             areas=areas,
-            anisotropies=anisotropies
+            anisotropies=anisotropies,
+            masked_cosines=masked_cosines
         )
 
     def update(self, vertices):
         all_cells = get_all_cells(vertices, self._indices)
 
-        masked_cosines = calc_masked_cosines(all_cells, self._valid_mask)
         areas = calc_areas(all_cells, self._valid_mask)
         anisotropies = calc_anisotropies(all_cells, self._valid_mask)
+        masked_cosines = calc_masked_cosines(all_cells, self._valid_mask)
 
         return self.replace(
             masked_cosines=masked_cosines, areas=areas,
             anisotropies=anisotropies
         )
-
-
-class InitMetrics:
-    def __init__(self, polygons):
-        self._polygons = polygons
-
-    @cached_property
-    def _all_cells(self):
-        init_vertices = self._polygons.vertices
-        all_cells = get_all_cells(init_vertices, self._polygons.polygon_inds)
-        return all_cells
-
-    @cached_property
-    def areas(self):
-        init_areas = calc_areas(self._all_cells, self._polygons.valid_mask)
-        return init_areas
-
-    @cached_property
-    def anisotropies(self):
-        init_anisotropies = calc_anisotropies(
-            self._all_cells, self._polygons.valid_mask
-        )
-        return init_anisotropies
 
 
 class TutteMetrics:
@@ -214,8 +189,7 @@ def calc_proximal_mask(tutte_centroids, proximal_dist):
 
 
 def _make_array_dict(
-        polygons, init_metrics, tutte_metrics, outer_shape, proximal_mask,
-        knots
+        polygons, tutte_metrics, outer_shape, proximal_mask, knots
     ):
     arrays = {
         'indices': polygons.polygon_inds,
@@ -226,8 +200,6 @@ def _make_array_dict(
         'vertex_polygons': polygons.vertex_polygons,
         'free_mask': polygons.free_mask,
         'boundary_mask': polygons.boundary_mask,
-        'init_areas': init_metrics.areas,
-        'init_anisotropies': init_metrics.anisotropies,
         'tutte_vertices': tutte_metrics.vertices,
         'tutte_centroids': tutte_metrics.centroids,
         'tutte_areas': tutte_metrics.areas,
@@ -246,8 +218,6 @@ def _make_array_dict(
 def get_arrays(params):
     polygons = init_systems.get_system(params.system, params.seed)
 
-    init_metrics = InitMetrics(polygons)
-
     mesh_area = polygons.mesh_area
     vertex_numbers = init_systems.VertexNumbers(polygons)
     outer_shape = shapes.get_outer_shape(
@@ -261,7 +231,7 @@ def get_arrays(params):
 
     knots = init_systems.Knots()
     arrays = _make_array_dict(
-        polygons, init_metrics, tutte_metrics, outer_shape, proximal_mask, knots
+        polygons, tutte_metrics, outer_shape, proximal_mask, knots
     )
     return arrays
 

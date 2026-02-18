@@ -1,5 +1,6 @@
 from ..core.jax_bootstrap import jax, jnp
 from ..core import morphing as morphing_core
+from ..core import my_utils
 from . import io_utils, plotting
 
 
@@ -21,7 +22,11 @@ jiterate = jax.jit(morphing_core.iterate, static_argnames=['n_steps'])
 
 
 def _morph(jax_arrays, params):
-    init_areas = jax_arrays['init_areas']
+    poly_metrics = my_utils.PolyMetrics.create(
+        jax_arrays['init_vertices'], jax_arrays['indices'],
+        jax_arrays['valid_mask']
+    )
+    init_areas = poly_metrics.areas
 
     goal_areas = 2.0 * init_areas
     goal_anisotropies = 5.0 * jnp.ones_like(init_areas)

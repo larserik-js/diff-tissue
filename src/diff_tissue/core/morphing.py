@@ -86,11 +86,11 @@ def _update_vertices(
 def iterate(goal_areas, goal_anisotropies, n_steps, jax_arrays, params):
     init_vertices = jax_arrays['init_vertices']
 
-    init_areas = jax_arrays['init_areas']
-    init_anisotropies = jax_arrays['init_anisotropies']
     poly_metrics = my_utils.PolyMetrics.create(
         init_vertices, jax_arrays['indices'], jax_arrays['valid_mask']
     )
+    init_areas = poly_metrics.areas
+    init_anisotropies = poly_metrics.anisotropies
     optimal_angles = my_utils.calc_optimal_angles(jax_arrays['valid_mask'])
 
     def update_step(carry, t):

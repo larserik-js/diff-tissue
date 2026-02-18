@@ -366,6 +366,11 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
 
     optimizer = _MyOptimizer(logits)
 
+    poly_metrics = my_utils.PolyMetrics.create(
+        vertices=vertices, indices=jax_arrays['indices'],
+        valid_mask=jax_arrays['valid_mask']
+    )
+
     best = _BestState(
         loss = jnp.inf,
         final_vertices = jnp.array([]),
@@ -393,12 +398,9 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
 
         ar_logits, an_logits = logits[:2]
 
-        all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
-        final_areas = my_utils.calc_areas(
-            all_cells, jax_arrays['valid_mask']
-        )
+        poly_metrics = poly_metrics.update(vertices)
 
-        if loss < best.loss and _validate(final_areas):
+        if loss < best.loss and _validate(poly_metrics.areas):
             best.loss = loss
             steps_since_best_loss = 0
 
@@ -412,10 +414,8 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
                 knot_ctx
             )
 
-            best.final_areas = final_areas
-            best.final_anisotropies = my_utils.calc_anisotropies(
-                all_cells, jax_arrays['valid_mask']
-            )
+            best.final_areas = poly_metrics.areas
+            best.final_anisotropies = poly_metrics.anisotropies
 
             if not params.quiet:
                 print('(Stored params with new best loss.)')
