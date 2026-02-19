@@ -21,7 +21,7 @@ class Coords:
 def sort_counterclockwise(indices, vertices):
     centroid = vertices.mean(axis=0)
     angles = np.arctan2(
-        vertices[:,1] - centroid[1], vertices[:,0] - centroid[0]
+        vertices[:, 1] - centroid[1], vertices[:, 0] - centroid[0]
     )
     inds_for_sorting = np.argsort(angles)
     sorted_poly_inds = np.array(indices)[inds_for_sorting]
@@ -67,7 +67,7 @@ class _Polygons(ABC):
         pass
 
     def _find_valid_mask(self):
-        valid_mask = (self._polygon_inds != -1)
+        valid_mask = self._polygon_inds != -1
         return valid_mask
 
     def _find_boundary_mask(self):
@@ -79,7 +79,7 @@ class _Polygons(ABC):
             polygon = unpadded_polygon[:-1]
 
             for i in range(len(polygon) - 1):
-                edge = polygon[i:i+2]
+                edge = polygon[i : i + 2]
                 sorted_edge = tuple(np.sort(edge))
                 if sorted_edge in all_edges:
                     interior_edges.add(sorted_edge)
@@ -96,15 +96,15 @@ class _Polygons(ABC):
 
     @staticmethod
     def _list_of_lists_of_ints_to_padded_array(all_neighbors):
-        max_n_neighbors = max([
-            len(neighbors_list) for neighbors_list in all_neighbors
-        ])
+        max_n_neighbors = max(
+            [len(neighbors_list) for neighbors_list in all_neighbors]
+        )
         padded_neighbors = -1 * np.ones(
             (len(all_neighbors), max_n_neighbors), dtype=int
         )
         for i, neighbors in enumerate(all_neighbors):
             n_poly_neighbors = len(neighbors)
-            padded_neighbors[i,:n_poly_neighbors] = neighbors
+            padded_neighbors[i, :n_poly_neighbors] = neighbors
 
         return padded_neighbors
 
@@ -131,7 +131,8 @@ class _Polygons(ABC):
         for polygon in self._polygon_inds:
             for i in range(len(polygon) - 1):
                 vertex_idx, vertex_neighbor_idx = (
-                    int(polygon[i]), int(polygon[i+1])
+                    int(polygon[i]),
+                    int(polygon[i + 1]),
                 )
 
                 if not vertex_neighbor_idx == -1:
@@ -204,13 +205,13 @@ class _VoronoiPolygons(_Polygons):
         self._radius_x = 12.0
         self._radius_y = 12.0
         self._polygon_area = 3.0
-        self._n_polygons_in_full_circle = self._calc_n_polygons_in_full_circle()
+        self._n_polygons_in_full_circle = (
+            self._calc_n_polygons_in_full_circle()
+        )
         self._mesh_area = self._calc_mesh_area()
 
         self._generating_shape = self._get_generating_shape()
-        self._all_polygon_inds, self._vertices = (
-            self._make_init_polygons()
-        )
+        self._all_polygon_inds, self._vertices = self._make_init_polygons()
         self._max_vertices = self._find_max_vertices()
         self._polygon_inds = self._finalize_polygon_inds()
         self._free_mask = self._get_free_mask()
@@ -234,8 +235,7 @@ class _VoronoiPolygons(_Polygons):
 
     def _calc_n_polygons_in_full_circle(self):
         n_polygons = int(
-            np.pi * self._radius_x * self._radius_y /
-            self._polygon_area
+            np.pi * self._radius_x * self._radius_y / self._polygon_area
         )
         return n_polygons
 
@@ -247,12 +247,8 @@ class _VoronoiPolygons(_Polygons):
         bounds = self._generating_shape.bounds
 
         rng = np.random.default_rng(self._seed)
-        xs = rng.uniform(
-            bounds[0], bounds[2], self._n_polygons_in_full_circle
-        )
-        ys = rng.uniform(
-            bounds[1], bounds[3], self._n_polygons_in_full_circle
-        )
+        xs = rng.uniform(bounds[0], bounds[2], self._n_polygons_in_full_circle)
+        ys = rng.uniform(bounds[1], bounds[3], self._n_polygons_in_full_circle)
         points_array = np.vstack((xs, ys)).T
         points = shapely.points(points_array)
         inside_mask = shapely.contains(self._generating_shape, points)
@@ -351,9 +347,10 @@ class _VoronoiPolygons(_Polygons):
                     normal = np.array([-tangent[1], tangent[0]])
 
                     midpoint = vor.points[[p1, p2]].mean(axis=0)
-                    direction = np.sign(
-                        np.dot(midpoint - tissue_centroid, normal)
-                    ) * normal
+                    direction = (
+                        np.sign(np.dot(midpoint - tissue_centroid, normal))
+                        * normal
+                    )
                     far_point = vor.vertices[v2] + direction * radius
 
                     new_poly_inds.append(len(new_vertices))
@@ -401,7 +398,7 @@ class _VoronoiPolygons(_Polygons):
         jitter_scale = 0.1 * min_dist
         max_n = 1000
         for n in range(max_n):
-            diffs = vertices[:,None,:] - vertices
+            diffs = vertices[:, None, :] - vertices
             dists = np.linalg.norm(diffs, axis=-1)
             np.fill_diagonal(dists, np.inf)
 
@@ -410,15 +407,15 @@ class _VoronoiPolygons(_Polygons):
             if n_too_close == 0:
                 break
             if n == max_n - 1:
-                print(
-                    f'Jittering did not converge after {max_n} iterations.'
-                )
+                print(f"Jittering did not converge after {max_n} iterations.")
                 sys.exit()
 
             for i in range(dists.shape[0]):
-                for j in range(i+1, dists.shape[1]):
-                    if dists[i,j] < min_dist:
-                        norm_diff_vec = diffs[i,j] / np.linalg.norm(diffs[i,j])
+                for j in range(i + 1, dists.shape[1]):
+                    if dists[i, j] < min_dist:
+                        norm_diff_vec = diffs[i, j] / np.linalg.norm(
+                            diffs[i, j]
+                        )
                         jitter = 0.5 * jitter_scale * norm_diff_vec
                         vertices[i] += jitter
                         vertices[j] -= jitter
@@ -429,9 +426,7 @@ class _VoronoiPolygons(_Polygons):
         all_sorted_poly_inds = []
         for poly_inds in all_poly_inds:
             vertices = all_vertices[poly_inds]
-            sorted_inds = sort_counterclockwise(
-                poly_inds, vertices
-            )
+            sorted_inds = sort_counterclockwise(poly_inds, vertices)
             all_sorted_poly_inds.append(sorted_inds)
         return all_sorted_poly_inds
 
@@ -481,7 +476,9 @@ class _VoronoiPolygons(_Polygons):
         return all_polygon_inds
 
     def _get_free_mask(self):
-        are_fixed = np.isclose(self._vertices[:,1] - Coords.base_origin[1], 0.0)
+        are_fixed = np.isclose(
+            self._vertices[:, 1] - Coords.base_origin[1], 0.0
+        )
         free_mask = np.ones(self._vertices.shape, dtype=bool)
         free_mask[are_fixed, 1] = False
         return free_mask
@@ -499,7 +496,9 @@ class _FullPolygons(_Polygons):
         self._mesh_area = self._calc_mesh_area()
 
     def _read_input_cells(self):
-        input_path = files('diff_tissue.resources').joinpath('input_cells.json')
+        input_path = files("diff_tissue.resources").joinpath(
+            "input_cells.json"
+        )
         with input_path.open() as data:
             input_cells = json.load(data)
 
@@ -508,8 +507,8 @@ class _FullPolygons(_Polygons):
     def _find_max_vertices(self):
         max_vertices = 0
         for polygon in self._input_cells:
-            if not polygon['is_boundary']:
-                max_vertices = max(max_vertices, len(polygon['edges']))
+            if not polygon["is_boundary"]:
+                max_vertices = max(max_vertices, len(polygon["edges"]))
         # Compensates for extra vertex added for efficiency
         max_vertices += 1
         return max_vertices
@@ -524,10 +523,10 @@ class _FullPolygons(_Polygons):
         all_indices = []
         index = 0
         for polygon in self._input_cells:
-            if polygon['is_boundary']:
+            if polygon["is_boundary"]:
                 continue
             indices = []
-            vertices = polygon['edges']
+            vertices = polygon["edges"]
             for vertex in vertices:
                 are_equal = np.isclose(
                     np.array(vertex) - all_vertices, 0.0, atol=0.5
@@ -543,12 +542,10 @@ class _FullPolygons(_Polygons):
                 elif len(possible_inds) == 1:
                     indices.append(int(possible_inds[0]))
                 else:
-                    raise ValueError('Multiple indices found')
+                    raise ValueError("Multiple indices found")
 
             indices = self._remove_duplicates(indices)
-            indices = sort_counterclockwise(
-                indices, all_vertices[indices]
-            )
+            indices = sort_counterclockwise(indices, all_vertices[indices])
             # For efficiency
             indices = _extend(indices)
 
@@ -567,8 +564,29 @@ class _FullPolygons(_Polygons):
 
     def _get_fixed_inds(self):
         fixed_inds = [
-            3, 0, 15, 16, 27, 37, 47, 66, 97, 103, 110, 145, 128, 123, 107, 78,
-            52, 35, 18, 10, 11, 6, 7
+            3,
+            0,
+            15,
+            16,
+            27,
+            37,
+            47,
+            66,
+            97,
+            103,
+            110,
+            145,
+            128,
+            123,
+            107,
+            78,
+            52,
+            35,
+            18,
+            10,
+            11,
+            6,
+            7,
         ]
         return fixed_inds
 
@@ -612,28 +630,33 @@ class _SinglePolygon(_Polygons):
         self._mesh_area = self._calc_mesh_area()
 
     def _make_init_polygons(self):
-        vertices = Coords.base_origin + np.array([
-            [-1.0, 0.0], [0.0, 0.0], [1.0, 0.0], [2.0, 1.5], [1.0, 3.0],
-            [-1.0, 3.0], [-2.0, 1.5]
-        ])
+        vertices = Coords.base_origin + np.array(
+            [
+                [-1.0, 0.0],
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [2.0, 1.5],
+                [1.0, 3.0],
+                [-1.0, 3.0],
+                [-2.0, 1.5],
+            ]
+        )
         return vertices
 
     def _find_polygon_inds(self):
         polygon_inds = np.arange(self._n_vertices)
-        polygon_inds = sort_counterclockwise(
-            polygon_inds, self._vertices
-        )
+        polygon_inds = sort_counterclockwise(polygon_inds, self._vertices)
         polygon_inds = _extend(polygon_inds)
         return np.array(polygon_inds).reshape(1, -1)
 
     def _get_free_mask(self):
         free_mask = np.ones(self._vertices.shape, dtype=bool)
-        free_mask[:3,1] = False
+        free_mask[:3, 1] = False
         return free_mask
 
     def _calc_mesh_area(self):
-        xs = self._vertices[:,0]
-        ys = self._vertices[:,1]
+        xs = self._vertices[:, 0]
+        ys = self._vertices[:, 1]
 
         area = 0.5 * np.abs(
             np.dot(xs, np.roll(ys, -1)) - np.dot(ys, np.roll(xs, -1))
@@ -643,14 +666,14 @@ class _SinglePolygon(_Polygons):
 
 def get_system(system, seed):
     match system:
-        case 'voronoi':
+        case "voronoi":
             polygons = _VoronoiPolygons(seed)
-        case 'full':
+        case "full":
             polygons = _FullPolygons()
-        case 'single':
+        case "single":
             polygons = _SinglePolygon()
         case _:
-            raise ValueError('Invalid initial system!')
+            raise ValueError("Invalid initial system!")
     return polygons
 
 
@@ -660,9 +683,9 @@ class VertexNumbers:
 
     @cached_property
     def basal(self):
-        n_basal_vertices = (
-            np.isclose(self._polygons.free_mask[:,1], 0.0).sum()
-        )
+        n_basal_vertices = np.isclose(
+            self._polygons.free_mask[:, 1], 0.0
+        ).sum()
         return n_basal_vertices
 
     @cached_property
@@ -686,7 +709,9 @@ class Knots:
     def _make_grid(self):
         nx = self._nx_left * 1j
         ny = self._ny * 1j
-        grid = np.mgrid[self._xmin:self._xmax:nx, self._ymin:self._ymax:ny]
+        grid = np.mgrid[
+            self._xmin : self._xmax : nx, self._ymin : self._ymax : ny
+        ]
         return grid
 
     @cached_property
@@ -704,15 +729,15 @@ class Knots:
     def right_knots(self):
         flipped_array = np.empty_like(self.left_knots)
         shape_x = Coords.base_origin[0]
-        flipped_array[:,0] = 2 * shape_x - self.left_knots[:,0]
-        flipped_array[:,1] = self.left_knots[:,1]
+        flipped_array[:, 0] = 2 * shape_x - self.left_knots[:, 0]
+        flipped_array[:, 1] = self.left_knots[:, 1]
         return flipped_array
 
     @cached_property
     def center_knots(self):
         center_knots = np.empty((self._ny, 2))
-        center_knots[:,0] = Coords.base_origin[0]
-        center_knots[:,1] = self.left_knots[:self._ny,1]
+        center_knots[:, 0] = Coords.base_origin[0]
+        center_knots[:, 1] = self.left_knots[: self._ny, 1]
         return center_knots
 
     @cached_property

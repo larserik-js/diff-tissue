@@ -117,7 +117,7 @@ def _rotate_rows(arr, k):
 
 def _best_cyclic_shift(A, B):
     m = len(A)
-    best_s, best_val = 0, float('inf')
+    best_s, best_val = 0, float("inf")
     for s in range(m):
         Br = np.roll(B, -s, axis=0)
         val = np.sum((A - Br) ** 2)
@@ -127,15 +127,19 @@ def _best_cyclic_shift(A, B):
 
 
 def _map_to_given_shape(
-        init_vertices, polygons, aligned_boundary_inds, aligned_outer_shape,
-        boundary_offset=0, auto_align=False
-    ):
+    init_vertices,
+    polygons,
+    aligned_boundary_inds,
+    aligned_outer_shape,
+    boundary_offset=0,
+    auto_align=False,
+):
     # validate sizes
     m = len(aligned_boundary_inds)
     if len(aligned_outer_shape) != m:
         raise ValueError(
-            f'boundary_target length {len(aligned_outer_shape)} != '
-            + f'len(boundary_nodes) {m}'
+            f"boundary_target length {len(aligned_outer_shape)} != "
+            + f"len(boundary_nodes) {m}"
         )
 
     edges = _cells_to_edges(polygons)
@@ -166,12 +170,11 @@ def _map_to_given_shape(
 def _get_bottom_right_vertex(vertices):
     close_inds = np.where(
         np.isclose(
-            vertices[:,1] - init_systems.Coords.base_origin[1], 0.0,
-            atol=1.0
+            vertices[:, 1] - init_systems.Coords.base_origin[1], 0.0, atol=1.0
         )
     )
     close_vertices = vertices[close_inds]
-    bottom_right_vertex = close_vertices[np.argmax(close_vertices[:,0])]
+    bottom_right_vertex = close_vertices[np.argmax(close_vertices[:, 0])]
     return bottom_right_vertex
 
 
@@ -185,15 +188,13 @@ def _get_bottom_right_idx(vertices):
 
 def _align_inds(ccw_vertices, ccw_boundary_inds):
     bottom_right_idx = _get_bottom_right_idx(ccw_vertices)
-    aligned_inds = np.roll(
-        ccw_boundary_inds, -bottom_right_idx, axis=0
-    )
+    aligned_inds = np.roll(ccw_boundary_inds, -bottom_right_idx, axis=0)
     return aligned_inds
 
 
 def get_mapped_vertices(
-        init_vertices, all_polygon_inds, boundary_mask, outer_shape
-    ):
+    init_vertices, all_polygon_inds, boundary_mask, outer_shape
+):
     ccw_boundary_inds = init_systems.get_ccw_boundary_inds(
         init_vertices, boundary_mask
     )

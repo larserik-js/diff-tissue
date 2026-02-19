@@ -16,7 +16,7 @@ def timer(func):
 
         t_tot = t_end - t_init
 
-        print(f'Total time: {t_tot:.4f} s')
+        print(f"Total time: {t_tot:.4f} s")
         return res
 
     return timed
@@ -117,7 +117,7 @@ class PolyMetrics:
             _valid_mask=valid_mask,
             areas=areas,
             anisotropies=anisotropies,
-            masked_cosines=masked_cosines
+            masked_cosines=masked_cosines,
         )
 
     def update(self, vertices):
@@ -128,8 +128,9 @@ class PolyMetrics:
         masked_cosines = calc_masked_cosines(all_cells, self._valid_mask)
 
         return self.replace(
-            masked_cosines=masked_cosines, areas=areas,
-            anisotropies=anisotropies
+            masked_cosines=masked_cosines,
+            areas=areas,
+            anisotropies=anisotropies,
         )
 
 
@@ -141,35 +142,35 @@ class TutteMetrics:
     @cached_property
     def vertices(self):
         outer_shape = shapes.get_outer_shape(
-            self._shape, self._polygons.mesh_area,
-            init_systems.VertexNumbers(self._polygons)
+            self._shape,
+            self._polygons.mesh_area,
+            init_systems.VertexNumbers(self._polygons),
         )
         vertices_ = tutte.get_mapped_vertices(
-            self._polygons.vertices, self._polygons.polygon_inds,
-            self._polygons.boundary_mask, outer_shape.vertices
+            self._polygons.vertices,
+            self._polygons.polygon_inds,
+            self._polygons.boundary_mask,
+            outer_shape.vertices,
         )
         return vertices_
 
     @cached_property
     def _all_cells(self):
-        all_cells = get_all_cells(
-            self.vertices, self._polygons.polygon_inds
-        )
+        all_cells = get_all_cells(self.vertices, self._polygons.polygon_inds)
         return all_cells
 
     @cached_property
     def centroids(self):
         centroids_ = calc_centroids(
-            self.vertices, self._polygons.polygon_inds,
-            self._polygons.valid_mask
+            self.vertices,
+            self._polygons.polygon_inds,
+            self._polygons.valid_mask,
         )
         return centroids_
 
     @cached_property
     def areas(self):
-        areas_ = calc_areas(
-            self._all_cells, self._polygons.valid_mask
-        )
+        areas_ = calc_areas(self._all_cells, self._polygons.valid_mask)
         return areas_
 
     @cached_property
@@ -182,35 +183,35 @@ class TutteMetrics:
 
 def calc_proximal_mask(tutte_centroids, proximal_dist):
     y_dists_from_base = (
-        tutte_centroids[:,1] - init_systems.Coords.base_origin[1]
+        tutte_centroids[:, 1] - init_systems.Coords.base_origin[1]
     )
-    proximal_mask = (y_dists_from_base <= proximal_dist)
+    proximal_mask = y_dists_from_base <= proximal_dist
     return proximal_mask
 
 
 def _make_array_dict(
-        polygons, tutte_metrics, outer_shape, proximal_mask, knots
-    ):
+    polygons, tutte_metrics, outer_shape, proximal_mask, knots
+):
     arrays = {
-        'indices': polygons.polygon_inds,
-        'valid_mask': polygons.valid_mask,
-        'init_vertices': polygons.vertices,
-        'poly_neighbors': polygons.poly_neighbors,
-        'vertex_neighbors': polygons.vertex_neighbors,
-        'vertex_polygons': polygons.vertex_polygons,
-        'free_mask': polygons.free_mask,
-        'boundary_mask': polygons.boundary_mask,
-        'tutte_vertices': tutte_metrics.vertices,
-        'tutte_centroids': tutte_metrics.centroids,
-        'tutte_areas': tutte_metrics.areas,
-        'tutte_anisotropies': tutte_metrics.anisotropies,
-        'outer_shape': outer_shape.vertices,
-        'outer_shape_segments': outer_shape.segments,
-        'proximal_mask': proximal_mask,
-        'left_knots': knots.left_knots,
-        'center_knots': knots.center_knots,
-        'right_knots': knots.right_knots,
-        'all_knots': knots.all_knots
+        "indices": polygons.polygon_inds,
+        "valid_mask": polygons.valid_mask,
+        "init_vertices": polygons.vertices,
+        "poly_neighbors": polygons.poly_neighbors,
+        "vertex_neighbors": polygons.vertex_neighbors,
+        "vertex_polygons": polygons.vertex_polygons,
+        "free_mask": polygons.free_mask,
+        "boundary_mask": polygons.boundary_mask,
+        "tutte_vertices": tutte_metrics.vertices,
+        "tutte_centroids": tutte_metrics.centroids,
+        "tutte_areas": tutte_metrics.areas,
+        "tutte_anisotropies": tutte_metrics.anisotropies,
+        "outer_shape": outer_shape.vertices,
+        "outer_shape_segments": outer_shape.segments,
+        "proximal_mask": proximal_mask,
+        "left_knots": knots.left_knots,
+        "center_knots": knots.center_knots,
+        "right_knots": knots.right_knots,
+        "all_knots": knots.all_knots,
     }
     return arrays
 
@@ -237,7 +238,7 @@ def get_arrays(params):
 
 
 def _get_device():
-    return jax.devices('cpu')[0]
+    return jax.devices("cpu")[0]
 
 
 def _send_to_device(jax_array):

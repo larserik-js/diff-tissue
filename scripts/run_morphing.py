@@ -7,5 +7,5 @@ def _main():
     experiments.run_morphing(params)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     _main()

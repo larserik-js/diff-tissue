@@ -9,10 +9,10 @@ def _main():
 
     results = learned_growth.run(jax_arrays, params)
 
-    output_dir = io_utils.OutputDir('learned_growth', params).path
+    output_dir = io_utils.OutputDir("learned_growth", params).path
 
     learned_growth.plot(results, output_dir)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     _main()

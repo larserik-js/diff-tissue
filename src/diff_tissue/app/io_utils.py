@@ -26,15 +26,17 @@ class OutputManager:
         return self._prepare(self._root / Path(*parts))
 
     def cache_path(self, *parts: str) -> Path:
-        return self._prepare(self._root / 'cache' / Path(*parts))
+        return self._prepare(self._root / "cache" / Path(*parts))
 
 
 class _Output:
-    _formats = {'bool': '',
-                'int': 'd',
-                'float': '.7f',
-                'float64': '.7f',
-                'str': ''}
+    _formats = {
+        "bool": "",
+        "int": "d",
+        "float": ".7f",
+        "float64": ".7f",
+        "str": "",
+    }
 
     def __init__(self, output_type_dir_name, params):
         self._output_type_dir_name = output_type_dir_name
@@ -42,7 +44,7 @@ class _Output:
 
     @cached_property
     def _output_type_dir(self):
-        output_type_dir = Path('outputs') / self._output_type_dir_name
+        output_type_dir = Path("outputs") / self._output_type_dir_name
         output_type_dir.mkdir(exist_ok=True, parents=True)
         return output_type_dir
 
@@ -55,21 +57,21 @@ class _Output:
     def _format_param_val_str(self, name, val):
         val_type = self._get_val_type(val)
         format_ = self._formats[val_type]
-        param_name_val = name + '=' + format(val, format_)
-        if val_type == 'float' or val_type == 'float64':
-            param_name_val = param_name_val.rstrip('0').rstrip('.')
+        param_name_val = name + "=" + format(val, format_)
+        if val_type == "float" or val_type == "float64":
+            param_name_val = param_name_val.rstrip("0").rstrip(".")
         return param_name_val
 
     def _concatenate_param_val_pairs(self):
         param_name_vals = []
         for field in fields(self._params):
-            cli_flag = field.metadata.get('cli_flag')
+            cli_flag = field.metadata.get("cli_flag")
             param_name_val = self._format_param_val_str(
                 cli_flag, getattr(self._params, field.name)
             )
             param_name_vals.append(param_name_val)
 
-        param_path_str = '_'.join(param_name_vals)
+        param_path_str = "_".join(param_name_vals)
         return param_path_str
 
     def _make_param_path(self):
@@ -105,18 +107,18 @@ class OutputFile(_Output):
 
 
 def load_pkl(path):
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         data = pickle.load(f)
     return data
 
 
 def save_pkl(path, data):
-    with open(path, 'wb') as f:
+    with open(path, "wb") as f:
         pickle.dump(data, f)
 
 
 def get_output_params_file(params):
-    output = OutputManager('output_params', base_dir='outputs')
+    output = OutputManager("output_params", base_dir="outputs")
     param_string = parameters.get_param_string(params)
-    output_file = output.file_path(f'{param_string}.txt')
+    output_file = output.file_path(f"{param_string}.txt")
     return output_file

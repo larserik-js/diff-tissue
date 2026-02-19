@@ -9,7 +9,7 @@ from ..core import init_systems, my_utils, shapes
 from . import parameters
 
 
-OUTPUT_TYPE_DIR = 'tutte_fields'
+OUTPUT_TYPE_DIR = "tutte_fields"
 
 
 @dataclass
@@ -20,7 +20,7 @@ class _Mesh:
 
 
 def _get_general_outer_shape(shape):
-    polygons = init_systems.get_system(system='voronoi', seed=0)
+    polygons = init_systems.get_system(system="voronoi", seed=0)
     vertex_numbers = init_systems.VertexNumbers(polygons)
     outer_shape = shapes.get_outer_shape(
         shape, polygons.mesh_area, vertex_numbers
@@ -61,24 +61,23 @@ def _build_meshes(shape, n_meshes=100):
     params = params.replace(shape=shape)
     meshes = []
 
-    print('Building meshes...')
+    print("Building meshes...")
     for i in range(n_meshes):
-        if (i+1)%10 == 0:
-            print(f'{i+1} / {n_meshes}')
+        if (i + 1) % 10 == 0:
+            print(f"{i + 1} / {n_meshes}")
 
         params = params.replace(seed=i)
         polygons = init_systems.get_system(params.system, params.seed)
-        tutte_vertices = (
-            my_utils.TutteMetrics(polygons, params.shape).vertices
-        )
+        tutte_vertices = my_utils.TutteMetrics(polygons, params.shape).vertices
         shapely_polygons = my_utils.get_shapely_polygons(
             tutte_vertices, polygons.polygon_inds
         )
         tutte_metrics = my_utils.TutteMetrics(polygons, shape)
 
         mesh = _Mesh(
-            shapely_polygons, np.array(tutte_metrics.areas),
-            np.array(tutte_metrics.anisotropies)
+            shapely_polygons,
+            np.array(tutte_metrics.areas),
+            np.array(tutte_metrics.anisotropies),
         )
         meshes.append(mesh)
 
@@ -94,7 +93,7 @@ def _sample_mesh(mesh: _Mesh, points_inside_shape: np.ndarray):
     # index order is (point_index, polygon_index)
     tree = STRtree(mesh.polygons)
     points_shapely = shapely.points(points_inside_shape)
-    matches = tree.query(points_shapely, predicate='intersects')
+    matches = tree.query(points_shapely, predicate="intersects")
     point_inds, poly_inds = matches
 
     sampled_areas = np.full(len(points_inside_shape), np.nan)
@@ -140,13 +139,13 @@ class _TutteFields:
 
 
 def _get_meshes(output_manager, shape):
-    meshes_file = output_manager.cache_path(f'meshes__{shape}.pkl')
+    meshes_file = output_manager.cache_path(f"meshes__{shape}.pkl")
     if meshes_file.exists():
-        with open(meshes_file, 'rb') as f:
+        with open(meshes_file, "rb") as f:
             meshes = pickle.load(f)
     else:
         meshes = _build_meshes(shape)
-        with open(meshes_file, 'wb') as f:
+        with open(meshes_file, "wb") as f:
             pickle.dump(meshes, f)
     return meshes
 
@@ -166,12 +165,12 @@ def _generate_fields(output_manager, shape):
 
 
 def get_fields(shape, output):
-    tutte_fields_file = output.cache_path(f'fields__{shape}.pkl')
+    tutte_fields_file = output.cache_path(f"fields__{shape}.pkl")
     if tutte_fields_file.exists():
-        with open(tutte_fields_file, 'rb') as f:
+        with open(tutte_fields_file, "rb") as f:
             tutte_fields_ = pickle.load(f)
     else:
         tutte_fields_ = _generate_fields(output, shape)
-        with open(tutte_fields_file, 'wb') as f:
+        with open(tutte_fields_file, "wb") as f:
             pickle.dump(tutte_fields_, f)
     return tutte_fields_
