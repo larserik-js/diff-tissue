@@ -165,18 +165,18 @@ def _expand_for_broadcasting(outer_shape, segments, final_vertices):
     return outer_shape, segments, final_vertices
 
 
-def _calc_dists_squared(outer_shape, segments, final_vertices):
-    outer_shape, segments, final_vertices = _expand_for_broadcasting(
-        outer_shape, segments, final_vertices
+def _calc_dists_squared(segment_verts, segments, other_boundary_verts):
+    segment_verts, segments, other_boundary_verts = _expand_for_broadcasting(
+        segment_verts, segments, other_boundary_verts
     )
-    dist_vecs = final_vertices - outer_shape  # (N, M, 2)
+    dist_vecs = other_boundary_verts - segment_verts  # (N, M, 2)
 
     denom = jnp.sum(segments * segments, axis=2)  # (1, M)
     t = jnp.sum(dist_vecs * segments, axis=2) / denom  # (N, M)
     t = jax.nn.sigmoid(10.0 * (t - 0.5))  # Instead of clipping to [0, 1]
 
-    projection = outer_shape + t[..., None] * segments  # (N, M, 2)
-    dists = jnp.linalg.norm(final_vertices - projection, axis=2)  # (N, M)
+    projection = segment_verts + t[..., None] * segments  # (N, M, 2)
+    dists = jnp.linalg.norm(other_boundary_verts - projection, axis=2)  # (N, M)
     dists_squared = dists**2
     return dists_squared
 
@@ -196,7 +196,9 @@ def _calc_mesh_to_target_loss(
     )
     min_squared_dists = jnp.min(masked_dists, axis=1)
 
-    mesh_to_target_loss = jnp.sum(min_squared_dists[boundary_inds])
+    min_squared_boundary_dists = min_squared_dists[boundary_inds]
+
+    mesh_to_target_loss = jnp.mean(min_squared_boundary_dists)
     return mesh_to_target_loss
 
 
@@ -211,16 +213,17 @@ def _calc_target_to_mesh_loss(
     ):
     boundary_vertices = final_vertices[boundary_inds]
     boundary_segments = _get_segments(boundary_vertices)
-    boundary_min_dist_mask = min_dist_mask[boundary_inds].T
 
     dists_squared = _calc_dists_squared(
         boundary_vertices, boundary_segments, outer_shape
     )
+
+    boundary_min_dist_mask = min_dist_mask[boundary_inds].T
     masked_dists = jnp.asarray(
         jnp.where(boundary_min_dist_mask, dists_squared, jnp.inf)
     )
     min_squared_dists = jnp.min(masked_dists, axis=1)
-    target_to_mesh_loss = jnp.sum(min_squared_dists)
+    target_to_mesh_loss = jnp.mean(min_squared_dists)
 
     return target_to_mesh_loss
 
