@@ -176,7 +176,9 @@ def _calc_dists_squared(segment_verts, segments, other_boundary_verts):
     t = jax.nn.sigmoid(10.0 * (t - 0.5))  # Instead of clipping to [0, 1]
 
     projection = segment_verts + t[..., None] * segments  # (N, M, 2)
-    dists = jnp.linalg.norm(other_boundary_verts - projection, axis=2)  # (N, M)
+    dists = jnp.linalg.norm(
+        other_boundary_verts - projection, axis=2
+    )  # (N, M)
     dists_squared = dists**2
     return dists_squared
 
@@ -209,8 +211,8 @@ def _get_segments(vertices):
 
 
 def _calc_target_to_mesh_loss(
-        final_vertices, boundary_inds, outer_shape, min_dist_mask
-    ):
+    final_vertices, boundary_inds, outer_shape, min_dist_mask
+):
     boundary_vertices = final_vertices[boundary_inds]
     boundary_segments = _get_segments(boundary_vertices)
 
@@ -229,12 +231,18 @@ def _calc_target_to_mesh_loss(
 
 
 def _calc_shape_loss(
-        final_vertices, boundary_inds, outer_shape, outer_shape_segments,
-        min_dist_mask
-    ):
+    final_vertices,
+    boundary_inds,
+    outer_shape,
+    outer_shape_segments,
+    min_dist_mask,
+):
     mesh_to_target_loss = _calc_mesh_to_target_loss(
-        final_vertices, boundary_inds, outer_shape, outer_shape_segments,
-        min_dist_mask
+        final_vertices,
+        boundary_inds,
+        outer_shape,
+        outer_shape_segments,
+        min_dist_mask,
     )
 
     target_to_mesh_loss = _calc_target_to_mesh_loss(
