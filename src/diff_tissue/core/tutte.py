@@ -218,7 +218,7 @@ def get_mapped_vertices(
     aligned_outer_shape_inds = _align_inds(
         ccw_outer_shape, ccw_outer_shape_inds
     )
-    aligned_outer_shape = ccw_outer_shape[aligned_outer_shape_inds]
+    aligned_outer_shape = outer_shape[aligned_outer_shape_inds]
 
     _, mapped_vertices, _ = _map_to_given_shape(
         init_vertices, polygons, aligned_boundary_inds, aligned_outer_shape
