@@ -200,6 +200,7 @@ def _make_array_dict(
         "vertex_neighbors": polygons.vertex_neighbors,
         "vertex_polygons": polygons.vertex_polygons,
         "free_mask": polygons.free_mask,
+        "boundary_inds": polygons.boundary_inds,
         "boundary_mask": polygons.boundary_mask,
         "tutte_vertices": tutte_metrics.vertices,
         "tutte_centroids": tutte_metrics.centroids,

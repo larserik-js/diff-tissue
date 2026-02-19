@@ -181,9 +181,9 @@ def _calc_dists_squared(outer_shape, segments, final_vertices):
     return dists_squared
 
 
-def _calc_shape_loss(
+def _calc_mesh_to_target_loss(
     final_vertices,
-    boundary_mask,
+    boundary_inds,
     outer_shape,
     outer_shape_segments,
     min_dist_mask,
@@ -196,7 +196,20 @@ def _calc_shape_loss(
     )
     min_squared_dists = jnp.min(masked_dists, axis=1)
 
-    shape_loss = jnp.sum(min_squared_dists * boundary_mask)
+    mesh_to_target_loss = jnp.sum(min_squared_dists[boundary_inds])
+    return mesh_to_target_loss
+
+
+def _calc_shape_loss(
+        final_vertices, boundary_inds, outer_shape, outer_shape_segments,
+        min_dist_mask
+    ):
+    mesh_to_target_loss = _calc_mesh_to_target_loss(
+        final_vertices, boundary_inds, outer_shape, outer_shape_segments,
+        min_dist_mask
+    )
+
+    shape_loss = mesh_to_target_loss + 0.0
 
     return shape_loss
 
@@ -232,7 +245,7 @@ def _loss_fn(
 
     loss = params.shape_loss_weight * _calc_shape_loss(
         final_vertices,
-        jax_arrays["boundary_mask"],
+        jax_arrays["boundary_inds"],
         jax_arrays["outer_shape"],
         jax_arrays["outer_shape_segments"],
         min_dist_mask,
