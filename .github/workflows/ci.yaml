@@ -29,6 +29,8 @@ jobs:
       - name: Install project dependencies
         run: uv sync --all-extras
 
-      - name: Run Ruff
-        run: uv run ruff check .
+      - name: Check formatting (Ruff)
+        run: uv run ruff format --check .
 
+      - name: Run Ruff lints
+        run: uv run ruff check .
