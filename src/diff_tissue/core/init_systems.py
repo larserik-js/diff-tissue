@@ -40,6 +40,12 @@ def get_ccw_boundary_inds(vertices, boundary_mask):
     return sorted_boundary_inds
 
 
+def get_segments(vertices):
+    closed_polygon = np.concatenate([vertices, vertices[:1]], axis=0)
+    segments = closed_polygon[1:] - closed_polygon[:-1]
+    return segments
+
+
 def _extend(indices):
     indices.insert(0, indices[-1])
     indices.append(indices[1])

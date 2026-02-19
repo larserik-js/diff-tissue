@@ -119,10 +119,7 @@ class _Shape(ABC):
 
     @cached_property
     def segments(self):
-        closed_outer_shape = np.concatenate(
-            [self.vertices, self.vertices[:1]], axis=0
-        )
-        segments_ = closed_outer_shape[1:] - closed_outer_shape[:-1]
+        segments_ = init_systems.get_segments(self.vertices)
         return segments_
 
 
