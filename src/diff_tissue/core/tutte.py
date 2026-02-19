@@ -80,9 +80,9 @@ def _mean_value_weights(vertices, edges, eps=1e-12):
     return W
 
 
-def _tutte_embedding(init_vertices, edges, boundary_nodes, boundary_positions):
+def _tutte_embedding(init_vertices, edges, boundary_inds, boundary_positions):
     n_vertices = len(init_vertices)
-    free = np.setdiff1d(np.arange(n_vertices), boundary_nodes)
+    free = np.setdiff1d(np.arange(n_vertices), boundary_inds)
 
     W = _mean_value_weights(init_vertices, edges)
 
@@ -95,16 +95,16 @@ def _tutte_embedding(init_vertices, edges, boundary_nodes, boundary_positions):
     L = L.tocsr()
 
     B = np.zeros((n_vertices, 2))
-    B[boundary_nodes] = boundary_positions
+    B[boundary_inds] = boundary_positions
 
     L_ff = L[free][:, free]
-    L_fb = L[free][:, boundary_nodes]
-    rhs = -L_fb @ B[boundary_nodes]
+    L_fb = L[free][:, boundary_inds]
+    rhs = -L_fb @ B[boundary_inds]
 
     U_free = scipy.sparse.linalg.spsolve(L_ff, rhs)
 
     UV = np.zeros((n_vertices, 2))
-    UV[boundary_nodes] = B[boundary_nodes]
+    UV[boundary_inds] = B[boundary_inds]
     UV[free] = U_free
 
     return UV
@@ -127,14 +127,14 @@ def _best_cyclic_shift(A, B):
 
 
 def _map_to_given_shape(
-        init_vertices, polygons, sorted_boundary_inds, sorted_outer_shape,
+        init_vertices, polygons, aligned_boundary_inds, aligned_outer_shape,
         boundary_offset=0, auto_align=False
     ):
     # validate sizes
-    m = len(sorted_boundary_inds)
-    if len(sorted_outer_shape) != m:
+    m = len(aligned_boundary_inds)
+    if len(aligned_outer_shape) != m:
         raise ValueError(
-            f'boundary_target length {len(sorted_outer_shape)} != '
+            f'boundary_target length {len(aligned_outer_shape)} != '
             + f'len(boundary_nodes) {m}'
         )
 
@@ -144,18 +144,20 @@ def _map_to_given_shape(
     theta = 2 * np.pi * (np.arange(m) / m)
     circle_positions = np.column_stack([np.cos(theta), np.sin(theta)])
     UV_init = _tutte_embedding(
-        init_vertices, edges, sorted_boundary_inds, circle_positions
+        init_vertices, edges, aligned_boundary_inds, circle_positions
     )
 
     # Step 2: rotate / align target boundary
-    target_positions = _rotate_rows(sorted_outer_shape, boundary_offset)
+    target_positions = _rotate_rows(aligned_outer_shape, boundary_offset)
     if auto_align:
         s = _best_cyclic_shift(circle_positions, target_positions)
-        target_positions = _rotate_rows(sorted_outer_shape, boundary_offset + s)
+        target_positions = _rotate_rows(
+            aligned_outer_shape, boundary_offset + s
+        )
 
     # Step 3: embed target shape
     mapped_positions = _tutte_embedding(
-        init_vertices, edges, sorted_boundary_inds, target_positions
+        init_vertices, edges, aligned_boundary_inds, target_positions
     )
 
     return UV_init, mapped_positions, edges
@@ -181,18 +183,24 @@ def _get_bottom_right_idx(vertices):
     return bottom_right_idx
 
 
+def _align_inds(ccw_vertices, ccw_boundary_inds):
+    bottom_right_idx = _get_bottom_right_idx(ccw_vertices)
+    aligned_inds = np.roll(
+        ccw_boundary_inds, -bottom_right_idx, axis=0
+    )
+    return aligned_inds
+
+
 def get_mapped_vertices(
         init_vertices, all_polygon_inds, boundary_mask, outer_shape
     ):
     ccw_boundary_inds = init_systems.get_ccw_boundary_inds(
         init_vertices, boundary_mask
     )
-
     ccw_boundary_vertices = init_vertices[ccw_boundary_inds]
 
-    bottom_right_idx = _get_bottom_right_idx(ccw_boundary_vertices)
-    aligned_boundary_inds = np.roll(
-        ccw_boundary_inds, -bottom_right_idx, axis=0
+    aligned_boundary_inds = _align_inds(
+        ccw_boundary_vertices, ccw_boundary_inds
     )
 
     polygons = []
@@ -200,17 +208,20 @@ def get_mapped_vertices(
         polygon = polygon_inds[polygon_inds != -1][:-2]
         polygons.append(polygon.tolist())
 
-    sorted_inds = init_systems.sort_counterclockwise(
+    ccw_outer_shape_inds = init_systems.sort_counterclockwise(
         np.arange(outer_shape.shape[0]), outer_shape
     )
-    sorted_inds = np.array(sorted_inds)
-    outer_shape = outer_shape[sorted_inds]
 
-    bottom_right_idx = _get_bottom_right_idx(outer_shape)
-    sorted_outer_shape = np.roll(outer_shape, -bottom_right_idx, axis=0)
+    ccw_outer_shape_inds = np.array(ccw_outer_shape_inds)
+    ccw_outer_shape = outer_shape[ccw_outer_shape_inds]
+
+    aligned_outer_shape_inds = _align_inds(
+        ccw_outer_shape, ccw_outer_shape_inds
+    )
+    aligned_outer_shape = ccw_outer_shape[aligned_outer_shape_inds]
 
     _, mapped_vertices, _ = _map_to_given_shape(
-        init_vertices, polygons, aligned_boundary_inds, sorted_outer_shape
+        init_vertices, polygons, aligned_boundary_inds, aligned_outer_shape
     )
 
     return mapped_vertices
