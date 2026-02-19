@@ -184,18 +184,15 @@ def _get_bottom_right_idx(vertices):
 def get_mapped_vertices(
         init_vertices, all_polygon_inds, boundary_mask, outer_shape
     ):
-    boundary_inds = np.where(boundary_mask)[0]
-    boundary_vertices = init_vertices[boundary_inds]
-
-    sorted_boundary_inds = init_systems.sort_counterclockwise(
-        boundary_inds, boundary_vertices
+    ccw_boundary_inds = init_systems.get_ccw_boundary_inds(
+        init_vertices, boundary_mask
     )
-    sorted_boundary_inds = np.array(sorted_boundary_inds)
 
-    ccw_boundary_vertices = init_vertices[sorted_boundary_inds]
+    ccw_boundary_vertices = init_vertices[ccw_boundary_inds]
+
     bottom_right_idx = _get_bottom_right_idx(ccw_boundary_vertices)
-    sorted_boundary_inds = np.roll(
-        sorted_boundary_inds, -bottom_right_idx, axis=0
+    aligned_boundary_inds = np.roll(
+        ccw_boundary_inds, -bottom_right_idx, axis=0
     )
 
     polygons = []
@@ -213,7 +210,7 @@ def get_mapped_vertices(
     sorted_outer_shape = np.roll(outer_shape, -bottom_right_idx, axis=0)
 
     _, mapped_vertices, _ = _map_to_given_shape(
-        init_vertices, polygons, sorted_boundary_inds, sorted_outer_shape
+        init_vertices, polygons, aligned_boundary_inds, sorted_outer_shape
     )
 
     return mapped_vertices

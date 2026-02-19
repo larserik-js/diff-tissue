@@ -29,6 +29,17 @@ def sort_counterclockwise(indices, vertices):
     return sorted_poly_inds
 
 
+def get_ccw_boundary_inds(vertices, boundary_mask):
+    boundary_inds = np.where(boundary_mask)[0]
+    boundary_vertices = vertices[boundary_inds]
+
+    sorted_boundary_inds = sort_counterclockwise(
+        boundary_inds, boundary_vertices
+    )
+    sorted_boundary_inds = np.array(sorted_boundary_inds)
+    return sorted_boundary_inds
+
+
 def _extend(indices):
     indices.insert(0, indices[-1])
     indices.append(indices[1])
