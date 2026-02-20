@@ -13,11 +13,11 @@ def _get_polygons(vertices, indices, valid_mask):
 
 class _Artists:
     def __init__(
-        self, ax, init_vertices, outer_shape, all_knots, jax_arrays, params
+        self, ax, init_vertices, target_boundary, all_knots, jax_arrays, params
     ):
         self._ax = ax
         self._init_vertices = init_vertices
-        self._outer_shape = outer_shape
+        self._target_boundary = target_boundary
         self._ax_lims = self._get_ax_lims()
         self._all_knots = all_knots
         self._jax_arrays = jax_arrays
@@ -25,7 +25,7 @@ class _Artists:
 
     def _get_ax_lims(self):
         all_plotted_vertices = np.vstack(
-            [self._init_vertices, self._outer_shape]
+            [self._init_vertices, self._target_boundary]
         )
         minvals = all_plotted_vertices.min(axis=0)
         maxvals = all_plotted_vertices.max(axis=0)
@@ -47,13 +47,13 @@ class _Artists:
         baseline = np.block([[self._ax_lims["x"]], [base_y, base_y]])
         self._ax.plot(baseline[0, :], baseline[1, :], "k", lw=0.7)
 
-    def _add_outer_shape(self):
+    def _add_target_boundary(self):
         self._ax.plot(
-            self._outer_shape[:, 0],
-            self._outer_shape[:, 1],
+            self._target_boundary[:, 0],
+            self._target_boundary[:, 1],
             "ro-",
             markersize=3,
-            label="Outer shape",
+            label="Target boundary",
         )
 
     def _add_knots(self):
@@ -103,7 +103,7 @@ class _Artists:
 
     def _add_artists(self, vertices, enumerate):
         self._add_baselines()
-        self._add_outer_shape()
+        self._add_target_boundary()
         self._add_vertices(vertices)
         self._add_boundary_vertices(vertices)
         if self._params.knots:
@@ -119,9 +119,11 @@ class _Artists:
 
 class _Figure:
     @staticmethod
-    def _close(outer_shape):
-        closed_outer_shape = np.vstack([outer_shape, outer_shape[0]])
-        return closed_outer_shape
+    def _close(target_boundary):
+        closed_target_boundary = np.vstack(
+            [target_boundary, target_boundary[0]]
+        )
+        return closed_target_boundary
 
     def _save(self, fig_path):
         self._fig.savefig(fig_path, dpi=100)
@@ -131,11 +133,13 @@ class MorphFigure(_Figure):
     def __init__(self, jax_arrays, params):
         self._fig, ax = plt.subplots(figsize=(10, 10))
         self._init_vertices = jax_arrays["init_vertices"]
-        self._closed_outer_shape = self._close(jax_arrays["outer_shape"])
+        self._closed_target_boundary = self._close(
+            jax_arrays["target_boundary"]
+        )
         self._morph_artists = _Artists(
             ax,
             self._init_vertices,
-            self._closed_outer_shape,
+            self._closed_target_boundary,
             jax_arrays["all_knots"],
             jax_arrays,
             params,
@@ -155,8 +159,12 @@ class MorphGrowthFigure(_Figure):
             nrows=2, ncols=1, figure=self._fig, height_ratios=[0.8, 1.0]
         )
         self._init_vertices = jax_arrays["init_vertices"]
-        self._closed_outer_shape = self._close(jax_arrays["outer_shape"])
-        self._scaled_outer_shape = self._scale * self._closed_outer_shape
+        self._closed_target_boundary = self._close(
+            jax_arrays["target_boundary"]
+        )
+        self._scaled_target_boundary = (
+            self._scale * self._closed_target_boundary
+        )
         self._all_knots = jax_arrays["all_knots"]
         self._scaled_knots = self._scale * self._all_knots
 
@@ -164,7 +172,7 @@ class MorphGrowthFigure(_Figure):
         self._morph_artists = _Artists(
             ax0,
             self._init_vertices,
-            self._closed_outer_shape,
+            self._closed_target_boundary,
             self._all_knots,
             jax_arrays,
             params,
@@ -173,7 +181,7 @@ class MorphGrowthFigure(_Figure):
         self._growth_artists = _Artists(
             ax1,
             self._init_vertices,
-            self._scaled_outer_shape,
+            self._scaled_target_boundary,
             self._scaled_knots,
             jax_arrays,
             params,

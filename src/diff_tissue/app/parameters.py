@@ -20,7 +20,7 @@ class Params:
         default="petal",
         pytree_node=False,
         metadata={
-            "help": "Type of outer shape.",
+            "help": "Shape of target boundary.",
             "choices": ["petal", "trapezoid", "triangle", "nconv"],
             "cli_flag": "shape",
         },

@@ -141,7 +141,7 @@ class TutteMetrics:
 
     @cached_property
     def vertices(self):
-        outer_shape = shapes.get_outer_shape(
+        target_boundary = shapes.get_target_boundary(
             self._shape,
             self._polygons.mesh_area,
             init_systems.VertexNumbers(self._polygons),
@@ -150,7 +150,7 @@ class TutteMetrics:
             self._polygons.vertices,
             self._polygons.polygon_inds,
             self._polygons.boundary_mask,
-            outer_shape.vertices,
+            target_boundary.vertices,
         )
         return vertices_
 
@@ -190,7 +190,7 @@ def calc_proximal_mask(tutte_centroids, proximal_dist):
 
 
 def _make_array_dict(
-    polygons, tutte_metrics, outer_shape, proximal_mask, knots
+    polygons, tutte_metrics, target_boundary, proximal_mask, knots
 ):
     arrays = {
         "indices": polygons.polygon_inds,
@@ -206,8 +206,8 @@ def _make_array_dict(
         "tutte_centroids": tutte_metrics.centroids,
         "tutte_areas": tutte_metrics.areas,
         "tutte_anisotropies": tutte_metrics.anisotropies,
-        "outer_shape": outer_shape.vertices,
-        "outer_shape_segments": outer_shape.segments,
+        "target_boundary": target_boundary.vertices,
+        "target_boundary_segments": target_boundary.segments,
         "proximal_mask": proximal_mask,
         "left_knots": knots.left_knots,
         "center_knots": knots.center_knots,
@@ -222,7 +222,7 @@ def get_arrays(params):
 
     mesh_area = polygons.mesh_area
     vertex_numbers = init_systems.VertexNumbers(polygons)
-    outer_shape = shapes.get_outer_shape(
+    target_boundary = shapes.get_target_boundary(
         params.shape, mesh_area, vertex_numbers
     )
 
@@ -233,7 +233,7 @@ def get_arrays(params):
 
     knots = init_systems.Knots()
     arrays = _make_array_dict(
-        polygons, tutte_metrics, outer_shape, proximal_mask, knots
+        polygons, tutte_metrics, target_boundary, proximal_mask, knots
     )
     return arrays
 

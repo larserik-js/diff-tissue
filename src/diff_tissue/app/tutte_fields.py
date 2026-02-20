@@ -19,18 +19,18 @@ class _Mesh:
     anisotropies: np.ndarray
 
 
-def _get_general_outer_shape(shape):
+def _get_general_target_boundary(shape):
     polygons = init_systems.get_system(system="voronoi", seed=0)
     vertex_numbers = init_systems.VertexNumbers(polygons)
-    outer_shape = shapes.get_outer_shape(
+    target_boundary = shapes.get_target_boundary(
         shape, polygons.mesh_area, vertex_numbers
     )
-    return outer_shape.vertices
+    return target_boundary.vertices
 
 
-def _make_samples(nx, ny, outer_shape):
-    xmin, ymin = outer_shape.min(axis=0)
-    xmax, ymax = outer_shape.max(axis=0)
+def _make_samples(nx, ny, target_boundary):
+    xmin, ymin = target_boundary.min(axis=0)
+    xmax, ymax = target_boundary.max(axis=0)
 
     xs = np.linspace(xmin, xmax, nx)
     ys = np.linspace(ymin, ymax, ny)
@@ -40,18 +40,18 @@ def _make_samples(nx, ny, outer_shape):
     return all_points
 
 
-def _get_inside_shape_mask(outer_shape, sample_coords):
-    domain_polygon = shapely.Polygon(outer_shape)
+def _get_inside_shape_mask(target_boundary, sample_coords):
+    domain_polygon = shapely.Polygon(target_boundary)
     sample_coords_shapely = shapely.points(sample_coords)
     inside_shape_mask = domain_polygon.covers(sample_coords_shapely)
     return inside_shape_mask
 
 
 def _get_points_inside_shape(shape, nx, ny):
-    outer_shape = _get_general_outer_shape(shape)
-    sample_coords = _make_samples(nx, ny, outer_shape)
+    target_boundary = _get_general_target_boundary(shape)
+    sample_coords = _make_samples(nx, ny, target_boundary)
 
-    inside_shape_mask = _get_inside_shape_mask(outer_shape, sample_coords)
+    inside_shape_mask = _get_inside_shape_mask(target_boundary, sample_coords)
     points_inside_shape = sample_coords[inside_shape_mask]
     return points_inside_shape
 

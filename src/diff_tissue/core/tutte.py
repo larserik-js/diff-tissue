@@ -130,15 +130,15 @@ def _map_to_given_shape(
     init_vertices,
     polygons,
     aligned_boundary_inds,
-    aligned_outer_shape,
+    aligned_target_boundary,
     boundary_offset=0,
     auto_align=False,
 ):
     # validate sizes
     m = len(aligned_boundary_inds)
-    if len(aligned_outer_shape) != m:
+    if len(aligned_target_boundary) != m:
         raise ValueError(
-            f"boundary_target length {len(aligned_outer_shape)} != "
+            f"boundary_target length {len(aligned_target_boundary)} != "
             + f"len(boundary_nodes) {m}"
         )
 
@@ -152,11 +152,11 @@ def _map_to_given_shape(
     )
 
     # Step 2: rotate / align target boundary
-    target_positions = _rotate_rows(aligned_outer_shape, boundary_offset)
+    target_positions = _rotate_rows(aligned_target_boundary, boundary_offset)
     if auto_align:
         s = _best_cyclic_shift(circle_positions, target_positions)
         target_positions = _rotate_rows(
-            aligned_outer_shape, boundary_offset + s
+            aligned_target_boundary, boundary_offset + s
         )
 
     # Step 3: embed target shape
@@ -193,7 +193,7 @@ def _align_inds(ccw_vertices, ccw_boundary_inds):
 
 
 def get_mapped_vertices(
-    init_vertices, all_polygon_inds, boundary_mask, outer_shape
+    init_vertices, all_polygon_inds, boundary_mask, target_boundary
 ):
     ccw_boundary_inds = init_systems.get_ccw_boundary_inds(
         init_vertices, boundary_mask
@@ -209,20 +209,20 @@ def get_mapped_vertices(
         polygon = polygon_inds[polygon_inds != -1][:-2]
         polygons.append(polygon.tolist())
 
-    ccw_outer_shape_inds = init_systems.sort_counterclockwise(
-        np.arange(outer_shape.shape[0]), outer_shape
+    ccw_target_boundary_inds = init_systems.sort_counterclockwise(
+        np.arange(target_boundary.shape[0]), target_boundary
     )
 
-    ccw_outer_shape_inds = np.array(ccw_outer_shape_inds)
-    ccw_outer_shape = outer_shape[ccw_outer_shape_inds]
+    ccw_target_boundary_inds = np.array(ccw_target_boundary_inds)
+    ccw_target_boundary = target_boundary[ccw_target_boundary_inds]
 
-    aligned_outer_shape_inds = _align_inds(
-        ccw_outer_shape, ccw_outer_shape_inds
+    aligned_target_boundary_inds = _align_inds(
+        ccw_target_boundary, ccw_target_boundary_inds
     )
-    aligned_outer_shape = outer_shape[aligned_outer_shape_inds]
+    aligned_target_boundary = target_boundary[aligned_target_boundary_inds]
 
     _, mapped_vertices, _ = _map_to_given_shape(
-        init_vertices, polygons, aligned_boundary_inds, aligned_outer_shape
+        init_vertices, polygons, aligned_boundary_inds, aligned_target_boundary
     )
 
     return mapped_vertices

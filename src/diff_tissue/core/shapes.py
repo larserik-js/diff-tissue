@@ -61,15 +61,15 @@ class _Shape(ABC):
         basal_vertices = np.array([(x, 0.0) for x in basal_xs])
         return basal_vertices
 
-    def _construct_outer_shape(self, non_basal_xs, non_basal_ys, lower_r):
+    def _construct_target_boundary(self, non_basal_xs, non_basal_ys, lower_r):
         non_basal_vertices = self._make_non_basal_vertices(
             non_basal_xs, non_basal_ys
         )
         basal_vertices = self._make_basal_vertices(lower_r)
-        outer_shape = np.concatenate(
+        target_boundary = np.concatenate(
             [non_basal_vertices, basal_vertices], axis=0
         )
-        return outer_shape
+        return target_boundary
 
     @abstractmethod
     def _make_raw_shape(self):
@@ -100,9 +100,9 @@ class _Shape(ABC):
     def _transform_raw_shape(self):
         raw_shape_area = self._calc_shape_area(self._raw_shape)
         scale = self._calc_scale(self._mesh_area, raw_shape_area)
-        outer_shape = scale * self._raw_shape
-        outer_shape += init_systems.Coords.base_origin
-        return outer_shape
+        target_boundary = scale * self._raw_shape
+        target_boundary += init_systems.Coords.base_origin
+        return target_boundary
 
     def _validate_rescaled_area(self, shape_area):
         if not np.isclose(self._mesh_area - shape_area, 0.0):
@@ -110,10 +110,10 @@ class _Shape(ABC):
 
     @cached_property
     def vertices(self):
-        outer_shape = self._transform_raw_shape()
-        shape_area = self._calc_shape_area(outer_shape)
+        target_boundary = self._transform_raw_shape()
+        shape_area = self._calc_shape_area(target_boundary)
         self._validate_rescaled_area(shape_area)
-        return outer_shape
+        return target_boundary
 
     @cached_property
     def segments(self):
@@ -134,10 +134,10 @@ class _NonConvexShape(_Shape):
         non_basal_xs = np.concatenate([non_basal_xs, np.flip(-non_basal_xs)])
         non_basal_ys = self._height * np.array([0.0, 0.3, 0.7, 1.1, 1.2, 1.0])
         non_basal_ys = np.concatenate([non_basal_ys, np.flip(non_basal_ys)])
-        outer_shape = self._construct_outer_shape(
+        target_boundary = self._construct_target_boundary(
             non_basal_xs, non_basal_ys, self._lower_r
         )
-        return outer_shape
+        return target_boundary
 
 
 class _Petal(_Shape):
@@ -158,10 +158,10 @@ class _Petal(_Shape):
         factor = 1 + self._stretch_strength * non_basal_ys / self._height
         non_basal_xs = xs * factor
 
-        outer_shape = self._construct_outer_shape(
+        target_boundary = self._construct_target_boundary(
             non_basal_xs, non_basal_ys, self._lower_r
         )
-        return outer_shape
+        return target_boundary
 
 
 class _Trapzeoid(_Shape):
@@ -179,10 +179,10 @@ class _Trapzeoid(_Shape):
         )
         non_basal_ys = np.array([0.0, self._height, self._height, 0.0])
 
-        outer_shape = self._construct_outer_shape(
+        target_boundary = self._construct_target_boundary(
             non_basal_xs, non_basal_ys, self._lower_r
         )
-        return outer_shape
+        return target_boundary
 
 
 class _Triangle(_Shape):
@@ -197,13 +197,13 @@ class _Triangle(_Shape):
         non_basal_xs = np.array([self._lower_r, 0.0, -self._lower_r])
         non_basal_ys = np.array([0.0, self._height, 0.0])
 
-        outer_shape = self._construct_outer_shape(
+        target_boundary = self._construct_target_boundary(
             non_basal_xs, non_basal_ys, self._lower_r
         )
-        return outer_shape
+        return target_boundary
 
 
-def get_outer_shape(shape, mesh_area, vertex_numbers):
+def get_target_boundary(shape, mesh_area, vertex_numbers):
     match shape:
         case "nconv":
             shape = _NonConvexShape(mesh_area, vertex_numbers)
@@ -214,5 +214,5 @@ def get_outer_shape(shape, mesh_area, vertex_numbers):
         case "triangle":
             shape = _Triangle(mesh_area, vertex_numbers)
         case _:
-            raise ValueError("Invalid outer shape!")
+            raise ValueError("Invalid target boundary shape!")
     return shape

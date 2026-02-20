@@ -112,16 +112,18 @@ def _make_min_dist_mask(jax_arrays):
     min_dist_mask = jnp.ones(
         (
             jax_arrays["init_vertices"].shape[0],
-            jax_arrays["outer_shape"].shape[0],
+            jax_arrays["target_boundary"].shape[0],
         ),
         dtype=bool,
     )
     fixed_mask = jnp.any(~jax_arrays["free_mask"], axis=1)
 
-    outer_shape_basal_mask = jnp.isclose(
-        jax_arrays["outer_shape"][:, 1], init_systems.Coords.base_origin[1]
+    target_boundary_basal_mask = jnp.isclose(
+        jax_arrays["target_boundary"][:, 1], init_systems.Coords.base_origin[1]
     )
-    min_dist_mask = min_dist_mask.at[fixed_mask].set(outer_shape_basal_mask)
+    min_dist_mask = min_dist_mask.at[fixed_mask].set(
+        target_boundary_basal_mask
+    )
     return min_dist_mask
 
 
@@ -158,11 +160,11 @@ def _update_knot_ctx(logits, knot_ctx, knots):
     return knot_ctx
 
 
-def _expand_for_broadcasting(outer_shape, segments, final_vertices):
-    outer_shape = outer_shape[None, :, :]  # (1, M, 2)
+def _expand_for_broadcasting(target_boundary, segments, final_vertices):
+    target_boundary = target_boundary[None, :, :]  # (1, M, 2)
     segments = segments[None, :, :]  # (1, M, 2)
     final_vertices = final_vertices[:, None, :]  # (N, 1, 2)
-    return outer_shape, segments, final_vertices
+    return target_boundary, segments, final_vertices
 
 
 def _calc_dists_squared(segment_verts, segments, other_boundary_verts):
@@ -186,12 +188,12 @@ def _calc_dists_squared(segment_verts, segments, other_boundary_verts):
 def _calc_mesh_to_target_loss(
     final_vertices,
     boundary_inds,
-    outer_shape,
-    outer_shape_segments,
+    target_boundary,
+    target_boundary_segments,
     min_dist_mask,
 ):
     dists_squared = _calc_dists_squared(
-        outer_shape, outer_shape_segments, final_vertices
+        target_boundary, target_boundary_segments, final_vertices
     )
     masked_dists = jnp.asarray(
         jnp.where(min_dist_mask, dists_squared, jnp.inf)
@@ -211,13 +213,13 @@ def _get_segments(vertices):
 
 
 def _calc_target_to_mesh_loss(
-    final_vertices, boundary_inds, outer_shape, min_dist_mask
+    final_vertices, boundary_inds, target_boundary, min_dist_mask
 ):
     boundary_vertices = final_vertices[boundary_inds]
     boundary_segments = _get_segments(boundary_vertices)
 
     dists_squared = _calc_dists_squared(
-        boundary_vertices, boundary_segments, outer_shape
+        boundary_vertices, boundary_segments, target_boundary
     )
 
     boundary_min_dist_mask = min_dist_mask[boundary_inds].T
@@ -233,20 +235,20 @@ def _calc_target_to_mesh_loss(
 def _calc_shape_loss(
     final_vertices,
     boundary_inds,
-    outer_shape,
-    outer_shape_segments,
+    target_boundary,
+    target_boundary_segments,
     min_dist_mask,
 ):
     mesh_to_target_loss = _calc_mesh_to_target_loss(
         final_vertices,
         boundary_inds,
-        outer_shape,
-        outer_shape_segments,
+        target_boundary,
+        target_boundary_segments,
         min_dist_mask,
     )
 
     target_to_mesh_loss = _calc_target_to_mesh_loss(
-        final_vertices, boundary_inds, outer_shape, min_dist_mask
+        final_vertices, boundary_inds, target_boundary, min_dist_mask
     )
     shape_loss = mesh_to_target_loss + target_to_mesh_loss
 
@@ -285,8 +287,8 @@ def _loss_fn(
     loss = params.shape_loss_weight * _calc_shape_loss(
         final_vertices,
         jax_arrays["boundary_inds"],
-        jax_arrays["outer_shape"],
-        jax_arrays["outer_shape_segments"],
+        jax_arrays["target_boundary"],
+        jax_arrays["target_boundary_segments"],
         min_dist_mask,
     )
     aux_data = (final_vertices, knot_ctx)
