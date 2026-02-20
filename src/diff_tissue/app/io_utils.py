@@ -1,5 +1,3 @@
-from dataclasses import fields
-from functools import cached_property
 from pathlib import Path
 import pickle
 
@@ -27,69 +25,6 @@ class OutputManager:
 
     def cache_path(self, *parts: str) -> Path:
         return self._prepare(self._root / "cache" / Path(*parts))
-
-
-class _Output:
-    _formats = {
-        "bool": "",
-        "int": "d",
-        "float": ".7f",
-        "float64": ".7f",
-        "str": "",
-    }
-
-    def __init__(self, output_type_dir_name, params):
-        self._output_type_dir_name = output_type_dir_name
-        self._params = params
-
-    @cached_property
-    def _output_type_dir(self):
-        output_type_dir = Path("outputs") / self._output_type_dir_name
-        output_type_dir.mkdir(exist_ok=True, parents=True)
-        return output_type_dir
-
-    @staticmethod
-    def _get_val_type(val):
-        type_ = type(val)
-        type_str = type_.__name__
-        return type_str
-
-    def _format_param_val_str(self, name, val):
-        val_type = self._get_val_type(val)
-        format_ = self._formats[val_type]
-        param_name_val = name + "=" + format(val, format_)
-        if val_type == "float" or val_type == "float64":
-            param_name_val = param_name_val.rstrip("0").rstrip(".")
-        return param_name_val
-
-    def _concatenate_param_val_pairs(self):
-        param_name_vals = []
-        for field in fields(self._params):
-            cli_flag = field.metadata.get("cli_flag")
-            param_name_val = self._format_param_val_str(
-                cli_flag, getattr(self._params, field.name)
-            )
-            param_name_vals.append(param_name_val)
-
-        param_path_str = "_".join(param_name_vals)
-        return param_path_str
-
-    def _make_param_path(self):
-        param_path_str = self._concatenate_param_val_pairs()
-        param_path = self._output_type_dir / param_path_str
-        return param_path
-
-
-class OutputFile(_Output):
-    def __init__(self, output_type_dir, suffix, params):
-        super().__init__(output_type_dir, params)
-        self._suffix = suffix
-
-    @cached_property
-    def path(self):
-        params_path = self._make_param_path()
-        path = params_path.with_name(params_path.name + self._suffix)
-        return path
 
 
 def load_pkl(path):
