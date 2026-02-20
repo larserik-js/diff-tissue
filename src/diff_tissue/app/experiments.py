@@ -49,12 +49,10 @@ def run_shape_opt(params, base_dir=OUTPUT_DIR):
 
 
 def run_learned_growth(params):
-    results = learned_growth.run(params)
-
     output = io_utils.OutputManager(
         learned_growth.OUTPUT_TYPE_DIR, base_dir=OUTPUT_DIR
     )
 
-    param_string = parameters.get_param_string(params)
+    results = learned_growth.run(params, output)
 
-    learned_growth.plot(results, output, param_string)
+    learned_growth.plot(results, params, output)

@@ -8,7 +8,7 @@ from ..core import morphing, my_utils
 from . import io_utils, parameters, plotting
 
 
-OUTPUT_TYPE_DIR = 'learned_growth'
+OUTPUT_TYPE_DIR = "learned_growth"
 
 
 def _assign_weighted_goals(old_polygons, goals, new_polygons):
@@ -40,12 +40,8 @@ def _assign_weighted_goals(old_polygons, goals, new_polygons):
     return new_goals
 
 
-def _save_growth_evolution(growth_evolution, params):
-    output_path = io_utils.OutputFile("learned_growth", ".pkl", params).path
-    io_utils.save_pkl(output_path, growth_evolution)
-
-
-def plot(results, output, param_string):
+def plot(results, params, output):
+    param_string = parameters.get_param_string(params)
     figure = plotting.MorphFigure(results.new_jax_arrays, results.new_params)
     for t, vertices in enumerate(results.growth_evolution):
         if t % 10 == 0:
@@ -62,7 +58,7 @@ class _Results:
     new_params: parameters.Params
 
 
-def run(params):
+def run(params, output):
     jax_arrays = my_utils.get_jax_arrays(params)
 
     old_polygons = my_utils.get_shapely_polygons(
@@ -97,7 +93,9 @@ def run(params):
         new_params,
     )
 
-    _save_growth_evolution(growth_evolution, new_params)
+    param_string = parameters.get_param_string(params)
+    output_path = output.cache_path(f"{param_string}.pkl")
+    io_utils.save_pkl(output_path, growth_evolution)
 
     results = _Results(
         growth_evolution=growth_evolution,
