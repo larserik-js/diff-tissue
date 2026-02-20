@@ -1,17 +1,17 @@
-from diff_tissue.core import my_utils
 from diff_tissue.app import io_utils, learned_growth, parameters
 
 
 def _main():
     params = parameters.get_params_from_cli()
 
-    jax_arrays = my_utils.get_jax_arrays(params)
+    results = learned_growth.run(params)
 
-    results = learned_growth.run(jax_arrays, params)
+    output = io_utils.OutputManager(
+        learned_growth.OUTPUT_TYPE_DIR, base_dir="outputs"
+    )
 
-    output_dir = io_utils.OutputDir("learned_growth", params).path
-
-    learned_growth.plot(results, output_dir)
+    param_string = parameters.get_param_string(params)
+    learned_growth.plot(results, output, param_string)
 
 
 if __name__ == "__main__":
