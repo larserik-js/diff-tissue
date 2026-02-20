@@ -80,20 +80,6 @@ class _Output:
         return param_path
 
 
-class OutputDir(_Output):
-    def __init__(self, output_type_dir, params):
-        super().__init__(output_type_dir, params)
-        self._make()
-
-    @cached_property
-    def path(self):
-        path = self._make_param_path()
-        return path
-
-    def _make(self):
-        self.path.mkdir(exist_ok=True)
-
-
 class OutputFile(_Output):
     def __init__(self, output_type_dir, suffix, params):
         super().__init__(output_type_dir, params)
