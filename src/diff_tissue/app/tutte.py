@@ -2,7 +2,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ..core import my_utils
-from . import io_utils
+from . import parameters
+
+
+OUTPUT_TYPE_DIR = "tutte"
 
 
 def _add_artists(ax, jax_arrays, vertices):
@@ -15,7 +18,7 @@ def _add_artists(ax, jax_arrays, vertices):
         ax.plot(polygon[:, 0], polygon[:, 1], lw=0.7, color="black", zorder=2)
 
 
-def _plot_mapping(output_file, jax_arrays):
+def _plot_mapping(jax_arrays, output_path):
     fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 
     # Initial mesh
@@ -56,12 +59,13 @@ def _plot_mapping(output_file, jax_arrays):
     ax.set_title("Vector Field: Initial → Tutte")
 
     fig.tight_layout()
-    fig.savefig(output_file)
+    fig.savefig(output_path)
 
 
-def plot(params):
+def plot(params, output):
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    output_file = io_utils.OutputFile("tutte", ".pdf", params).path
+    param_string = parameters.get_param_string(params)
+    output_path = output.file_path(f"{param_string}.pdf")
 
-    _plot_mapping(output_file, jax_arrays)
+    _plot_mapping(jax_arrays, output_path)

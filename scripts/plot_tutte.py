@@ -1,10 +1,12 @@
-from diff_tissue.app import parameters, tutte
+from diff_tissue.app import io_utils, parameters, tutte
 
 
 def _main():
     params = parameters.get_params_from_cli()
 
-    tutte.plot(params)
+    output = io_utils.OutputManager(tutte.OUTPUT_TYPE_DIR, base_dir="outputs")
+
+    tutte.plot(params, output)
 
 
 if __name__ == "__main__":
