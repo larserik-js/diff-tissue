@@ -58,19 +58,13 @@ def _knots_to_full_shape(lc_goals, n_left_logits, weights):
     return all_goals
 
 
-def _calc_goal_areas(
-    goal_area_bounds, ar_logits, proximal_mask, knots, knot_ctx
-):
+def _calc_goal_areas(goal_area_bounds, ar_logits, knots, knot_ctx):
     goal_areas = _calc_goal_areas_(goal_area_bounds, ar_logits)
 
     if knots:
         goal_areas = _knots_to_full_shape(
             goal_areas, knot_ctx.n_left_logits, knot_ctx.knot_weights
         )
-
-    # Multiplies the areas of proximal polygons.
-    # This is necessary to accompany the anisotropy.
-    goal_areas = jnp.where(proximal_mask, 2.0 * goal_areas, goal_areas)
 
     return goal_areas
 
@@ -80,19 +74,13 @@ def _calc_goal_anisotropies_(an_logits):
     return goal_anisotropies
 
 
-def _calc_goal_anisotropies(an_logits, proximal_mask, knots, knot_ctx):
+def _calc_goal_anisotropies(an_logits, knots, knot_ctx):
     goal_anisotropies = _calc_goal_anisotropies_(an_logits)
 
     if knots:
         goal_anisotropies = _knots_to_full_shape(
             goal_anisotropies, knot_ctx.n_left_logits, knot_ctx.knot_weights
         )
-
-    # Multiplies the anisotropies of proximal polygons.
-    # The actual constant does not carry physical meaning at this point.
-    goal_anisotropies = jnp.where(
-        proximal_mask, 3.0 * goal_anisotropies, goal_anisotropies
-    )
 
     return goal_anisotropies
 
@@ -238,12 +226,32 @@ def _calc_shape_loss(
     return shape_loss
 
 
+def _calc_poly_id_loss(proximal_mask, poly_metrics):
+    proximal_areas = jnp.where(proximal_mask, poly_metrics.areas, jnp.nan)
+    distal_areas = jnp.where(~proximal_mask, poly_metrics.areas, jnp.nan)
+    area_loss = jnp.nanmean(proximal_areas) - 2.0 * jnp.nanmean(distal_areas)
+
+    proximal_anisotropies = jnp.where(
+        proximal_mask, poly_metrics.anisotropies, jnp.nan
+    )
+    distal_anisotropies = jnp.where(
+        ~proximal_mask, poly_metrics.anisotropies, jnp.nan
+    )
+    anisotropy_loss = jnp.nanmean(proximal_anisotropies) - 3.0 * jnp.nanmean(
+        distal_anisotropies
+    )
+
+    poly_id_loss = area_loss**2 + anisotropy_loss**2
+    return poly_id_loss
+
+
 def _loss_fn(
     logits,
     knot_ctx,
     goal_area_bounds,
     min_dist_mask,
     n_growth_steps,
+    poly_metrics,
     jax_arrays,
     params,
 ):
@@ -252,12 +260,11 @@ def _loss_fn(
     goal_areas = _calc_goal_areas(
         goal_area_bounds,
         logits.ar_logits,
-        jax_arrays["proximal_mask"],
         params.knots,
         knot_ctx,
     )
     goal_anisotropies = _calc_goal_anisotropies(
-        logits.an_logits, jax_arrays["proximal_mask"], params.knots, knot_ctx
+        logits.an_logits, params.knots, knot_ctx
     )
 
     growth_evolution = morphing.iterate(
@@ -267,13 +274,28 @@ def _loss_fn(
 
     boundary_vertices = final_vertices[jax_arrays["boundary_inds"]]
 
-    loss = params.shape_loss_weight * _calc_shape_loss(
+    shape_loss = params.shape_loss_weight * _calc_shape_loss(
         boundary_vertices,
         jax_arrays["target_boundary"],
         jax_arrays["target_boundary_segments"],
         min_dist_mask,
     )
-    aux_data = (final_vertices, goal_areas, goal_anisotropies, knot_ctx)
+
+    poly_metrics = poly_metrics.update(final_vertices)
+
+    poly_id_loss = _calc_poly_id_loss(
+        jax_arrays["proximal_mask"], poly_metrics
+    )
+
+    loss = shape_loss + poly_id_loss
+
+    aux_data = (
+        final_vertices,
+        goal_areas,
+        goal_anisotropies,
+        knot_ctx,
+        poly_metrics,
+    )
 
     return loss, aux_data
 
@@ -489,10 +511,13 @@ def _iterate_towards_shape(
             goal_area_bounds,
             min_dist_mask,
             params.n_growth_steps,
+            poly_metrics,
             jax_arrays,
             params,
         )
-        vertices, goal_areas, goal_anisotropies, knot_ctx = aux_data
+        vertices, goal_areas, goal_anisotropies, knot_ctx, poly_metrics = (
+            aux_data
+        )
 
         poly_metrics = my_utils.update_poly_metrics(poly_metrics, vertices)
 
