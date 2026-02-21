@@ -5,6 +5,8 @@ from ..core import shape_opt as shape_opt_core
 from . import io_utils, morphing, parameters, plotting
 
 
+OUTPUT_TYPE_DIR = "shape_opt"
+FINAL_TISSUES_DIR = "final_tissues"
 BEST_GROWTH_DIR = "best_growth"
 
 
@@ -30,18 +32,30 @@ def _plot_final_tissues(
 
     for t, vertices in enumerate(final_tissues):
         if t % 10 == 0:
-            fig_path = output.file_path(param_string, f"step={t:03d}.png")
+            fig_path = output.file_path(
+                f"{FINAL_TISSUES_DIR}", param_string, f"step={t:03d}.png"
+            )
             figure.save_plot(vertices, fig_path, enumerate=True)
-    fig_path = output.file_path(param_string, f"step={t:03d}.png")
+    fig_path = output.file_path(
+        f"{FINAL_TISSUES_DIR}", param_string, f"step={t:03d}.png"
+    )
     figure.save_plot(vertices, fig_path, enumerate=True)
 
 
-def optimize_shape(params, base_dir="outputs"):
-    output = io_utils.OutputManager("final_tissues", base_dir=base_dir)
-
+def optimize_shape(params, output):
     param_string = parameters.get_param_string(params)
-    cache_path = output.cache_path(f"{param_string}.pkl")
+    cache_path = output.cache_path(f"final_tissues__{param_string}.pkl")
 
+    _, final_tissues, _, tabular_output = shape_opt_core.run(params)
+
+    _save_output_params(tabular_output, params)
+
+    io_utils.save_pkl(cache_path, final_tissues)
+
+
+def plot_final_tissues(params, output):
+    param_string = parameters.get_param_string(params)
+    cache_path = output.cache_path(f"final_tissues__{param_string}.pkl")
     if cache_path.exists():
         final_tissues = io_utils.load_pkl(cache_path)
     else:
@@ -82,7 +96,11 @@ def plot_best_growth(
 
     for t, vertices in enumerate(growth_evolution):
         if t % 10 == 0:
-            fig_path = output.file_path(param_string, f"step={t:03d}.png")
+            fig_path = output.file_path(
+                f"{BEST_GROWTH_DIR}", param_string, f"step={t:03d}.png"
+            )
             figure.save_plot(vertices, t, fig_path)
-    fig_path = output.file_path(param_string, f"step={t:03d}.png")
+    fig_path = output.file_path(
+        f"{BEST_GROWTH_DIR}", param_string, f"step={t:03d}.png"
+    )
     figure.save_plot(vertices, t, fig_path)

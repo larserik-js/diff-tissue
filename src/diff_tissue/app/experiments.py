@@ -26,7 +26,11 @@ def run_morphing(params, base_dir=OUTPUT_DIR):
 
 
 def run_shape_opt(params, base_dir=OUTPUT_DIR):
-    shape_opt_app.optimize_shape(params, base_dir=base_dir)
+    output = io_utils.OutputManager(
+        shape_opt_app.OUTPUT_TYPE_DIR, base_dir=base_dir
+    )
+
+    shape_opt_app.plot_final_tissues(params, output)
 
     best_goal_areas, best_goal_anisotropies = shape_opt_app.load_output_params(
         params
@@ -35,10 +39,7 @@ def run_shape_opt(params, base_dir=OUTPUT_DIR):
     jax_arrays = my_utils.get_jax_arrays(params)
     param_string = parameters.get_param_string(params)
 
-    output = io_utils.OutputManager(
-        shape_opt_app.BEST_GROWTH_DIR, base_dir=base_dir
-    )
-    cache_path = output.cache_path(f"{param_string}.pkl")
+    cache_path = output.cache_path(f"best_growth__{param_string}.pkl")
     best_growth_evolution = shape_opt_app.get_best_growth_evolution(
         best_goal_areas, best_goal_anisotropies, jax_arrays, params, cache_path
     )
