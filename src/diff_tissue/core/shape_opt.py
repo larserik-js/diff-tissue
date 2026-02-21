@@ -227,10 +227,6 @@ def _calc_shape_loss(
 
 
 def _calc_poly_id_loss(proximal_mask, poly_metrics):
-    proximal_areas = jnp.where(proximal_mask, poly_metrics.areas, jnp.nan)
-    distal_areas = jnp.where(~proximal_mask, poly_metrics.areas, jnp.nan)
-    area_loss = jnp.nanmean(proximal_areas) - 2.0 * jnp.nanmean(distal_areas)
-
     proximal_anisotropies = jnp.where(
         proximal_mask, poly_metrics.anisotropies, jnp.nan
     )
@@ -241,7 +237,7 @@ def _calc_poly_id_loss(proximal_mask, poly_metrics):
         distal_anisotropies
     )
 
-    poly_id_loss = area_loss**2 + anisotropy_loss**2
+    poly_id_loss = anisotropy_loss**2
 
     return poly_id_loss
 
