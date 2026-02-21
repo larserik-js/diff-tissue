@@ -242,6 +242,7 @@ def _calc_poly_id_loss(proximal_mask, poly_metrics):
     )
 
     poly_id_loss = area_loss**2 + anisotropy_loss**2
+
     return poly_id_loss
 
 
@@ -283,7 +284,7 @@ def _loss_fn(
 
     poly_metrics = poly_metrics.update(final_vertices)
 
-    poly_id_loss = _calc_poly_id_loss(
+    poly_id_loss = params.poly_id_loss_weight * _calc_poly_id_loss(
         jax_arrays["proximal_mask"], poly_metrics
     )
 
