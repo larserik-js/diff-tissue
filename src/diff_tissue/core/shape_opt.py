@@ -230,11 +230,15 @@ def _calc_poly_id_loss(poly_ids, poly_metrics):
     proximal_anisotropies = poly_metrics.anisotropies[poly_ids.proximal_inds]
     distal_anisotropies = poly_metrics.anisotropies[poly_ids.distal_inds]
 
-    anisotropy_loss = jnp.mean(proximal_anisotropies) - 3.0 * jnp.mean(
-        distal_anisotropies
+    # Interpolation between the distal mean and the right limit (1.0)
+    t = 0.9
+    target_anisotropy = (1.0 - t) * jnp.mean(distal_anisotropies) + t * 1.0
+
+    anisotropy_loss = jnp.mean(
+        jnp.square(proximal_anisotropies - target_anisotropy)
     )
 
-    poly_id_loss = anisotropy_loss**2
+    poly_id_loss = anisotropy_loss
 
     return poly_id_loss
 
