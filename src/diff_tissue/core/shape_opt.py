@@ -226,14 +226,11 @@ def _calc_shape_loss(
     return shape_loss
 
 
-def _calc_poly_id_loss(proximal_mask, poly_metrics):
-    proximal_anisotropies = jnp.where(
-        proximal_mask, poly_metrics.anisotropies, jnp.nan
-    )
-    distal_anisotropies = jnp.where(
-        ~proximal_mask, poly_metrics.anisotropies, jnp.nan
-    )
-    anisotropy_loss = jnp.nanmean(proximal_anisotropies) - 3.0 * jnp.nanmean(
+def _calc_poly_id_loss(poly_ids, poly_metrics):
+    proximal_anisotropies = poly_metrics.anisotropies[poly_ids.proximal_inds]
+    distal_anisotropies = poly_metrics.anisotropies[poly_ids.distal_inds]
+
+    anisotropy_loss = jnp.mean(proximal_anisotropies) - 3.0 * jnp.mean(
         distal_anisotropies
     )
 
@@ -249,6 +246,7 @@ def _loss_fn(
     min_dist_mask,
     n_growth_steps,
     poly_metrics,
+    poly_ids,
     jax_arrays,
     params,
 ):
@@ -281,7 +279,7 @@ def _loss_fn(
     poly_metrics = poly_metrics.update(final_vertices)
 
     poly_id_loss = params.poly_id_loss_weight * _calc_poly_id_loss(
-        jax_arrays["proximal_mask"], poly_metrics
+        poly_ids, poly_metrics
     )
 
     loss = shape_loss + poly_id_loss
@@ -496,6 +494,8 @@ def _iterate_towards_shape(
         valid_mask=jax_arrays["valid_mask"],
     )
 
+    poly_ids = my_utils.get_poly_identities(params)
+
     sim_states = _SimStates()
 
     best_loss = jnp.inf
@@ -509,6 +509,7 @@ def _iterate_towards_shape(
             min_dist_mask,
             params.n_growth_steps,
             poly_metrics,
+            poly_ids,
             jax_arrays,
             params,
         )

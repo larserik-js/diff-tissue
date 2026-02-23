@@ -188,17 +188,53 @@ class TutteMetrics:
         return anisotropies_
 
 
-def calc_proximal_mask(tutte_centroids, proximal_dist):
-    y_dists_from_base = (
-        tutte_centroids[:, 1] - init_systems.Coords.base_origin[1]
+class _PolyIdentities:
+    def __init__(self, tutte_centroids, proximal_dist):
+        self._tutte_centroids = tutte_centroids
+        self._proximal_dist = proximal_dist
+
+    @cached_property
+    def _y_dists_from_base(self):
+        y_dists_from_base = (
+            self._tutte_centroids[:, 1] - init_systems.Coords.base_origin[1]
+        )
+        return y_dists_from_base
+
+    @cached_property
+    def proximal_inds(self):
+        proximal_inds_ = np.argwhere(
+            self._y_dists_from_base <= self._proximal_dist
+        )
+        return proximal_inds_
+
+    @cached_property
+    def distal_inds(self):
+        distal_inds = np.argwhere(
+            self._y_dists_from_base > self._proximal_dist
+        )
+        return distal_inds
+
+
+@struct.dataclass
+class _JaxPolyIdentities:
+    proximal_inds: jnp.ndarray
+    distal_inds: jnp.ndarray
+
+
+def get_poly_identities(params):
+    polygons = init_systems.get_system(params.system, params.seed)
+    tutte_metrics = TutteMetrics(polygons, params.shape)
+    poly_identities = _PolyIdentities(
+        tutte_metrics.centroids, params.proximal_dist
     )
-    proximal_mask = y_dists_from_base <= proximal_dist
-    return proximal_mask
+    jax_poly_identities = _JaxPolyIdentities(
+        proximal_inds=jnp.array(poly_identities.proximal_inds),
+        distal_inds=jnp.array(poly_identities.distal_inds),
+    )
+    return jax_poly_identities
 
 
-def _make_array_dict(
-    polygons, tutte_metrics, target_boundary, proximal_mask, knots
-):
+def _make_array_dict(polygons, tutte_metrics, target_boundary, knots):
     arrays = {
         "indices": polygons.polygon_inds,
         "valid_mask": polygons.valid_mask,
@@ -214,7 +250,6 @@ def _make_array_dict(
         "tutte_anisotropies": tutte_metrics.anisotropies,
         "target_boundary": target_boundary.vertices,
         "target_boundary_segments": target_boundary.segments,
-        "proximal_mask": proximal_mask,
         "left_knots": knots.left_knots,
         "center_knots": knots.center_knots,
         "right_knots": knots.right_knots,
@@ -233,13 +268,13 @@ def get_arrays(params):
     )
 
     tutte_metrics = TutteMetrics(polygons, params.shape)
-    proximal_mask = calc_proximal_mask(
-        tutte_metrics.centroids, params.proximal_dist
-    )
 
     knots = init_systems.Knots()
     arrays = _make_array_dict(
-        polygons, tutte_metrics, target_boundary, proximal_mask, knots
+        polygons,
+        tutte_metrics,
+        target_boundary,
+        knots,
     )
     return arrays
 
