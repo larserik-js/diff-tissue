@@ -226,19 +226,39 @@ def _calc_shape_loss(
     return shape_loss
 
 
-def _calc_poly_id_loss(poly_ids, poly_metrics):
+def _calc_area_id_loss(poly_metrics, poly_ids):
+    proximal_areas = poly_metrics.areas[poly_ids.proximal_inds]
+    distal_areas = poly_metrics.areas[poly_ids.distal_inds]
+
+    proximal_to_distal_scale = 1.5
+    area_loss = jnp.mean(
+        jnp.square(
+            proximal_areas - proximal_to_distal_scale * jnp.mean(distal_areas)
+        )
+    )
+    return area_loss
+
+
+def _calc_anisotropy_id_loss(poly_metrics, poly_ids):
     proximal_anisotropies = poly_metrics.anisotropies[poly_ids.proximal_inds]
     distal_anisotropies = poly_metrics.anisotropies[poly_ids.distal_inds]
 
     # Interpolation between the distal mean and the right limit (1.0)
-    t = 0.9
+    t = 1.0
     target_anisotropy = (1.0 - t) * jnp.mean(distal_anisotropies) + t * 1.0
 
     anisotropy_loss = jnp.mean(
         jnp.square(proximal_anisotropies - target_anisotropy)
     )
 
-    poly_id_loss = anisotropy_loss
+    return anisotropy_loss
+
+
+def _calc_poly_id_loss(poly_ids, poly_metrics):
+    area_loss = _calc_area_id_loss(poly_metrics, poly_ids)
+    anisotropy_loss = _calc_anisotropy_id_loss(poly_metrics, poly_ids)
+
+    poly_id_loss = area_loss + anisotropy_loss
 
     return poly_id_loss
 
