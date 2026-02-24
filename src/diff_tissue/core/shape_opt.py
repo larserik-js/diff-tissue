@@ -57,8 +57,8 @@ def _knots_to_full_shape(lc_goals, n_left_logits, weights):
 
 
 def _calc_goal_areas(
-        goal_area_bounds, ar_logits, proximal_mask, knots, knot_ctx
-    ):
+    goal_area_bounds, ar_logits, proximal_mask, knots, knot_ctx
+):
     goal_areas = _calc_goal_areas_(goal_area_bounds, ar_logits)
 
     if knots:
@@ -98,7 +98,9 @@ def _calc_goal_anisotropies(an_logits, proximal_mask, knots, knot_ctx):
 def _calc_knot_weights(std_logits, dist_vecs):
     smoothing_stds = _calc_smoothing_stds(std_logits)
     knot_weights = jnp.exp(
-        -jnp.sum(dist_vecs**2 / (2 * smoothing_stds[None,None,:]**2), axis=2)
+        -jnp.sum(
+            dist_vecs**2 / (2 * smoothing_stds[None, None, :] ** 2), axis=2
+        )
     )
     knot_weights += 1e-8
     knot_weights = knot_weights / jnp.sum(knot_weights, axis=1)[:, None]
@@ -108,16 +110,21 @@ def _calc_knot_weights(std_logits, dist_vecs):
 
 def _make_min_dist_mask(jax_arrays):
     min_dist_mask = jnp.ones(
-        (jax_arrays['init_vertices'].shape[0],
-         jax_arrays['outer_shape'].shape[0]),
-         dtype=bool
+        (
+            jax_arrays["boundary_inds"].shape[0],
+            jax_arrays["target_boundary"].shape[0],
+        ),
+        dtype=bool,
     )
-    fixed_mask = jnp.any(~jax_arrays['free_mask'], axis=1)
+    fixed_boundary_mask = ~jax_arrays["free_mask"][jax_arrays["boundary_inds"]]
+    fixed_mask = jnp.any(fixed_boundary_mask, axis=1)
 
-    outer_shape_basal_mask = jnp.isclose(
-        jax_arrays['outer_shape'][:,1], init_systems.Coords.base_origin[1]
+    target_boundary_basal_mask = jnp.isclose(
+        jax_arrays["target_boundary"][:, 1], init_systems.Coords.base_origin[1]
     )
-    min_dist_mask = min_dist_mask.at[fixed_mask].set(outer_shape_basal_mask)
+    min_dist_mask = min_dist_mask.at[fixed_mask].set(
+        target_boundary_basal_mask
+    )
     return min_dist_mask
 
 
@@ -131,12 +138,12 @@ class _KnotCtx:
 def _get_knot_ctx(knots, jax_arrays):
     if knots:
         dist_vecs = _calc_knots_to_tutte_centroids_dist_vecs(
-            jax_arrays['all_knots'], jax_arrays['tutte_centroids']
+            jax_arrays["all_knots"], jax_arrays["tutte_centroids"]
         )
         knot_ctx = _KnotCtx(
-            n_left_logits = jax_arrays['left_knots'].shape[0],
-            dist_vecs = dist_vecs,
-            knot_weights = jnp.array([])
+            n_left_logits=jax_arrays["left_knots"].shape[0],
+            dist_vecs=dist_vecs,
+            knot_weights=jnp.array([]),
         )
     else:
         knot_ctx = None
@@ -154,58 +161,104 @@ def _update_knot_ctx(logits, knot_ctx, knots):
     return knot_ctx
 
 
-def _expand_for_broadcasting(outer_shape, segments, final_vertices):
-    outer_shape = outer_shape[None, :, :] # (1, M, 2)
-    segments = segments[None, :, :] # (1, M, 2)
-    final_vertices = final_vertices[:, None, :] # (N, 1, 2)
-    return outer_shape, segments, final_vertices
+def _expand_for_broadcasting(target_boundary, segments, final_vertices):
+    target_boundary = target_boundary[None, :, :]  # (1, M, 2)
+    segments = segments[None, :, :]  # (1, M, 2)
+    final_vertices = final_vertices[:, None, :]  # (N, 1, 2)
+    return target_boundary, segments, final_vertices
 
 
-def _calc_dists_squared(outer_shape, segments, final_vertices):
-    outer_shape, segments, final_vertices = _expand_for_broadcasting(
-        outer_shape, segments, final_vertices
+def _calc_dists_squared(segment_verts, segments, other_boundary_verts):
+    segment_verts, segments, other_boundary_verts = _expand_for_broadcasting(
+        segment_verts, segments, other_boundary_verts
     )
-    dist_vecs = final_vertices - outer_shape # (N, M, 2)
+    dist_vecs = other_boundary_verts - segment_verts  # (N, M, 2)
 
-    denom = jnp.sum(segments * segments, axis=2) # (1, M)
-    t = jnp.sum(dist_vecs * segments, axis=2) / denom # (N, M)
-    t = jax.nn.sigmoid(10.0 * (t - 0.5)) # Instead of clipping to [0, 1]
+    denom = jnp.sum(segments * segments, axis=2)  # (1, M)
+    t = jnp.sum(dist_vecs * segments, axis=2) / denom  # (N, M)
+    t = jax.nn.sigmoid(10.0 * (t - 0.5))  # Instead of clipping to [0, 1]
 
-    projection = outer_shape + t[..., None] * segments # (N, M, 2)
-    dists = jnp.linalg.norm(final_vertices - projection, axis=2) # (N, M)
+    projection = segment_verts + t[..., None] * segments  # (N, M, 2)
+    dists = jnp.linalg.norm(
+        other_boundary_verts - projection, axis=2
+    )  # (N, M)
     dists_squared = dists**2
     return dists_squared
 
 
-def _calc_shape_loss(
-        final_vertices, boundary_mask, outer_shape, outer_shape_segments,
-        min_dist_mask
-    ):
-    dists_squared = _calc_dists_squared(
-        outer_shape, outer_shape_segments, final_vertices
-    )
-    masked_dists = jnp.asarray(jnp.where(min_dist_mask, dists_squared, jnp.inf))
-    min_squared_dists = jnp.min(masked_dists, axis=1)
+def _get_segments(vertices):
+    closed_polygon = jnp.concatenate([vertices, vertices[:1]], axis=0)
+    segments = closed_polygon[1:] - closed_polygon[:-1]
+    return segments
 
-    shape_loss = jnp.sum(min_squared_dists * boundary_mask)
+
+def _calc_mesh_target_loss(
+    first_boundary_vertices,
+    second_boundary_vertices,
+    second_boundary_segments,
+    min_dist_mask,
+):
+    dists_squared = _calc_dists_squared(
+        second_boundary_vertices,
+        second_boundary_segments,
+        first_boundary_vertices,
+    )
+    masked_dists = jnp.asarray(
+        jnp.where(min_dist_mask, dists_squared, jnp.inf)
+    )
+    min_squared_dists = jnp.min(masked_dists, axis=1)
+    target_to_mesh_loss = jnp.mean(min_squared_dists)
+
+    return target_to_mesh_loss
+
+
+def _calc_shape_loss(
+    boundary_vertices,
+    target_boundary,
+    target_boundary_segments,
+    min_dist_mask,
+):
+    mesh_to_target_loss = _calc_mesh_target_loss(
+        boundary_vertices,
+        target_boundary,
+        target_boundary_segments,
+        min_dist_mask,
+    )
+
+    boundary_segments = _get_segments(boundary_vertices)
+    min_dist_mask = min_dist_mask.T
+
+    target_to_mesh_loss = _calc_mesh_target_loss(
+        target_boundary, boundary_vertices, boundary_segments, min_dist_mask
+    )
+
+    shape_loss = mesh_to_target_loss + target_to_mesh_loss
 
     return shape_loss
 
 
 def _loss_fn(
-        logits, knot_ctx, goal_area_bounds, min_dist_mask, n_growth_steps,
-        jax_arrays, params
-    ):
+    logits,
+    knot_ctx,
+    goal_area_bounds,
+    min_dist_mask,
+    n_growth_steps,
+    jax_arrays,
+    params,
+):
     ar_logits, an_logits = logits[:2]
 
     knot_ctx = _update_knot_ctx(logits, knot_ctx, params.knots)
 
     goal_areas = _calc_goal_areas(
-        goal_area_bounds, ar_logits, jax_arrays['proximal_mask'], params.knots,
-        knot_ctx
+        goal_area_bounds,
+        ar_logits,
+        jax_arrays["proximal_mask"],
+        params.knots,
+        knot_ctx,
     )
     goal_anisotropies = _calc_goal_anisotropies(
-        an_logits, jax_arrays['proximal_mask'], params.knots, knot_ctx
+        an_logits, jax_arrays["proximal_mask"], params.knots, knot_ctx
     )
 
     growth_evolution = morphing.iterate(
@@ -213,9 +266,13 @@ def _loss_fn(
     )
     final_vertices = growth_evolution[-1]
 
+    boundary_vertices = final_vertices[jax_arrays["boundary_inds"]]
+
     loss = params.shape_loss_weight * _calc_shape_loss(
-        final_vertices, jax_arrays['boundary_mask'], jax_arrays['outer_shape'],
-        jax_arrays['outer_shape_segments'], min_dist_mask
+        boundary_vertices,
+        jax_arrays["target_boundary"],
+        jax_arrays["target_boundary_segments"],
+        min_dist_mask,
     )
     aux_data = (final_vertices, knot_ctx)
 
@@ -224,7 +281,7 @@ def _loss_fn(
 
 loss_fn = jax.jit(
     jax.value_and_grad(_loss_fn, has_aux=True, argnums=0),
-    static_argnames=['n_growth_steps']
+    static_argnames=["n_growth_steps"],
 )
 
 
@@ -234,7 +291,9 @@ def _calc_knots_to_tutte_centroids_dist_vecs(knots, tutte_centroids):
 
 
 def _find_closest_polygon_by_knots(knots, tutte_centroids):
-    dist_vecs = _calc_knots_to_tutte_centroids_dist_vecs(knots, tutte_centroids)
+    dist_vecs = _calc_knots_to_tutte_centroids_dist_vecs(
+        knots, tutte_centroids
+    )
     dists = jnp.linalg.norm(dist_vecs, axis=2)
     closest_inds = jnp.argmin(dists, axis=0)
     return closest_inds
@@ -242,10 +301,10 @@ def _find_closest_polygon_by_knots(knots, tutte_centroids):
 
 def _calc_std_logits(jax_arrays):
     knots_x_diff = (
-        jax_arrays['center_knots'][0,0] - jax_arrays['left_knots'][-1,0]
+        jax_arrays["center_knots"][0, 0] - jax_arrays["left_knots"][-1, 0]
     )
     knots_y_diff = (
-        jax_arrays['left_knots'][-1,1] - jax_arrays['left_knots'][-2,1]
+        jax_arrays["left_knots"][-1, 1] - jax_arrays["left_knots"][-2, 1]
     )
 
     init_smoothing_stds = jnp.array([knots_x_diff, knots_y_diff])
@@ -270,19 +329,24 @@ def _get_poly_init_logits(tutte_areas, tutte_anisotropies, goal_area_bounds):
 
 
 def _get_knot_init_logits(
-        jax_arrays, tutte_centroids, tutte_areas, tutte_anisotropies,
-        goal_area_bounds
-    ):
-    knot_positions = ['left', 'center']
+    jax_arrays,
+    tutte_centroids,
+    tutte_areas,
+    tutte_anisotropies,
+    goal_area_bounds,
+):
+    knot_positions = ["left", "center"]
     left_and_center_ar_logits = []
     left_and_center_an_logits = []
     for pos in knot_positions:
-        knots = jax_arrays[pos + '_knots']
+        knots = jax_arrays[pos + "_knots"]
         closest_polygon_by_knots = _find_closest_polygon_by_knots(
             knots, tutte_centroids
         )
         closest_poly_areas = tutte_areas[closest_polygon_by_knots]
-        closest_poly_anisotropies = tutte_anisotropies[closest_polygon_by_knots]
+        closest_poly_anisotropies = tutte_anisotropies[
+            closest_polygon_by_knots
+        ]
 
         ar_logits, an_logits = _calc_logits(
             closest_poly_areas, closest_poly_anisotropies, goal_area_bounds
@@ -301,14 +365,17 @@ def _get_knot_init_logits(
 def _get_init_logits(goal_area_bounds, jax_arrays, params):
     if params.knots:
         init_logits = _get_knot_init_logits(
-            jax_arrays, jax_arrays['tutte_centroids'],
-            jax_arrays['tutte_areas'], jax_arrays['tutte_anisotropies'],
-            goal_area_bounds
+            jax_arrays,
+            jax_arrays["tutte_centroids"],
+            jax_arrays["tutte_areas"],
+            jax_arrays["tutte_anisotropies"],
+            goal_area_bounds,
         )
     else:
         init_logits = _get_poly_init_logits(
-            jax_arrays['tutte_areas'], jax_arrays['tutte_anisotropies'],
-            goal_area_bounds
+            jax_arrays["tutte_areas"],
+            jax_arrays["tutte_anisotropies"],
+            goal_area_bounds,
         )
     return init_logits
 
@@ -322,7 +389,7 @@ class _MyOptimizer:
             optax.clip_by_global_norm(1.0),
             optax.scale_by_adam(),
             optax.scale_by_schedule(self._lr_schedule),
-            optax.scale(-1.0)
+            optax.scale(-1.0),
         )
         self._state = self._optimizer.init(params=init_logits)
 
@@ -333,7 +400,7 @@ class _MyOptimizer:
 
 
 @dataclass
-class _BestState:
+class BestState:
     loss: float
     final_vertices: jnp.ndarray
     goal_areas: jnp.ndarray
@@ -349,16 +416,16 @@ def _validate(final_areas):
 
 def _assemble_tabular_output(best):
     tabular_output = {
-        'best_goal_area': best.goal_areas,
-        'best_goal_anisotropy': best.goal_anisotropies,
-        'final_area': best.final_areas,
-        'final_anisotropy': best.final_anisotropies,
+        "best_goal_area": best.goal_areas,
+        "best_goal_anisotropy": best.goal_anisotropies,
+        "final_area": best.final_areas,
+        "final_anisotropy": best.final_anisotropies,
     }
     return tabular_output
 
 
 def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
-    vertices = jax_arrays['init_vertices']
+    vertices = jax_arrays["init_vertices"]
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
 
@@ -366,13 +433,19 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
 
     optimizer = _MyOptimizer(logits)
 
-    best = _BestState(
-        loss = jnp.inf,
-        final_vertices = jnp.array([]),
-        goal_areas = jnp.array([]),
-        goal_anisotropies = jnp.array([]),
-        final_areas = jnp.array([]),
-        final_anisotropies = jnp.array([])
+    poly_metrics = my_utils.PolyMetrics.create(
+        vertices=vertices,
+        indices=jax_arrays["indices"],
+        valid_mask=jax_arrays["valid_mask"],
+    )
+
+    best = BestState(
+        loss=jnp.inf,
+        final_vertices=jnp.array([]),
+        goal_areas=jnp.array([]),
+        goal_anisotropies=jnp.array([]),
+        final_areas=jnp.array([]),
+        final_anisotropies=jnp.array([]),
     )
 
     final_tissues = [vertices]
@@ -380,46 +453,46 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
     steps_since_best_loss = 0
 
     for shape_step in range(params.n_shape_steps):
-        (loss, aux_data), grads = (
-            loss_fn(
-                logits, knot_ctx, goal_area_bounds, min_dist_mask,
-                params.n_growth_steps, jax_arrays, params
-            )
+        (loss, aux_data), grads = loss_fn(
+            logits,
+            knot_ctx,
+            goal_area_bounds,
+            min_dist_mask,
+            params.n_growth_steps,
+            jax_arrays,
+            params,
         )
         vertices, knot_ctx = aux_data
 
         if not params.quiet:
-            print(f'{shape_step}: Shape loss = {loss}')
+            print(f"{shape_step}: Shape loss = {loss}")
 
         ar_logits, an_logits = logits[:2]
 
-        all_cells = my_utils.get_all_cells(vertices, jax_arrays['indices'])
-        final_areas = my_utils.calc_all_areas(
-            all_cells, jax_arrays['valid_mask']
-        )
+        poly_metrics = poly_metrics.update(vertices)
 
-        if loss < best.loss and _validate(final_areas):
+        if loss < best.loss and _validate(poly_metrics.areas):
             best.loss = loss
             steps_since_best_loss = 0
 
             best.final_vertices = vertices
             best.goal_areas = _calc_goal_areas(
-                goal_area_bounds, ar_logits, jax_arrays['proximal_mask'],
-                params.knots, knot_ctx
+                goal_area_bounds,
+                ar_logits,
+                jax_arrays["proximal_mask"],
+                params.knots,
+                knot_ctx,
             )
             best.goal_anisotropies = _calc_goal_anisotropies(
-                an_logits, jax_arrays['proximal_mask'], params.knots,
-                knot_ctx
+                an_logits, jax_arrays["proximal_mask"], params.knots, knot_ctx
             )
 
-            best.final_areas = final_areas
-            best.final_anisotropies = my_utils.calc_anisotropies(
-                all_cells, jax_arrays['valid_mask']
-            )
+            best.final_areas = poly_metrics.areas
+            best.final_anisotropies = poly_metrics.anisotropies
 
             if not params.quiet:
-                print(f'(Stored params with new best loss.)')
-                print('')
+                print("(Stored params with new best loss.)")
+                print("")
         else:
             steps_since_best_loss += 1
 
@@ -427,8 +500,8 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
 
         if steps_since_best_loss >= 20 and best.loss != jnp.inf:
             if not params.quiet:
-                print(f'(Stopped - iteration diverged.)')
-                print('')
+                print("(Stopped - iteration diverged.)")
+                print("")
             break
         else:
             logits = optimizer.update(logits, grads)
@@ -444,7 +517,7 @@ def run(params):
     jax_arrays = my_utils.get_jax_arrays(params)
 
     goal_area_bounds = _calc_goal_area_bounds(
-        jax_arrays['tutte_areas'], params
+        jax_arrays["tutte_areas"], params
     )
 
     init_logits = _get_init_logits(goal_area_bounds, jax_arrays, params)

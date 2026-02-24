@@ -4,7 +4,7 @@ import timeit
 import numpy as np
 from shapely.geometry import Polygon
 
-from .jax_bootstrap import jax, jnp
+from .jax_bootstrap import jax, jnp, struct
 from . import init_systems, shapes, tutte
 
 
@@ -16,7 +16,7 @@ def timer(func):
 
         t_tot = t_end - t_init
 
-        print(f'Total time: {t_tot:.4f} s')
+        print(f"Total time: {t_tot:.4f} s")
         return res
 
     return timed
@@ -35,7 +35,7 @@ def calc_centroids(vertices, indices, valid_mask):
     return centroids
 
 
-def calc_all_areas(all_cells, valid_mask):
+def calc_areas(all_cells, valid_mask):
     xs = all_cells[:, 1:-1, 0]
     y_plus_ones = all_cells[:, 2:, 1]
     y_minus_ones = all_cells[:, :-2, 1]
@@ -70,6 +70,23 @@ def calc_anisotropies(all_cells, valid_mask):
     return anisotropies
 
 
+def calc_masked_cosines(all_cells, valid_mask):
+    edges = all_cells[:, 1:] - all_cells[:, :-1]
+    epsilon = 1e-7
+    norms = jnp.linalg.norm(edges + epsilon, axis=2)
+    dot_products = jnp.sum(edges[:, :-1] * edges[:, 1:], axis=2)
+
+    cosines = dot_products / (epsilon + norms[:, :-1] * norms[:, 1:])
+    clip_value = 1.0 - epsilon
+    cosines = jnp.clip(cosines, -clip_value, clip_value)
+
+    valid = valid_mask[:, 1:] & valid_mask[:, :-1]
+    valid = valid[:, 1:] & valid[:, :-1]
+    masked_cosines = jnp.where(valid, cosines, jnp.nan)
+
+    return masked_cosines
+
+
 def calc_optimal_angles(valid_mask):
     n_vertices = valid_mask.sum(axis=1) - 2
     interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
@@ -78,27 +95,43 @@ def calc_optimal_angles(valid_mask):
     return optimal_angles
 
 
-class InitMetrics:
-    def __init__(self, polygons):
-        self._polygons = polygons
+@struct.dataclass
+class PolyMetrics:
+    _indices: jnp.ndarray = struct.field(pytree_node=True)
+    _valid_mask: jnp.ndarray = struct.field(pytree_node=True)
 
-    @cached_property
-    def _all_cells(self):
-        init_vertices = self._polygons.vertices
-        all_cells = get_all_cells(init_vertices, self._polygons.polygon_inds)
-        return all_cells
+    areas: jnp.ndarray = struct.field(pytree_node=True)
+    anisotropies: jnp.ndarray = struct.field(pytree_node=True)
+    masked_cosines: jnp.ndarray = struct.field(pytree_node=True)
 
-    @cached_property
-    def areas(self):
-        init_areas = calc_all_areas(self._all_cells, self._polygons.valid_mask)
-        return init_areas
+    @classmethod
+    def create(cls, vertices, indices, valid_mask):
+        all_cells = get_all_cells(vertices, indices)
 
-    @cached_property
-    def anisotropies(self):
-        init_anisotropies = calc_anisotropies(
-            self._all_cells, self._polygons.valid_mask
+        areas = calc_areas(all_cells, valid_mask)
+        anisotropies = calc_anisotropies(all_cells, valid_mask)
+        masked_cosines = calc_masked_cosines(all_cells, valid_mask)
+
+        return cls(
+            _indices=indices,
+            _valid_mask=valid_mask,
+            areas=areas,
+            anisotropies=anisotropies,
+            masked_cosines=masked_cosines,
         )
-        return init_anisotropies
+
+    def update(self, vertices):
+        all_cells = get_all_cells(vertices, self._indices)
+
+        areas = calc_areas(all_cells, self._valid_mask)
+        anisotropies = calc_anisotropies(all_cells, self._valid_mask)
+        masked_cosines = calc_masked_cosines(all_cells, self._valid_mask)
+
+        return self.replace(
+            masked_cosines=masked_cosines,
+            areas=areas,
+            anisotropies=anisotropies,
+        )
 
 
 class TutteMetrics:
@@ -108,36 +141,36 @@ class TutteMetrics:
 
     @cached_property
     def vertices(self):
-        outer_shape = shapes.get_outer_shape(
-            self._shape, self._polygons.mesh_area,
-            init_systems.VertexNumbers(self._polygons)
+        target_boundary = shapes.get_target_boundary(
+            self._shape,
+            self._polygons.mesh_area,
+            init_systems.VertexNumbers(self._polygons),
         )
         vertices_ = tutte.get_mapped_vertices(
-            self._polygons.vertices, self._polygons.polygon_inds,
-            self._polygons.boundary_mask, outer_shape.vertices
+            self._polygons.vertices,
+            self._polygons.polygon_inds,
+            self._polygons.boundary_inds,
+            target_boundary.vertices,
         )
         return vertices_
 
     @cached_property
     def _all_cells(self):
-        all_cells = get_all_cells(
-            self.vertices, self._polygons.polygon_inds
-        )
+        all_cells = get_all_cells(self.vertices, self._polygons.polygon_inds)
         return all_cells
 
     @cached_property
     def centroids(self):
         centroids_ = calc_centroids(
-            self.vertices, self._polygons.polygon_inds,
-            self._polygons.valid_mask
+            self.vertices,
+            self._polygons.polygon_inds,
+            self._polygons.valid_mask,
         )
         return centroids_
 
     @cached_property
     def areas(self):
-        areas_ = calc_all_areas(
-            self._all_cells, self._polygons.valid_mask
-        )
+        areas_ = calc_areas(self._all_cells, self._polygons.valid_mask)
         return areas_
 
     @cached_property
@@ -150,38 +183,35 @@ class TutteMetrics:
 
 def calc_proximal_mask(tutte_centroids, proximal_dist):
     y_dists_from_base = (
-        tutte_centroids[:,1] - init_systems.Coords.base_origin[1]
+        tutte_centroids[:, 1] - init_systems.Coords.base_origin[1]
     )
-    proximal_mask = (y_dists_from_base <= proximal_dist)
+    proximal_mask = y_dists_from_base <= proximal_dist
     return proximal_mask
 
 
 def _make_array_dict(
-        polygons, init_metrics, tutte_metrics, outer_shape, proximal_mask,
-        knots
-    ):
+    polygons, tutte_metrics, target_boundary, proximal_mask, knots
+):
     arrays = {
-        'indices': polygons.polygon_inds,
-        'valid_mask': polygons.valid_mask,
-        'init_vertices': polygons.vertices,
-        'poly_neighbors': polygons.poly_neighbors,
-        'vertex_neighbors': polygons.vertex_neighbors,
-        'vertex_polygons': polygons.vertex_polygons,
-        'free_mask': polygons.free_mask,
-        'boundary_mask': polygons.boundary_mask,
-        'init_areas': init_metrics.areas,
-        'init_anisotropies': init_metrics.anisotropies,
-        'tutte_vertices': tutte_metrics.vertices,
-        'tutte_centroids': tutte_metrics.centroids,
-        'tutte_areas': tutte_metrics.areas,
-        'tutte_anisotropies': tutte_metrics.anisotropies,
-        'outer_shape': outer_shape.vertices,
-        'outer_shape_segments': outer_shape.segments,
-        'proximal_mask': proximal_mask,
-        'left_knots': knots.left_knots,
-        'center_knots': knots.center_knots,
-        'right_knots': knots.right_knots,
-        'all_knots': knots.all_knots
+        "indices": polygons.polygon_inds,
+        "valid_mask": polygons.valid_mask,
+        "init_vertices": polygons.vertices,
+        "poly_neighbors": polygons.poly_neighbors,
+        "vertex_neighbors": polygons.vertex_neighbors,
+        "vertex_polygons": polygons.vertex_polygons,
+        "free_mask": polygons.free_mask,
+        "boundary_inds": polygons.boundary_inds,
+        "tutte_vertices": tutte_metrics.vertices,
+        "tutte_centroids": tutte_metrics.centroids,
+        "tutte_areas": tutte_metrics.areas,
+        "tutte_anisotropies": tutte_metrics.anisotropies,
+        "target_boundary": target_boundary.vertices,
+        "target_boundary_segments": target_boundary.segments,
+        "proximal_mask": proximal_mask,
+        "left_knots": knots.left_knots,
+        "center_knots": knots.center_knots,
+        "right_knots": knots.right_knots,
+        "all_knots": knots.all_knots,
     }
     return arrays
 
@@ -189,11 +219,9 @@ def _make_array_dict(
 def get_arrays(params):
     polygons = init_systems.get_system(params.system, params.seed)
 
-    init_metrics = InitMetrics(polygons)
-
     mesh_area = polygons.mesh_area
     vertex_numbers = init_systems.VertexNumbers(polygons)
-    outer_shape = shapes.get_outer_shape(
+    target_boundary = shapes.get_target_boundary(
         params.shape, mesh_area, vertex_numbers
     )
 
@@ -204,13 +232,13 @@ def get_arrays(params):
 
     knots = init_systems.Knots()
     arrays = _make_array_dict(
-        polygons, init_metrics, tutte_metrics, outer_shape, proximal_mask, knots
+        polygons, tutte_metrics, target_boundary, proximal_mask, knots
     )
     return arrays
 
 
 def _get_device():
-    return jax.devices('cpu')[0]
+    return jax.devices("cpu")[0]
 
 
 def _send_to_device(jax_array):
