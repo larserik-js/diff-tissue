@@ -186,35 +186,22 @@ def _calc_dists_squared(segment_verts, segments, other_boundary_verts):
     return dists_squared
 
 
-def _calc_mesh_to_target_loss(
-    boundary_vertices,
-    target_boundary,
-    target_boundary_segments,
-    min_dist_mask,
-):
-    dists_squared = _calc_dists_squared(
-        target_boundary, target_boundary_segments, boundary_vertices
-    )
-    masked_dists = jnp.asarray(
-        jnp.where(min_dist_mask, dists_squared, jnp.inf)
-    )
-    min_squared_dists = jnp.min(masked_dists, axis=1)
-    mesh_to_target_loss = jnp.mean(min_squared_dists)
-
-    return mesh_to_target_loss
-
-
 def _get_segments(vertices):
     closed_polygon = jnp.concatenate([vertices, vertices[:1]], axis=0)
     segments = closed_polygon[1:] - closed_polygon[:-1]
     return segments
 
 
-def _calc_target_to_mesh_loss(
-    boundary_vertices, boundary_segments, target_boundary, min_dist_mask
+def _calc_mesh_target_loss(
+    first_boundary_vertices,
+    second_boundary_vertices,
+    second_boundary_segments,
+    min_dist_mask,
 ):
     dists_squared = _calc_dists_squared(
-        boundary_vertices, boundary_segments, target_boundary
+        second_boundary_vertices,
+        second_boundary_segments,
+        first_boundary_vertices,
     )
     masked_dists = jnp.asarray(
         jnp.where(min_dist_mask, dists_squared, jnp.inf)
@@ -226,15 +213,12 @@ def _calc_target_to_mesh_loss(
 
 
 def _calc_shape_loss(
-    final_vertices,
-    boundary_inds,
+    boundary_vertices,
     target_boundary,
     target_boundary_segments,
     min_dist_mask,
 ):
-    boundary_vertices = final_vertices[boundary_inds]
-
-    mesh_to_target_loss = _calc_mesh_to_target_loss(
+    mesh_to_target_loss = _calc_mesh_target_loss(
         boundary_vertices,
         target_boundary,
         target_boundary_segments,
@@ -243,8 +227,9 @@ def _calc_shape_loss(
 
     boundary_segments = _get_segments(boundary_vertices)
     min_dist_mask = min_dist_mask.T
-    target_to_mesh_loss = _calc_target_to_mesh_loss(
-        boundary_vertices, boundary_segments, target_boundary, min_dist_mask
+
+    target_to_mesh_loss = _calc_mesh_target_loss(
+        target_boundary, boundary_vertices, boundary_segments, min_dist_mask
     )
 
     shape_loss = mesh_to_target_loss + target_to_mesh_loss
@@ -281,9 +266,10 @@ def _loss_fn(
     )
     final_vertices = growth_evolution[-1]
 
+    boundary_vertices = final_vertices[jax_arrays["boundary_inds"]]
+
     loss = params.shape_loss_weight * _calc_shape_loss(
-        final_vertices,
-        jax_arrays["boundary_inds"],
+        boundary_vertices,
         jax_arrays["target_boundary"],
         jax_arrays["target_boundary_segments"],
         min_dist_mask,
