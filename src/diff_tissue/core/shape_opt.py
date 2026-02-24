@@ -186,23 +186,20 @@ def _calc_dists_squared(segment_verts, segments, other_boundary_verts):
 
 
 def _calc_mesh_to_target_loss(
-    final_vertices,
-    boundary_inds,
+    boundary_vertices,
     target_boundary,
     target_boundary_segments,
     min_dist_mask,
 ):
     dists_squared = _calc_dists_squared(
-        target_boundary, target_boundary_segments, final_vertices
+        target_boundary, target_boundary_segments, boundary_vertices
     )
     masked_dists = jnp.asarray(
         jnp.where(min_dist_mask, dists_squared, jnp.inf)
     )
     min_squared_dists = jnp.min(masked_dists, axis=1)
+    mesh_to_target_loss = jnp.mean(min_squared_dists)
 
-    min_squared_boundary_dists = min_squared_dists[boundary_inds]
-
-    mesh_to_target_loss = jnp.mean(min_squared_boundary_dists)
     return mesh_to_target_loss
 
 
@@ -213,18 +210,15 @@ def _get_segments(vertices):
 
 
 def _calc_target_to_mesh_loss(
-    final_vertices, boundary_inds, target_boundary, min_dist_mask
+    boundary_vertices, target_boundary, min_dist_mask
 ):
-    boundary_vertices = final_vertices[boundary_inds]
     boundary_segments = _get_segments(boundary_vertices)
 
     dists_squared = _calc_dists_squared(
         boundary_vertices, boundary_segments, target_boundary
     )
-
-    boundary_min_dist_mask = min_dist_mask[boundary_inds].T
     masked_dists = jnp.asarray(
-        jnp.where(boundary_min_dist_mask, dists_squared, jnp.inf)
+        jnp.where(min_dist_mask, dists_squared, jnp.inf)
     )
     min_squared_dists = jnp.min(masked_dists, axis=1)
     target_to_mesh_loss = jnp.mean(min_squared_dists)
@@ -239,17 +233,21 @@ def _calc_shape_loss(
     target_boundary_segments,
     min_dist_mask,
 ):
+    boundary_vertices = final_vertices[boundary_inds]
+
+    boundary_min_dist_mask = min_dist_mask[boundary_inds]
     mesh_to_target_loss = _calc_mesh_to_target_loss(
-        final_vertices,
-        boundary_inds,
+        boundary_vertices,
         target_boundary,
         target_boundary_segments,
-        min_dist_mask,
+        boundary_min_dist_mask,
     )
 
+    boundary_min_dist_mask = boundary_min_dist_mask.T
     target_to_mesh_loss = _calc_target_to_mesh_loss(
-        final_vertices, boundary_inds, target_boundary, min_dist_mask
+        boundary_vertices, target_boundary, boundary_min_dist_mask
     )
+
     shape_loss = mesh_to_target_loss + target_to_mesh_loss
 
     return shape_loss
