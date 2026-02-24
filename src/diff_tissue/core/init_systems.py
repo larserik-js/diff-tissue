@@ -29,8 +29,7 @@ def sort_counterclockwise(indices, vertices):
     return sorted_poly_inds
 
 
-def get_ccw_boundary_inds(vertices, boundary_mask):
-    boundary_inds = np.where(boundary_mask)[0]
+def get_ccw_boundary_inds(vertices, boundary_inds):
     boundary_vertices = vertices[boundary_inds]
 
     sorted_boundary_inds = sort_counterclockwise(
@@ -58,7 +57,6 @@ class _Polygons(ABC):
 
         self._valid_mask = self._find_valid_mask()
         self._boundary_inds = self._get_boundary_inds()
-        self._boundary_mask = self._get_boundary_mask()
         self._poly_neighbors = self._calc_poly_neighbors()
         self._vertex_neighbors = self._calc_vertex_neighbors()
         self._vertex_polygons = self._calc_vertex_polygons()
@@ -91,11 +89,6 @@ class _Polygons(ABC):
         boundary_inds = np.array(list(boundary_edges)).flatten()
         boundary_inds = np.unique(boundary_inds)
         return boundary_inds
-
-    def _get_boundary_mask(self):
-        boundary_mask = np.zeros(self._vertices.shape[0], dtype=bool)
-        boundary_mask[self._boundary_inds] = True
-        return boundary_mask
 
     @staticmethod
     def _list_of_lists_of_ints_to_padded_array(all_neighbors):
@@ -181,10 +174,6 @@ class _Polygons(ABC):
     @property
     def boundary_inds(self):
         return self._boundary_inds
-
-    @property
-    def boundary_mask(self):
-        return self._boundary_mask
 
     @property
     def poly_neighbors(self):
@@ -697,7 +686,7 @@ class VertexNumbers:
 
     @cached_property
     def boundary(self):
-        n_boundary_vertices = self._polygons.boundary_mask.sum()
+        n_boundary_vertices = len(self._polygons.boundary_inds)
         return n_boundary_vertices
 
     @cached_property

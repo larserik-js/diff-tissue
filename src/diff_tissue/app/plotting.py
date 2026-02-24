@@ -91,7 +91,7 @@ class _Artists:
             self._ax.text(x, y, str(markers[i]), color="r")
 
     def _add_boundary_vertices(self, vertices):
-        boundary_vertices = vertices[self._jax_arrays["boundary_mask"]]
+        boundary_vertices = vertices[self._jax_arrays["boundary_inds"]]
         self._ax.scatter(
             boundary_vertices[:, 0],
             boundary_vertices[:, 1],

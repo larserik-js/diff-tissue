@@ -149,7 +149,7 @@ class TutteMetrics:
         vertices_ = tutte.get_mapped_vertices(
             self._polygons.vertices,
             self._polygons.polygon_inds,
-            self._polygons.boundary_mask,
+            self._polygons.boundary_inds,
             target_boundary.vertices,
         )
         return vertices_
@@ -201,7 +201,6 @@ def _make_array_dict(
         "vertex_polygons": polygons.vertex_polygons,
         "free_mask": polygons.free_mask,
         "boundary_inds": polygons.boundary_inds,
-        "boundary_mask": polygons.boundary_mask,
         "tutte_vertices": tutte_metrics.vertices,
         "tutte_centroids": tutte_metrics.centroids,
         "tutte_areas": tutte_metrics.areas,
