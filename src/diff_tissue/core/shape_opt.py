@@ -400,7 +400,7 @@ class _MyOptimizer:
 
 
 @dataclass
-class _BestState:
+class BestState:
     loss: float
     final_vertices: jnp.ndarray
     goal_areas: jnp.ndarray
@@ -439,7 +439,7 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
         valid_mask=jax_arrays["valid_mask"],
     )
 
-    best = _BestState(
+    best = BestState(
         loss=jnp.inf,
         final_vertices=jnp.array([]),
         goal_areas=jnp.array([]),
