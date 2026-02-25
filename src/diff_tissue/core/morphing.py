@@ -7,10 +7,10 @@ def _calc_areas_loss(target_areas, areas):
     return areas_loss
 
 
-def _calc_angles_loss(masked_cosines, optimal_angles, n_poly_vertices):
+def _calc_angles_loss(masked_cosines, optimal_angles):
     optimal_cosines = jnp.cos(optimal_angles)
     squared_diffs = jnp.square(masked_cosines - optimal_cosines)
-    angles_loss = jnp.nansum(squared_diffs / n_poly_vertices)
+    angles_loss = jnp.nansum(squared_diffs)
     return angles_loss
 
 
@@ -25,7 +25,6 @@ def _calc_growth_loss(
     target_areas,
     target_anisotropies,
     optimal_angles,
-    n_poly_vertices,
     poly_metrics,
     params,
 ):
@@ -35,7 +34,7 @@ def _calc_growth_loss(
         target_areas, poly_metrics.areas
     )
     angles_loss = params.angles_loss_weight * _calc_angles_loss(
-        poly_metrics.masked_cosines, optimal_angles, n_poly_vertices
+        poly_metrics.masked_cosines, optimal_angles
     )
     anisotropies_loss = (
         params.anisotropy_loss_weight
@@ -59,7 +58,6 @@ def _lbfgs_solve(
     target_areas,
     target_anisotropies,
     optimal_angles,
-    n_poly_vertices,
     poly_metrics,
     params,
 ):
@@ -69,7 +67,6 @@ def _lbfgs_solve(
         target_areas,
         target_anisotropies,
         optimal_angles,
-        n_poly_vertices,
         poly_metrics,
         params,
     )
@@ -86,7 +83,6 @@ def _update_vertices(
     init_areas,
     init_anisotropies,
     optimal_angles,
-    n_poly_vertices,
     poly_metrics,
     polygons,
     params,
@@ -102,7 +98,6 @@ def _update_vertices(
         target_areas,
         target_anisotropies,
         optimal_angles,
-        n_poly_vertices,
         poly_metrics,
         params,
     )
@@ -122,9 +117,6 @@ def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
     init_areas = poly_metrics.areas
     init_anisotropies = poly_metrics.anisotropies
     optimal_angles = my_utils.calc_optimal_angles(polygons.valid_mask)
-    n_poly_vertices = my_utils.calc_n_poly_vertices(
-        polygons.valid_mask
-    )[:, None]
 
     def update_step(carry, t):
         vertices, poly_metrics, goal_areas, goal_anisotropies = carry
@@ -137,7 +129,6 @@ def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
             init_areas,
             init_anisotropies,
             optimal_angles,
-            n_poly_vertices,
             poly_metrics,
             polygons,
             params,

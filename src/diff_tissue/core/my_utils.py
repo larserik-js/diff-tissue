@@ -87,13 +87,8 @@ def calc_masked_cosines(all_cells, valid_mask):
     return masked_cosines
 
 
-def calc_n_poly_vertices(valid_mask):
-    n_vertices = valid_mask.sum(axis=1) - 2
-    return n_vertices
-
-
 def calc_optimal_angles(valid_mask):
-    n_vertices = calc_n_poly_vertices(valid_mask)
+    n_vertices = valid_mask.sum(axis=1) - 2
     interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
     optimal_angles = jnp.pi - interior_angles
     optimal_angles = optimal_angles[:, None]
