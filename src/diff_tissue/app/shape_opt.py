@@ -25,10 +25,8 @@ def load_output_params(params):
     return best_goal_areas, best_goal_anisotropies
 
 
-def _plot_final_tissues(
-    final_tissues, output, param_string, jax_arrays, params
-):
-    figure = plotting.MorphFigure(jax_arrays, params)
+def _plot_final_tissues(final_tissues, output, param_string, params):
+    figure = plotting.MorphFigure(params)
 
     for t, vertices in enumerate(final_tissues):
         if t % 10 == 0:
@@ -65,10 +63,7 @@ def plot_final_tissues(params, output):
 
         io_utils.save_pkl(cache_path, final_tissues)
 
-    jax_arrays = my_utils.get_jax_arrays(params)
-    _plot_final_tissues(
-        final_tissues, output, param_string, jax_arrays, params
-    )
+    _plot_final_tissues(final_tissues, output, param_string, params)
 
 
 def get_best_growth_evolution(
@@ -89,10 +84,8 @@ def get_best_growth_evolution(
     return best_growth_evolution
 
 
-def plot_best_growth(
-    growth_evolution, output, param_string, jax_arrays, params
-):
-    figure = plotting.MorphGrowthFigure(jax_arrays, params)
+def plot_best_growth(growth_evolution, output, param_string, params):
+    figure = plotting.MorphGrowthFigure(params)
 
     for t, vertices in enumerate(growth_evolution):
         if t % 10 == 0:

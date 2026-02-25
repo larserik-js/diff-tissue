@@ -14,17 +14,17 @@ def _get_polygons(vertices, indices, valid_mask):
 
 
 class _Artists:
-    def __init__(self, ax, target_boundary, all_knots, jax_arrays, params):
+    def __init__(self, ax, polygons, target_boundary, all_knots, params):
         self._ax = ax
+        self._polygons = polygons
         self._target_boundary = target_boundary
-        self._jax_arrays = jax_arrays
-        self._ax_lims = self._get_ax_lims()
         self._all_knots = all_knots
         self._params = params
+        self._ax_lims = self._get_ax_lims()
 
     def _get_ax_lims(self):
         all_plotted_vertices = np.vstack(
-            [self._jax_arrays["init_vertices"], self._target_boundary]
+            [self._polygons.vertices, self._target_boundary]
         )
         minvals = all_plotted_vertices.min(axis=0)
         maxvals = all_plotted_vertices.max(axis=0)
@@ -67,8 +67,8 @@ class _Artists:
     def _add_vertices(self, vertices):
         polygons = _get_polygons(
             vertices,
-            self._jax_arrays["indices"],
-            self._jax_arrays["valid_mask"],
+            self._polygons.polygon_inds,
+            self._polygons.valid_mask,
         )
         for polygon_ in polygons:
             polygon = polygon_[:-1]  # Removes redundant point
@@ -82,15 +82,15 @@ class _Artists:
     def _enumerate_centroids(self, vertices):
         centroids = my_utils.calc_centroids(
             vertices,
-            self._jax_arrays["indices"],
-            self._jax_arrays["valid_mask"],
+            self._polygons.polygon_inds,
+            self._polygons.valid_mask,
         )
         markers = np.arange(centroids.shape[0])
         for i, (x, y) in enumerate(centroids):
             self._ax.text(x, y, str(markers[i]), color="r")
 
     def _add_boundary_vertices(self, vertices):
-        boundary_vertices = vertices[self._jax_arrays["boundary_inds"]]
+        boundary_vertices = vertices[self._polygons.boundary_inds]
         self._ax.scatter(
             boundary_vertices[:, 0],
             boundary_vertices[:, 1],
@@ -142,14 +142,14 @@ class _Figure:
 
 
 class MorphFigure(_Figure):
-    def __init__(self, jax_arrays, params):
+    def __init__(self, params):
         super().__init__(params)
         self._fig, ax = plt.subplots(figsize=(10, 10))
         self._morph_artists = _Artists(
             ax,
+            self._polygons,
             self._closed_target_boundary,
             self._all_knots,
-            jax_arrays,
             params,
         )
 
@@ -159,7 +159,7 @@ class MorphFigure(_Figure):
 
 
 class MorphGrowthFigure(_Figure):
-    def __init__(self, jax_arrays, params):
+    def __init__(self, params):
         super().__init__(params)
         self._total_steps = params.n_growth_steps
         self._scale = params.growth_scale
@@ -175,17 +175,17 @@ class MorphGrowthFigure(_Figure):
         ax0 = self._fig.add_subplot(self._gs[0])
         self._morph_artists = _Artists(
             ax0,
+            self._polygons,
             self._closed_target_boundary,
             self._all_knots,
-            jax_arrays,
             params,
         )
         ax1 = self._fig.add_subplot(self._gs[1:])
         self._growth_artists = _Artists(
             ax1,
+            self._polygons,
             self._scaled_target_boundary,
             self._scaled_knots,
-            jax_arrays,
             params,
         )
 

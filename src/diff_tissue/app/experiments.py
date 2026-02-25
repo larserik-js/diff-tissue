@@ -20,9 +20,7 @@ def run_morphing(params, base_dir=OUTPUT_DIR):
         cache_path, jax_arrays, params
     )
 
-    morphing.save_figs(
-        growth_evolution, output, param_string, jax_arrays, params
-    )
+    morphing.save_figs(growth_evolution, output, param_string, params)
 
 
 def run_shape_opt(params, base_dir=OUTPUT_DIR):
@@ -45,7 +43,7 @@ def run_shape_opt(params, base_dir=OUTPUT_DIR):
     )
 
     shape_opt_app.plot_best_growth(
-        best_growth_evolution, output, param_string, jax_arrays, params
+        best_growth_evolution, output, param_string, params
     )
 
 

@@ -42,7 +42,7 @@ def _assign_weighted_goals(old_polygons, goals, new_polygons):
 
 def plot(results, params, output):
     param_string = parameters.get_param_string(params)
-    figure = plotting.MorphFigure(results.new_jax_arrays, results.new_params)
+    figure = plotting.MorphFigure(results.new_params)
     for t, vertices in enumerate(results.growth_evolution):
         if t % 10 == 0:
             fig_path = output.file_path(param_string, f"step={t:03d}.png")
@@ -54,7 +54,6 @@ def plot(results, params, output):
 @dataclass
 class _Results:
     growth_evolution: jnp.ndarray
-    new_jax_arrays: dict
     new_params: parameters.Params
 
 
@@ -99,7 +98,6 @@ def run(params, output):
 
     results = _Results(
         growth_evolution=growth_evolution,
-        new_jax_arrays=new_jax_arrays,
         new_params=new_params,
     )
 

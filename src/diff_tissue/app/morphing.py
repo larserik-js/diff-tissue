@@ -7,8 +7,8 @@ from . import io_utils, plotting
 OUTPUT_TYPE_DIR = "morphing"
 
 
-def save_figs(growth_evolution, output, param_string, jax_arrays, params):
-    figure = plotting.MorphFigure(jax_arrays, params)
+def save_figs(growth_evolution, output, param_string, params):
+    figure = plotting.MorphFigure(params)
 
     for t, vertices in enumerate(growth_evolution):
         if t % 10 == 0:
