@@ -1,8 +1,10 @@
+from functools import cached_property
+
 from matplotlib import gridspec
 from matplotlib import pyplot as plt
 import numpy as np
 
-from ..core import init_systems, my_utils
+from ..core import init_systems, my_utils, shapes
 
 
 def _get_polygons(vertices, indices, valid_mask):
@@ -12,20 +14,17 @@ def _get_polygons(vertices, indices, valid_mask):
 
 
 class _Artists:
-    def __init__(
-        self, ax, init_vertices, target_boundary, all_knots, jax_arrays, params
-    ):
+    def __init__(self, ax, target_boundary, all_knots, jax_arrays, params):
         self._ax = ax
-        self._init_vertices = init_vertices
         self._target_boundary = target_boundary
+        self._jax_arrays = jax_arrays
         self._ax_lims = self._get_ax_lims()
         self._all_knots = all_knots
-        self._jax_arrays = jax_arrays
         self._params = params
 
     def _get_ax_lims(self):
         all_plotted_vertices = np.vstack(
-            [self._init_vertices, self._target_boundary]
+            [self._jax_arrays["init_vertices"], self._target_boundary]
         )
         minvals = all_plotted_vertices.min(axis=0)
         maxvals = all_plotted_vertices.max(axis=0)
@@ -118,6 +117,11 @@ class _Artists:
 
 
 class _Figure:
+    def __init__(self, params):
+        self._params = params
+        self._polygons = init_systems.get_system(params.system, params.seed)
+        self._all_knots = init_systems.Knots().all_knots
+
     @staticmethod
     def _close(target_boundary):
         closed_target_boundary = np.vstack(
@@ -125,22 +129,26 @@ class _Figure:
         )
         return closed_target_boundary
 
+    @cached_property
+    def _closed_target_boundary(self):
+        vertex_numbers = init_systems.VertexNumbers(self._polygons)
+        target_boundary = shapes.get_target_boundary(
+            self._params.shape, self._polygons.mesh_area, vertex_numbers
+        ).vertices
+        return self._close(target_boundary)
+
     def _save(self, fig_path):
         self._fig.savefig(fig_path, dpi=100)
 
 
 class MorphFigure(_Figure):
     def __init__(self, jax_arrays, params):
+        super().__init__(params)
         self._fig, ax = plt.subplots(figsize=(10, 10))
-        self._init_vertices = jax_arrays["init_vertices"]
-        self._closed_target_boundary = self._close(
-            jax_arrays["target_boundary"]
-        )
         self._morph_artists = _Artists(
             ax,
-            self._init_vertices,
             self._closed_target_boundary,
-            jax_arrays["all_knots"],
+            self._all_knots,
             jax_arrays,
             params,
         )
@@ -152,26 +160,21 @@ class MorphFigure(_Figure):
 
 class MorphGrowthFigure(_Figure):
     def __init__(self, jax_arrays, params):
+        super().__init__(params)
         self._total_steps = params.n_growth_steps
         self._scale = params.growth_scale
         self._fig = plt.figure(figsize=(8, 10))
         self._gs = gridspec.GridSpec(
             nrows=2, ncols=1, figure=self._fig, height_ratios=[0.8, 1.0]
         )
-        self._init_vertices = jax_arrays["init_vertices"]
-        self._closed_target_boundary = self._close(
-            jax_arrays["target_boundary"]
-        )
         self._scaled_target_boundary = (
             self._scale * self._closed_target_boundary
         )
-        self._all_knots = jax_arrays["all_knots"]
         self._scaled_knots = self._scale * self._all_knots
 
         ax0 = self._fig.add_subplot(self._gs[0])
         self._morph_artists = _Artists(
             ax0,
-            self._init_vertices,
             self._closed_target_boundary,
             self._all_knots,
             jax_arrays,
@@ -180,7 +183,6 @@ class MorphGrowthFigure(_Figure):
         ax1 = self._fig.add_subplot(self._gs[1:])
         self._growth_artists = _Artists(
             ax1,
-            self._init_vertices,
             self._scaled_target_boundary,
             self._scaled_knots,
             jax_arrays,
