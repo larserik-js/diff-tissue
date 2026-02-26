@@ -12,30 +12,30 @@ OUTPUT_TYPE_DIR = "learned_growth"
 
 
 def _assign_weighted_goals(old_polygons, goals, new_polygons):
-    new_goals = []
+    new_goals_list = []
 
     for new_poly in new_polygons:
-        inter_areas = []
-        goals_ = []
+        inter_areas_list = []
+        goals_list = []
 
         for old_poly, goal in zip(old_polygons, goals):
             inter = new_poly.intersection(old_poly)
             if not inter.is_empty:
-                inter_areas.append(inter.area)
-                goals_.append(goal)
+                inter_areas_list.append(inter.area)
+                goals_list.append(goal)
 
-        goals_ = np.array(goals_)
-        inter_areas = np.array(inter_areas)
+        goals_ = np.array(goals_list)
+        inter_areas = np.array(inter_areas_list)
         total_inter_area = inter_areas.sum()
         weights = inter_areas / total_inter_area
 
         if np.isclose(total_inter_area, 0.0):
-            new_goals.append(0.0)
+            new_goals_list.append(0.0)
         else:
             new_goal = np.sum(weights * goals_)
-            new_goals.append(new_goal)
+            new_goals_list.append(new_goal)
 
-    new_goals = jnp.array(new_goals)
+    new_goals = jnp.array(new_goals_list)
 
     return new_goals
 
