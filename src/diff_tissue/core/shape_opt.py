@@ -293,14 +293,14 @@ def _loss_fn(
 
     boundary_vertices = final_vertices[jax_arrays["boundary_inds"]]
 
+    poly_metrics = my_utils.update_poly_metrics(poly_metrics, final_vertices)
+
     shape_loss = params.shape_loss_weight * _calc_shape_loss(
         boundary_vertices,
         jax_arrays["target_boundary"],
         jax_arrays["target_boundary_segments"],
         min_dist_mask,
     )
-
-    poly_metrics = poly_metrics.update(final_vertices)
 
     poly_id_loss = params.poly_id_loss_weight * _calc_poly_id_loss(
         poly_ids, poly_metrics
