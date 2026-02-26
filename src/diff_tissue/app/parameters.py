@@ -1,6 +1,7 @@
 import argparse
 from dataclasses import fields
 from functools import cached_property
+from typing import Any
 
 from ..core.jax_bootstrap import struct
 
@@ -100,6 +101,9 @@ class Params:
             "cli_flag": "seed",
         },
     )
+
+    def replace(self, **kwargs: Any) -> "Params":
+        return self  # only for mypy, Flax runtime will override
 
 
 def get_params_from_cli():
