@@ -230,12 +230,21 @@ def _calc_area_id_loss(poly_metrics, poly_ids):
     proximal_areas = poly_metrics.areas[poly_ids.proximal_inds]
     distal_areas = poly_metrics.areas[poly_ids.distal_inds]
 
-    proximal_to_distal_scale = 1.5
-    area_loss = jnp.mean(
+    proximal_to_distal_scale = 2.0
+
+    proximal_loss = jnp.mean(
         jnp.square(
             proximal_areas - proximal_to_distal_scale * jnp.mean(distal_areas)
         )
     )
+    distal_loss = jnp.mean(
+        jnp.square(
+            distal_areas - jnp.mean(proximal_areas) / proximal_to_distal_scale
+        )
+    )
+
+    area_loss = proximal_loss + distal_loss
+
     return area_loss
 
 
@@ -247,9 +256,16 @@ def _calc_anisotropy_id_loss(poly_metrics, poly_ids):
     t = 1.0
     target_anisotropy = (1.0 - t) * jnp.mean(distal_anisotropies) + t * 1.0
 
-    anisotropy_loss = jnp.mean(
+    proximal_loss = jnp.mean(
         jnp.square(proximal_anisotropies - target_anisotropy)
     )
+
+    # Interpolation between the proximal mean and 0.0
+    t = 1.0
+    target_anisotropy = (1.0 - t) * jnp.mean(proximal_anisotropies)
+    distal_loss = jnp.mean(jnp.square(distal_anisotropies - target_anisotropy))
+
+    anisotropy_loss = proximal_loss + distal_loss
 
     return anisotropy_loss
 
