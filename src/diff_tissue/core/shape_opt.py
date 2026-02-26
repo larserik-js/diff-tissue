@@ -271,10 +271,13 @@ def _calc_anisotropy_id_loss(poly_metrics, poly_ids):
 
 
 def _calc_poly_id_loss(poly_ids, poly_metrics):
-    area_loss = _calc_area_id_loss(poly_metrics, poly_ids)
-    anisotropy_loss = _calc_anisotropy_id_loss(poly_metrics, poly_ids)
+    if poly_ids is None:
+        return 0.0
+    else:
+        area_loss = _calc_area_id_loss(poly_metrics, poly_ids)
+        anisotropy_loss = _calc_anisotropy_id_loss(poly_metrics, poly_ids)
 
-    poly_id_loss = area_loss + anisotropy_loss
+        poly_id_loss = area_loss + anisotropy_loss
 
     return poly_id_loss
 

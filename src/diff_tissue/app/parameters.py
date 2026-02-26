@@ -75,18 +75,19 @@ class Params:
         pytree_node=True,
         metadata={"help": "Shape loss weight.", "cli_flag": "slw"},
     )
+    poly_id_configuration: int = struct.field(
+        default=0,
+        pytree_node=False,
+        metadata={
+            "help": ("Polygon identity configuration."),
+            "choices": [0, 1],
+            "cli_flag": "id",
+        },
+    )
     poly_id_loss_weight: float = struct.field(
         default=1.0,
         pytree_node=True,
         metadata={"help": "Poly identity loss weight.", "cli_flag": "ilw"},
-    )
-    proximal_dist: float = struct.field(
-        default=0.0,
-        pytree_node=True,
-        metadata={
-            "help": "Distance from base for proximal polygons.",
-            "cli_flag": "pd",
-        },
     )
     max_area_scaling: float = struct.field(
         default=1.0,
