@@ -1,7 +1,9 @@
+from abc import ABC, abstractmethod
 from functools import cached_property
 
 from matplotlib import gridspec
 from matplotlib import pyplot as plt
+from matplotlib import figure as matplotlib_figure
 import numpy as np
 
 from ..core import init_systems, my_utils, shapes
@@ -116,11 +118,17 @@ class _Artists:
         self._add_artists(vertices, enumerate)
 
 
-class _Figure:
+class _Figure(ABC):
     def __init__(self, params):
         self._params = params
         self._polygons = init_systems.get_system(params.system, params.seed)
         self._all_knots = init_systems.Knots().all_knots
+        self._fig: matplotlib_figure.Figure
+        self._init_figure()
+
+    @abstractmethod
+    def _init_figure(self):
+        pass
 
     @staticmethod
     def _close(target_boundary):
@@ -144,7 +152,7 @@ class _Figure:
 class MorphFigure(_Figure):
     def __init__(self, params):
         super().__init__(params)
-        self._fig, ax = plt.subplots(figsize=(10, 10))
+        ax = self._fig.add_subplot(111)
         self._morph_artists = _Artists(
             ax,
             self._polygons,
@@ -152,6 +160,9 @@ class MorphFigure(_Figure):
             self._all_knots,
             params,
         )
+
+    def _init_figure(self):
+        self._fig = plt.figure(figsize=(10, 10))
 
     def save_plot(self, vertices, fig_path, enumerate=False):
         self._morph_artists.plot(vertices, enumerate)
@@ -163,7 +174,6 @@ class MorphGrowthFigure(_Figure):
         super().__init__(params)
         self._total_steps = params.n_growth_steps
         self._scale = params.growth_scale
-        self._fig = plt.figure(figsize=(8, 10))
         self._gs = gridspec.GridSpec(
             nrows=2, ncols=1, figure=self._fig, height_ratios=[0.8, 1.0]
         )
@@ -188,6 +198,9 @@ class MorphGrowthFigure(_Figure):
             self._scaled_knots,
             params,
         )
+
+    def _init_figure(self):
+        self._fig = plt.figure(figsize=(8, 10))
 
     def _scale_vertices(self, vertices, step):
         t_frac = step / self._total_steps
