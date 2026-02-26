@@ -5,7 +5,7 @@ from typing import cast
 from diff_tissue.app import parameters
 
 from .jax_bootstrap import jax, jnp, struct
-from . import init_systems, morphing, my_utils
+from . import init_systems, morphing, my_utils, poly_identities
 
 
 def _calc_sigmoid(min_val, max_val, logits):
@@ -534,7 +534,7 @@ def _iterate_towards_shape(
         valid_mask=jax_arrays["valid_mask"],
     )
 
-    poly_ids = my_utils.get_poly_identities(params)
+    poly_ids = poly_identities.get_poly_identities(params)
 
     sim_states = _SimStates()
 
