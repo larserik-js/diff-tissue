@@ -10,6 +10,7 @@ dependencies = [
     "jaxlib>=0.5.1",
     "jaxopt>=0.8.5",
     "matplotlib>=3.10.1",
+    "mypy>=1.19.1",
     "numpy>=2.2.3",
     "optax>=0.2.4",
     "optuna>=4.6.0",
@@ -33,3 +34,9 @@ line-length = 79
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.mypy]
+python_version = 3.12
+check_untyped_defs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
