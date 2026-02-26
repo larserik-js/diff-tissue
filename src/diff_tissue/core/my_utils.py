@@ -97,41 +97,48 @@ def calc_optimal_angles(valid_mask):
 
 @struct.dataclass
 class PolyMetrics:
-    _indices: jnp.ndarray = struct.field(pytree_node=True)
-    _valid_mask: jnp.ndarray = struct.field(pytree_node=True)
+    _indices: jnp.ndarray
+    _valid_mask: jnp.ndarray
+    areas: jnp.ndarray
+    anisotropies: jnp.ndarray
+    masked_cosines: jnp.ndarray
 
-    areas: jnp.ndarray = struct.field(pytree_node=True)
-    anisotropies: jnp.ndarray = struct.field(pytree_node=True)
-    masked_cosines: jnp.ndarray = struct.field(pytree_node=True)
 
-    @classmethod
-    def create(cls, vertices, indices, valid_mask):
-        all_cells = get_all_cells(vertices, indices)
+def _calc_poly_metrics(vertices, indices, valid_mask):
+    all_cells = get_all_cells(vertices, indices)
 
-        areas = calc_areas(all_cells, valid_mask)
-        anisotropies = calc_anisotropies(all_cells, valid_mask)
-        masked_cosines = calc_masked_cosines(all_cells, valid_mask)
+    areas = calc_areas(all_cells, valid_mask)
+    anisotropies = calc_anisotropies(all_cells, valid_mask)
+    masked_cosines = calc_masked_cosines(all_cells, valid_mask)
 
-        return cls(
-            _indices=indices,
-            _valid_mask=valid_mask,
-            areas=areas,
-            anisotropies=anisotropies,
-            masked_cosines=masked_cosines,
-        )
+    return areas, anisotropies, masked_cosines
 
-    def update(self, vertices):
-        all_cells = get_all_cells(vertices, self._indices)
 
-        areas = calc_areas(all_cells, self._valid_mask)
-        anisotropies = calc_anisotropies(all_cells, self._valid_mask)
-        masked_cosines = calc_masked_cosines(all_cells, self._valid_mask)
+def initialize_poly_metrics(vertices, indices, valid_mask):
+    areas, anisotropies, masked_cosines = _calc_poly_metrics(
+        vertices, indices, valid_mask
+    )
 
-        return self.replace(
-            masked_cosines=masked_cosines,
-            areas=areas,
-            anisotropies=anisotropies,
-        )
+    return PolyMetrics(
+        _indices=indices,
+        _valid_mask=valid_mask,
+        areas=areas,
+        anisotropies=anisotropies,
+        masked_cosines=masked_cosines,
+    )
+
+
+def update_poly_metrics(poly_metrics, vertices):
+    areas, anisotropies, masked_cosines = _calc_poly_metrics(
+        vertices, poly_metrics._indices, poly_metrics._valid_mask
+    )
+
+    poly_metrics = poly_metrics.replace(
+        areas=areas,
+        anisotropies=anisotropies,
+        masked_cosines=masked_cosines,
+    )
+    return poly_metrics
 
 
 class TutteMetrics:

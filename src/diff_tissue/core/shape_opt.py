@@ -95,19 +95,6 @@ def _calc_goal_anisotropies(an_logits, proximal_mask, knots, knot_ctx):
     return goal_anisotropies
 
 
-def _calc_knot_weights(std_logits, dist_vecs):
-    smoothing_stds = _calc_smoothing_stds(std_logits)
-    knot_weights = jnp.exp(
-        -jnp.sum(
-            dist_vecs**2 / (2 * smoothing_stds[None, None, :] ** 2), axis=2
-        )
-    )
-    knot_weights += 1e-8
-    knot_weights = knot_weights / jnp.sum(knot_weights, axis=1)[:, None]
-
-    return knot_weights
-
-
 def _make_min_dist_mask(jax_arrays):
     min_dist_mask = jnp.ones(
         (
@@ -149,6 +136,19 @@ def _get_knot_ctx(knots, jax_arrays):
         knot_ctx = None
 
     return knot_ctx
+
+
+def _calc_knot_weights(std_logits, dist_vecs):
+    smoothing_stds = _calc_smoothing_stds(std_logits)
+    knot_weights = jnp.exp(
+        -jnp.sum(
+            dist_vecs**2 / (2 * smoothing_stds[None, None, :] ** 2), axis=2
+        )
+    )
+    knot_weights += 1e-8
+    knot_weights = knot_weights / jnp.sum(knot_weights, axis=1)[:, None]
+
+    return knot_weights
 
 
 def _update_knot_ctx(logits, knot_ctx, knots):
@@ -433,7 +433,7 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
 
     optimizer = _MyOptimizer(logits)
 
-    poly_metrics = my_utils.PolyMetrics.create(
+    poly_metrics = my_utils.initialize_poly_metrics(
         vertices=vertices,
         indices=jax_arrays["indices"],
         valid_mask=jax_arrays["valid_mask"],
@@ -469,7 +469,7 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
 
         ar_logits, an_logits = logits[:2]
 
-        poly_metrics = poly_metrics.update(vertices)
+        poly_metrics = my_utils.update_poly_metrics(poly_metrics, vertices)
 
         if loss < best.loss and _validate(poly_metrics.areas):
             best.loss = loss

@@ -28,7 +28,7 @@ def _calc_growth_loss(
     poly_metrics,
     params,
 ):
-    poly_metrics = poly_metrics.update(vertices)
+    poly_metrics = my_utils.update_poly_metrics(poly_metrics, vertices)
 
     areas_loss = params.areas_loss_weight * _calc_areas_loss(
         target_areas, poly_metrics.areas
@@ -111,8 +111,10 @@ def _update_vertices(
 def iterate(goal_areas, goal_anisotropies, n_steps, jax_arrays, params):
     init_vertices = jax_arrays["init_vertices"]
 
-    poly_metrics = my_utils.PolyMetrics.create(
-        init_vertices, jax_arrays["indices"], jax_arrays["valid_mask"]
+    poly_metrics = my_utils.initialize_poly_metrics(
+        vertices=init_vertices,
+        indices=jax_arrays["indices"],
+        valid_mask=jax_arrays["valid_mask"],
     )
     init_areas = poly_metrics.areas
     init_anisotropies = poly_metrics.anisotropies

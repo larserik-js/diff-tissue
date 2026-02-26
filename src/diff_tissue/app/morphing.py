@@ -22,10 +22,10 @@ jiterate = jax.jit(morphing_core.iterate, static_argnames=["n_steps"])
 
 
 def _morph(jax_arrays, params):
-    poly_metrics = my_utils.PolyMetrics.create(
-        jax_arrays["init_vertices"],
-        jax_arrays["indices"],
-        jax_arrays["valid_mask"],
+    poly_metrics = my_utils.initialize_poly_metrics(
+        vertices=jax_arrays["init_vertices"],
+        indices=jax_arrays["indices"],
+        valid_mask=jax_arrays["valid_mask"],
     )
     init_areas = poly_metrics.areas
 
