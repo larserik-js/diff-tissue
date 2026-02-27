@@ -409,6 +409,16 @@ class _MyOptimizer:
 
 
 @dataclass
+class _SimState:
+    loss_vals: list[float] = []
+    final_vertices: list[jnp.ndarray] = []
+    goal_areas: list[jnp.ndarray] = []
+    goal_anisotropies: list[jnp.ndarray] = []
+    final_areas: list[jnp.ndarray] = []
+    final_anisotropies: list[jnp.ndarray] = []
+
+
+@dataclass
 class BestState:
     loss: float
     final_vertices: jnp.ndarray
@@ -453,6 +463,8 @@ def _iterate_towards_shape(
         valid_mask=jax_arrays["valid_mask"],
     )
 
+    sim_state = _SimState()
+
     best = BestState(
         loss=jnp.inf,
         final_vertices=jnp.array([]),
@@ -479,6 +491,13 @@ def _iterate_towards_shape(
         vertices, goal_areas, goal_anisotropies, knot_ctx = aux_data
 
         poly_metrics = my_utils.update_poly_metrics(poly_metrics, vertices)
+
+        sim_state.loss_vals.append(loss)
+        sim_state.final_vertices.append(vertices)
+        sim_state.goal_areas.append(goal_areas)
+        sim_state.goal_anisotropies.append(goal_anisotropies)
+        sim_state.final_areas.append(poly_metrics.areas)
+        sim_state.final_anisotropies.append(poly_metrics.anisotropies)
 
         if not params.quiet:
             print(f"{shape_step}: Shape loss = {loss}")
