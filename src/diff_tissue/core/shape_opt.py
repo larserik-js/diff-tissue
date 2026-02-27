@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import optax
 from typing import cast
 
@@ -409,13 +409,14 @@ class _MyOptimizer:
 
 
 @dataclass
-class _SimState:
-    loss_vals: list[float] = []
-    final_vertices: list[jnp.ndarray] = []
-    goal_areas: list[jnp.ndarray] = []
-    goal_anisotropies: list[jnp.ndarray] = []
-    final_areas: list[jnp.ndarray] = []
-    final_anisotropies: list[jnp.ndarray] = []
+class _SimStates:
+    loss_vals: list[float] = field(default_factory=list)
+    valid: list[bool] = field(default_factory=list)
+    final_vertices: list[jnp.ndarray] = field(default_factory=list)
+    goal_areas: list[jnp.ndarray] = field(default_factory=list)
+    goal_anisotropies: list[jnp.ndarray] = field(default_factory=list)
+    final_areas: list[jnp.ndarray] = field(default_factory=list)
+    final_anisotropies: list[jnp.ndarray] = field(default_factory=list)
 
 
 @dataclass
@@ -428,8 +429,31 @@ class BestState:
     final_anisotropies: jnp.ndarray
 
 
+def _get_valid_best_idx(sim_state):
+    masked_loss_vals = jnp.asarray(
+        jnp.where(
+            jnp.array(sim_state.valid), jnp.array(sim_state.loss_vals), jnp.inf
+        )
+    )
+    best_index = jnp.argmin(masked_loss_vals)
+    return best_index
+
+
+def _get_best_state(sim_state):
+    best_index = _get_valid_best_idx(sim_state)
+    best = BestState(
+        loss=sim_state.loss_vals[best_index],
+        final_vertices=sim_state.final_vertices[best_index],
+        goal_areas=sim_state.goal_areas[best_index],
+        goal_anisotropies=sim_state.goal_anisotropies[best_index],
+        final_areas=sim_state.final_areas[best_index],
+        final_anisotropies=sim_state.final_anisotropies[best_index],
+    )
+    return best
+
+
 def _validate(final_areas):
-    all_areas_positive = ~jnp.any(final_areas < 0.0)
+    all_areas_positive = bool(~jnp.any(final_areas < 0.0))
     return all_areas_positive
 
 
@@ -448,7 +472,7 @@ def _iterate_towards_shape(
     goal_area_bounds: tuple,
     jax_arrays: dict,
     params: parameters.Params,
-) -> tuple:
+) -> _SimStates:
     vertices = jax_arrays["init_vertices"]
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
@@ -463,19 +487,9 @@ def _iterate_towards_shape(
         valid_mask=jax_arrays["valid_mask"],
     )
 
-    sim_state = _SimState()
+    sim_states = _SimStates()
 
-    best = BestState(
-        loss=jnp.inf,
-        final_vertices=jnp.array([]),
-        goal_areas=jnp.array([]),
-        goal_anisotropies=jnp.array([]),
-        final_areas=jnp.array([]),
-        final_anisotropies=jnp.array([]),
-    )
-
-    final_tissues_list = [vertices]
-
+    best_loss = jnp.inf
     steps_since_best_loss = 0
 
     for shape_step in range(params.n_shape_steps):
@@ -492,35 +506,30 @@ def _iterate_towards_shape(
 
         poly_metrics = my_utils.update_poly_metrics(poly_metrics, vertices)
 
-        sim_state.loss_vals.append(loss)
-        sim_state.final_vertices.append(vertices)
-        sim_state.goal_areas.append(goal_areas)
-        sim_state.goal_anisotropies.append(goal_anisotropies)
-        sim_state.final_areas.append(poly_metrics.areas)
-        sim_state.final_anisotropies.append(poly_metrics.anisotropies)
+        sim_states.loss_vals.append(loss)
+        sim_states.final_vertices.append(vertices)
+        sim_states.goal_areas.append(goal_areas)
+        sim_states.goal_anisotropies.append(goal_anisotropies)
+        sim_states.final_areas.append(poly_metrics.areas)
+        sim_states.final_anisotropies.append(poly_metrics.anisotropies)
 
         if not params.quiet:
             print(f"{shape_step}: Shape loss = {loss}")
 
-        if loss < best.loss and _validate(poly_metrics.areas):
-            best.loss = loss
+        valid_sim = _validate(poly_metrics.areas)
+        sim_states.valid.append(valid_sim)
+
+        if loss < best_loss and valid_sim:
+            best_loss = loss
             steps_since_best_loss = 0
 
-            best.final_vertices = vertices
-            best.goal_areas = goal_areas
-            best.goal_anisotropies = goal_anisotropies
-            best.final_areas = poly_metrics.areas
-            best.final_anisotropies = poly_metrics.anisotropies
-
             if not params.quiet:
-                print("(Stored params with new best loss.)")
+                print("(New best loss.)")
                 print("")
         else:
             steps_since_best_loss += 1
 
-        final_tissues_list.append(vertices)
-
-        if steps_since_best_loss >= 20 and best.loss != jnp.inf:
+        if steps_since_best_loss >= 20 and best_loss != jnp.inf:
             if not params.quiet:
                 print("(Stopped - iteration diverged.)")
                 print("")
@@ -528,11 +537,7 @@ def _iterate_towards_shape(
         else:
             logits = optimizer.update(logits, grads)
 
-    final_tissues = jnp.array(final_tissues_list)
-
-    tabular_output = _assemble_tabular_output(best)
-
-    return best.loss, final_tissues, best, tabular_output
+    return sim_states
 
 
 def run(params):
@@ -544,8 +549,12 @@ def run(params):
 
     init_logits = _get_init_logits(goal_area_bounds, jax_arrays, params)
 
-    best_loss, final_tissues, best, tabular_output = _iterate_towards_shape(
+    sim_states = _iterate_towards_shape(
         init_logits, goal_area_bounds, jax_arrays, params
     )
+    final_tissues = jnp.array(sim_states.final_vertices)
+    best = _get_best_state(sim_states)
 
-    return best_loss, final_tissues, best, tabular_output
+    tabular_output = _assemble_tabular_output(best)
+
+    return best.loss, final_tissues, best, tabular_output
