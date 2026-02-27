@@ -273,7 +273,7 @@ def _loss_fn(
         jax_arrays["target_boundary_segments"],
         min_dist_mask,
     )
-    aux_data = (final_vertices, knot_ctx)
+    aux_data = (final_vertices, goal_areas, goal_anisotropies, knot_ctx)
 
     return loss, aux_data
 
@@ -476,32 +476,20 @@ def _iterate_towards_shape(
             jax_arrays,
             params,
         )
-        vertices, knot_ctx = aux_data
+        vertices, goal_areas, goal_anisotropies, knot_ctx = aux_data
+
+        poly_metrics = my_utils.update_poly_metrics(poly_metrics, vertices)
 
         if not params.quiet:
             print(f"{shape_step}: Shape loss = {loss}")
-
-        poly_metrics = my_utils.update_poly_metrics(poly_metrics, vertices)
 
         if loss < best.loss and _validate(poly_metrics.areas):
             best.loss = loss
             steps_since_best_loss = 0
 
             best.final_vertices = vertices
-            best.goal_areas = _calc_goal_areas(
-                goal_area_bounds,
-                logits.ar_logits,
-                jax_arrays["proximal_mask"],
-                params.knots,
-                knot_ctx,
-            )
-            best.goal_anisotropies = _calc_goal_anisotropies(
-                logits.an_logits,
-                jax_arrays["proximal_mask"],
-                params.knots,
-                knot_ctx,
-            )
-
+            best.goal_areas = goal_areas
+            best.goal_anisotropies = goal_anisotropies
             best.final_areas = poly_metrics.areas
             best.final_anisotropies = poly_metrics.anisotropies
 
