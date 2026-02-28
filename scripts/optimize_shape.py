@@ -8,7 +8,7 @@ def _main():
         shape_opt.OUTPUT_TYPE_DIR, base_dir="outputs"
     )
 
-    shape_opt.optimize_shape(params, output)
+    _ = shape_opt.get_sim_states(params, output)
 
 
 if __name__ == "__main__":

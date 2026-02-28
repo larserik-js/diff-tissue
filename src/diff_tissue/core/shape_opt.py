@@ -1,6 +1,8 @@
-from dataclasses import dataclass
-
+from dataclasses import dataclass, field
 import optax
+from typing import cast
+
+from diff_tissue.app import parameters
 
 from .jax_bootstrap import jax, jnp, struct
 from . import init_systems, morphing, my_utils
@@ -95,19 +97,6 @@ def _calc_goal_anisotropies(an_logits, proximal_mask, knots, knot_ctx):
     return goal_anisotropies
 
 
-def _calc_knot_weights(std_logits, dist_vecs):
-    smoothing_stds = _calc_smoothing_stds(std_logits)
-    knot_weights = jnp.exp(
-        -jnp.sum(
-            dist_vecs**2 / (2 * smoothing_stds[None, None, :] ** 2), axis=2
-        )
-    )
-    knot_weights += 1e-8
-    knot_weights = knot_weights / jnp.sum(knot_weights, axis=1)[:, None]
-
-    return knot_weights
-
-
 def _make_min_dist_mask(jax_arrays):
     min_dist_mask = jnp.ones(
         (
@@ -151,11 +140,23 @@ def _get_knot_ctx(knots, jax_arrays):
     return knot_ctx
 
 
+def _calc_knot_weights(std_logits, dist_vecs):
+    smoothing_stds = _calc_smoothing_stds(std_logits)
+    knot_weights = jnp.exp(
+        -jnp.sum(
+            dist_vecs**2 / (2 * smoothing_stds[None, None, :] ** 2), axis=2
+        )
+    )
+    knot_weights += 1e-8
+    knot_weights = knot_weights / jnp.sum(knot_weights, axis=1)[:, None]
+
+    return knot_weights
+
+
 def _update_knot_ctx(logits, knot_ctx, knots):
     if knots:
-        std_logits = logits[2]
         updated_knot_weights = _calc_knot_weights(
-            std_logits, knot_ctx.dist_vecs
+            logits.std_logits, knot_ctx.dist_vecs
         )
         knot_ctx = knot_ctx.replace(knot_weights=updated_knot_weights)
     return knot_ctx
@@ -246,19 +247,17 @@ def _loss_fn(
     jax_arrays,
     params,
 ):
-    ar_logits, an_logits = logits[:2]
-
     knot_ctx = _update_knot_ctx(logits, knot_ctx, params.knots)
 
     goal_areas = _calc_goal_areas(
         goal_area_bounds,
-        ar_logits,
+        logits.ar_logits,
         jax_arrays["proximal_mask"],
         params.knots,
         knot_ctx,
     )
     goal_anisotropies = _calc_goal_anisotropies(
-        an_logits, jax_arrays["proximal_mask"], params.knots, knot_ctx
+        logits.an_logits, jax_arrays["proximal_mask"], params.knots, knot_ctx
     )
 
     growth_evolution = morphing.iterate(
@@ -274,7 +273,7 @@ def _loss_fn(
         jax_arrays["target_boundary_segments"],
         min_dist_mask,
     )
-    aux_data = (final_vertices, knot_ctx)
+    aux_data = (final_vertices, goal_areas, goal_anisotropies, knot_ctx)
 
     return loss, aux_data
 
@@ -283,6 +282,13 @@ loss_fn = jax.jit(
     jax.value_and_grad(_loss_fn, has_aux=True, argnums=0),
     static_argnames=["n_growth_steps"],
 )
+
+
+@struct.dataclass
+class _Logits:
+    ar_logits: jnp.ndarray
+    an_logits: jnp.ndarray
+    std_logits: jnp.ndarray | None = None
 
 
 def _calc_knots_to_tutte_centroids_dist_vecs(knots, tutte_centroids):
@@ -324,7 +330,7 @@ def _get_poly_init_logits(tutte_areas, tutte_anisotropies, goal_area_bounds):
     ar_logits, an_logits = _calc_logits(
         tutte_areas, tutte_anisotropies, goal_area_bounds
     )
-    init_logits = (ar_logits, an_logits)
+    init_logits = _Logits(ar_logits=ar_logits, an_logits=an_logits)
     return init_logits
 
 
@@ -358,7 +364,9 @@ def _get_knot_init_logits(
     an_logits = jnp.concatenate(left_and_center_an_logits)
     std_logits = _calc_std_logits(jax_arrays)
 
-    init_logits = (ar_logits, an_logits, std_logits)
+    init_logits = _Logits(
+        ar_logits=ar_logits, an_logits=an_logits, std_logits=std_logits
+    )
     return init_logits
 
 
@@ -393,10 +401,22 @@ class _MyOptimizer:
         )
         self._state = self._optimizer.init(params=init_logits)
 
-    def update(self, logits, grads):
+    def update(self, logits, grads) -> _Logits:
         updates, self._state = self._optimizer.update(grads, self._state)
-        logits = optax.apply_updates(logits, updates)
-        return logits
+        updated_logits = optax.apply_updates(logits, updates)
+        updated_logits = cast(_Logits, updated_logits)
+        return updated_logits
+
+
+@dataclass
+class _SimStates:
+    loss_vals: list[float] = field(default_factory=list)
+    valid: list[bool] = field(default_factory=list)
+    final_vertices: list[jnp.ndarray] = field(default_factory=list)
+    goal_areas: list[jnp.ndarray] = field(default_factory=list)
+    goal_anisotropies: list[jnp.ndarray] = field(default_factory=list)
+    final_areas: list[jnp.ndarray] = field(default_factory=list)
+    final_anisotropies: list[jnp.ndarray] = field(default_factory=list)
 
 
 @dataclass
@@ -409,22 +429,40 @@ class BestState:
     final_anisotropies: jnp.ndarray
 
 
+def _get_valid_best_idx(sim_state):
+    masked_loss_vals = jnp.asarray(
+        jnp.where(
+            jnp.array(sim_state.valid), jnp.array(sim_state.loss_vals), jnp.inf
+        )
+    )
+    best_index = jnp.argmin(masked_loss_vals)
+    return best_index
+
+
+def get_best_state(sim_state):
+    best_index = _get_valid_best_idx(sim_state)
+    best = BestState(
+        loss=sim_state.loss_vals[best_index],
+        final_vertices=sim_state.final_vertices[best_index],
+        goal_areas=sim_state.goal_areas[best_index],
+        goal_anisotropies=sim_state.goal_anisotropies[best_index],
+        final_areas=sim_state.final_areas[best_index],
+        final_anisotropies=sim_state.final_anisotropies[best_index],
+    )
+    return best
+
+
 def _validate(final_areas):
-    all_areas_positive = ~jnp.any(final_areas < 0.0)
+    all_areas_positive = bool(~jnp.any(final_areas < 0.0))
     return all_areas_positive
 
 
-def _assemble_tabular_output(best):
-    tabular_output = {
-        "best_goal_area": best.goal_areas,
-        "best_goal_anisotropy": best.goal_anisotropies,
-        "final_area": best.final_areas,
-        "final_anisotropy": best.final_anisotropies,
-    }
-    return tabular_output
-
-
-def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
+def _iterate_towards_shape(
+    logits: _Logits,
+    goal_area_bounds: tuple,
+    jax_arrays: dict,
+    params: parameters.Params,
+) -> _SimStates:
     vertices = jax_arrays["init_vertices"]
 
     min_dist_mask = _make_min_dist_mask(jax_arrays)
@@ -433,23 +471,15 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
 
     optimizer = _MyOptimizer(logits)
 
-    poly_metrics = my_utils.PolyMetrics.create(
+    poly_metrics = my_utils.initialize_poly_metrics(
         vertices=vertices,
         indices=jax_arrays["indices"],
         valid_mask=jax_arrays["valid_mask"],
     )
 
-    best = BestState(
-        loss=jnp.inf,
-        final_vertices=jnp.array([]),
-        goal_areas=jnp.array([]),
-        goal_anisotropies=jnp.array([]),
-        final_areas=jnp.array([]),
-        final_anisotropies=jnp.array([]),
-    )
+    sim_states = _SimStates()
 
-    final_tissues = [vertices]
-
+    best_loss = jnp.inf
     steps_since_best_loss = 0
 
     for shape_step in range(params.n_shape_steps):
@@ -462,43 +492,34 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
             jax_arrays,
             params,
         )
-        vertices, knot_ctx = aux_data
+        vertices, goal_areas, goal_anisotropies, knot_ctx = aux_data
+
+        poly_metrics = my_utils.update_poly_metrics(poly_metrics, vertices)
+
+        sim_states.loss_vals.append(loss)
+        sim_states.final_vertices.append(vertices)
+        sim_states.goal_areas.append(goal_areas)
+        sim_states.goal_anisotropies.append(goal_anisotropies)
+        sim_states.final_areas.append(poly_metrics.areas)
+        sim_states.final_anisotropies.append(poly_metrics.anisotropies)
 
         if not params.quiet:
             print(f"{shape_step}: Shape loss = {loss}")
 
-        ar_logits, an_logits = logits[:2]
+        valid_sim = _validate(poly_metrics.areas)
+        sim_states.valid.append(valid_sim)
 
-        poly_metrics = poly_metrics.update(vertices)
-
-        if loss < best.loss and _validate(poly_metrics.areas):
-            best.loss = loss
+        if loss < best_loss and valid_sim:
+            best_loss = loss
             steps_since_best_loss = 0
 
-            best.final_vertices = vertices
-            best.goal_areas = _calc_goal_areas(
-                goal_area_bounds,
-                ar_logits,
-                jax_arrays["proximal_mask"],
-                params.knots,
-                knot_ctx,
-            )
-            best.goal_anisotropies = _calc_goal_anisotropies(
-                an_logits, jax_arrays["proximal_mask"], params.knots, knot_ctx
-            )
-
-            best.final_areas = poly_metrics.areas
-            best.final_anisotropies = poly_metrics.anisotropies
-
             if not params.quiet:
-                print("(Stored params with new best loss.)")
+                print("(New best loss.)")
                 print("")
         else:
             steps_since_best_loss += 1
 
-        final_tissues.append(vertices)
-
-        if steps_since_best_loss >= 20 and best.loss != jnp.inf:
+        if steps_since_best_loss >= 20 and best_loss != jnp.inf:
             if not params.quiet:
                 print("(Stopped - iteration diverged.)")
                 print("")
@@ -506,11 +527,7 @@ def _iterate_towards_shape(logits, goal_area_bounds, jax_arrays, params):
         else:
             logits = optimizer.update(logits, grads)
 
-    final_tissues = jnp.array(final_tissues)
-
-    tabular_output = _assemble_tabular_output(best)
-
-    return best.loss, final_tissues, best, tabular_output
+    return sim_states
 
 
 def run(params):
@@ -522,8 +539,7 @@ def run(params):
 
     init_logits = _get_init_logits(goal_area_bounds, jax_arrays, params)
 
-    best_loss, final_tissues, best, tabular_output = _iterate_towards_shape(
+    sim_states = _iterate_towards_shape(
         init_logits, goal_area_bounds, jax_arrays, params
     )
-
-    return best_loss, final_tissues, best, tabular_output
+    return sim_states

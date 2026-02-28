@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
@@ -23,25 +25,26 @@ def _mean_value_weights(vertices, edges, eps=1e-12):
     Builds directed MVC weights around each vertex using angularly-sorted
     neighbors, then symmetrizes: w_ij = 0.5*(w_ij_dir + w_ji_dir).
     """
-    n = len(vertices)
-    nbrs = [[] for _ in range(n)]
+    n_vertices = len(vertices)
+
+    neighbors_by_vertex_idx = defaultdict(list)
     for i, j in edges:
-        nbrs[i].append(j)
-        nbrs[j].append(i)
+        neighbors_by_vertex_idx[i].append(j)
+        neighbors_by_vertex_idx[j].append(i)
 
     W_dir = {}
-    for i in range(n):
-        Ni = nbrs[i]
-        m = len(Ni)
-        if m < 2:
+    for i in range(n_vertices):
+        neighbor_inds = neighbors_by_vertex_idx[i]
+        n_neighbors = len(neighbor_inds)
+        if n_neighbors < 2:
             continue
 
         vi = vertices[i]
-        vecs = vertices[Ni] - vi
+        vecs = vertices[neighbor_inds] - vi
         ang = np.arctan2(vecs[:, 1], vecs[:, 0])
         order = np.argsort(ang)
 
-        Ni = [Ni[k] for k in order]
+        neighbor_inds = [neighbor_inds[k] for k in order]
         vecs = vecs[order]
 
         lens = np.linalg.norm(vecs, axis=1)
@@ -59,7 +62,7 @@ def _mean_value_weights(vertices, edges, eps=1e-12):
 
         w = (np.tan(alpha_prev / 2.0) + np.tan(alpha_next / 2.0)) / lens
 
-        for j, wij in zip(Ni, w):
+        for j, wij in zip(neighbor_inds, w):
             if np.isfinite(wij) and wij > 0:
                 W_dir[(i, j)] = float(wij)
 

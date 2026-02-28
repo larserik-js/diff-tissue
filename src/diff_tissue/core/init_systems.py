@@ -6,6 +6,7 @@ import json
 import sys
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.spatial import Voronoi
 import shapely
 from shapely.geometry import Polygon
@@ -24,8 +25,7 @@ def sort_counterclockwise(indices, vertices):
         vertices[:, 1] - centroid[1], vertices[:, 0] - centroid[0]
     )
     inds_for_sorting = np.argsort(angles)
-    sorted_poly_inds = np.array(indices)[inds_for_sorting]
-    sorted_poly_inds = sorted_poly_inds.tolist()
+    sorted_poly_inds = list(np.array(indices)[inds_for_sorting])
     return sorted_poly_inds
 
 
@@ -53,6 +53,10 @@ def _extend(indices):
 
 class _Polygons(ABC):
     def __init__(self):
+        self._vertices: NDArray[np.floating]
+        self._polygon_inds: NDArray[np.integer]
+        self._free_mask: NDArray[np.bool_]
+        self._mesh_area: float
         self._build()
 
         self._valid_mask = self._find_valid_mask()
@@ -110,9 +114,13 @@ class _Polygons(ABC):
 
         for idx, vertex_inds_ in enumerate(self._polygon_inds):
             vertex_inds = vertex_inds_[vertex_inds_ != -1]
-            poly_neighbors = np.isin(self._polygon_inds, vertex_inds)
-            poly_neighbors = np.where(np.any(poly_neighbors, axis=1))[0]
-            poly_neighbors = poly_neighbors[poly_neighbors != idx]
+            inds_in_polygons = np.isin(self._polygon_inds, vertex_inds)
+            poly_neighbors_with_self = np.where(
+                np.any(inds_in_polygons, axis=1)
+            )[0]
+            poly_neighbors = poly_neighbors_with_self[
+                poly_neighbors_with_self != idx
+            ]
             neighbors.append(poly_neighbors)
 
             n_neighbors = len(poly_neighbors)
@@ -135,23 +143,23 @@ class _Polygons(ABC):
                     vertex_neighbors[vertex_idx].add(int(vertex_neighbor_idx))
                     vertex_neighbors[vertex_neighbor_idx].add(int(vertex_idx))
 
-        vertex_neighbors = [
+        vertex_neighbors_lists = [
             list(neighbors_set) for neighbors_set in vertex_neighbors.values()
         ]
-        vertex_neighbors = self._list_of_lists_of_ints_to_padded_array(
-            vertex_neighbors
+        padded_vertex_neighbors = self._list_of_lists_of_ints_to_padded_array(
+            vertex_neighbors_lists
         )
-        return vertex_neighbors
+        return padded_vertex_neighbors
 
     def _calc_vertex_polygons(self):
-        vertex_polygons_list = list()
+        vertex_polygons_lists = list()
         for vertex_idx in range(self._vertices.shape[0]):
             vertex_polygons = np.where(vertex_idx == self._polygon_inds)[0]
-            vertex_polygons = list(set(vertex_polygons))
-            vertex_polygons_list.append(vertex_polygons)
+            vertex_polygons_list = list(set(vertex_polygons))
+            vertex_polygons_lists.append(vertex_polygons_list)
 
         vertex_polygons = self._list_of_lists_of_ints_to_padded_array(
-            vertex_polygons_list
+            vertex_polygons_lists
         )
         return vertex_polygons
 
@@ -224,9 +232,9 @@ class _VoronoiPolygons(_Polygons):
         ys = cy + self._radius_y * np.sin(thetas)
         half_circle_coords = [point for point in zip(xs, ys)]
         coords = base_coords + half_circle_coords
-        coords = np.vstack(coords)
+        stacked_coords = np.vstack(coords)
 
-        generating_shape = Polygon(coords)
+        generating_shape = Polygon(stacked_coords)
         return generating_shape
 
     def _calc_n_polygons_in_full_circle(self):
@@ -296,8 +304,8 @@ class _VoronoiPolygons(_Polygons):
 
             poly_vertices = list(poly.exterior.coords)
             if poly_vertices:
-                poly_vertices = np.vstack(poly_vertices)
-                clipped_polygons.append(poly_vertices)
+                stacked_poly_vertices = np.vstack(poly_vertices)
+                clipped_polygons.append(stacked_poly_vertices)
 
         return clipped_polygons
 
@@ -369,7 +377,7 @@ class _VoronoiPolygons(_Polygons):
     @staticmethod
     def _make_shared_vertex_structure(polygons):
         vertex_to_index = {}
-        unique_vertices = []
+        unique_vertices: list[tuple] = []
         poly_indices = []
 
         for poly in polygons:
@@ -511,12 +519,13 @@ class _FullPolygons(_Polygons):
 
     @staticmethod
     def _remove_duplicates(lst):
-        seen = set()
-        return [x for x in lst if not (x in seen or seen.add(x))]
+        """Removes duplicates while preserving order."""
+        unique = list(dict.fromkeys(lst))
+        return unique
 
     def _make_init_polygons(self):
         all_vertices = np.zeros((0, 2))
-        all_indices = []
+        padded_list_of_indices = []
         index = 0
         for polygon in self._input_cells:
             if polygon["is_boundary"]:
@@ -549,9 +558,9 @@ class _FullPolygons(_Polygons):
             indices += [-1] * (self._max_vertices - len(indices))
             indices.extend([-1] * (self._max_vertices - len(indices)))
 
-            all_indices.append(indices)
+            padded_list_of_indices.append(indices)
 
-        all_indices = np.array(all_indices)
+        all_indices = np.array(padded_list_of_indices)
 
         # Transform coordinates
         all_vertices -= Coords.full_mesh_base
@@ -660,7 +669,8 @@ class _SinglePolygon(_Polygons):
         return area
 
 
-def get_system(system, seed):
+def get_system(system, seed) -> _Polygons:
+    polygons: _Polygons
     match system:
         case "voronoi":
             polygons = _VoronoiPolygons(seed)
@@ -702,13 +712,11 @@ class Knots:
         self._xmin, self._xmax = -5.0, -5.0
         self._ymin, self._ymax = 1.0, 13.0
 
-    def _make_grid(self):
-        nx = self._nx_left * 1j
-        ny = self._ny * 1j
-        grid = np.mgrid[
-            self._xmin : self._xmax : nx, self._ymin : self._ymax : ny
-        ]
-        return grid
+    def _make_grid(self) -> NDArray[np.floating]:
+        x = np.linspace(self._xmin, self._xmax, self._nx_left)
+        y = np.linspace(self._ymin, self._ymax, self._ny)
+        grid = np.meshgrid(x, y, indexing="ij")
+        return np.array(grid)
 
     @cached_property
     def left_knots(self):
