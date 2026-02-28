@@ -1,8 +1,6 @@
 from pathlib import Path
 import pickle
 
-from . import parameters
-
 
 class OutputManager:
     def __init__(self, output_type_dir: str | None, base_dir: str):
@@ -36,10 +34,3 @@ def load_pkl(path):
 def save_pkl(path, data):
     with open(path, "wb") as f:
         pickle.dump(data, f)
-
-
-def get_output_params_file(params):
-    output = OutputManager("shape_opt", base_dir="outputs")
-    param_string = parameters.get_param_string(params)
-    output_file = output.file_path("output_params", f"{param_string}.txt")
-    return output_file

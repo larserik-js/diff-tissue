@@ -1,7 +1,3 @@
-import pandas as pd
-
-from ..core.jax_bootstrap import jnp
-from ..core import my_utils
 from ..core import shape_opt as shape_opt_core
 from . import io_utils, morphing, parameters, plotting
 
@@ -11,22 +7,8 @@ FINAL_TISSUES_DIR = "final_tissues"
 BEST_GROWTH_DIR = "best_growth"
 
 
-def _save_output_params(tabular_output, params):
-    df = pd.DataFrame(tabular_output)
-    output_file = io_utils.get_output_params_file(params)
-    df.to_csv(output_file, sep="\t", index=True, header=True)
-
-
-def load_output_params(params):
-    input_file = io_utils.get_output_params_file(params)
-    df = pd.read_csv(input_file, sep="\t", index_col=0)
-
-    best_goal_areas = my_utils.to_jax(df["best_goal_area"].values)
-    best_goal_anisotropies = my_utils.to_jax(df["best_goal_anisotropy"].values)
-    return best_goal_areas, best_goal_anisotropies
-
-
-def _plot_final_tissues(final_tissues, output, param_string, params):
+def plot_final_tissues(final_tissues, output, params):
+    param_string = parameters.get_param_string(params)
     figure = plotting.MorphFigure(params)
 
     for t, vertices in enumerate(final_tissues):
@@ -41,48 +23,17 @@ def _plot_final_tissues(final_tissues, output, param_string, params):
     figure.save_plot(vertices, fig_path, enumerate=True)
 
 
-def _assemble_tabular_output(best):
-    tabular_output = {
-        "best_goal_area": best.goal_areas,
-        "best_goal_anisotropy": best.goal_anisotropies,
-        "final_area": best.final_areas,
-        "final_anisotropy": best.final_anisotropies,
-    }
-    return tabular_output
-
-
-def optimize_shape(params, output):
+def get_sim_states(params, output):
     param_string = parameters.get_param_string(params)
-    cache_path = output.cache_path(f"final_tissues__{param_string}.pkl")
+    cache_path = output.cache_path(f"sim_states__{param_string}.pkl")
 
-    sim_states = shape_opt_core.run(params)
-    final_tissues = jnp.array(sim_states.final_vertices)
-    best = shape_opt_core.get_best_state(sim_states)
-
-    tabular_output = _assemble_tabular_output(best)
-
-    _save_output_params(tabular_output, params)
-
-    io_utils.save_pkl(cache_path, final_tissues)
-
-
-def plot_final_tissues(params, output):
-    param_string = parameters.get_param_string(params)
-    cache_path = output.cache_path(f"final_tissues__{param_string}.pkl")
     if cache_path.exists():
-        final_tissues = io_utils.load_pkl(cache_path)
+        sim_states = io_utils.load_pkl(cache_path)
     else:
         sim_states = shape_opt_core.run(params)
-        final_tissues = jnp.array(sim_states.final_vertices)
-        best = shape_opt_core.get_best_state(sim_states)
+        io_utils.save_pkl(cache_path, sim_states)
 
-        tabular_output = _assemble_tabular_output(best)
-
-        _save_output_params(tabular_output, params)
-
-        io_utils.save_pkl(cache_path, final_tissues)
-
-    _plot_final_tissues(final_tissues, output, param_string, params)
+    return sim_states
 
 
 def get_best_growth_evolution(

@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 
 import numpy as np
-import pandas as pd
 
 from ..core.jax_bootstrap import jnp
+from ..core import shape_opt as shape_opt_core
 from ..core import morphing, my_utils
+from . import shape_opt as shape_opt_app
 from . import io_utils, parameters, plotting
 
 
@@ -58,20 +59,22 @@ class _Results:
 
 
 def run(params, output):
+    input_seed = params.seed  # Store for regenerated system
+    params = params.replace(seed=0)  # Always base on same initial system
+
     jax_arrays = my_utils.get_jax_arrays(params)
 
     old_polygons = my_utils.get_shapely_polygons(
         jax_arrays["init_vertices"], jax_arrays["indices"]
     )
 
-    input_file = io_utils.get_output_params_file(params)
-    df = pd.read_csv(input_file, sep="\t", index_col=0)
+    sim_states = shape_opt_app.get_sim_states(params, output)
+    best_state = shape_opt_core.get_best_state(sim_states)
+    goal_areas = best_state.goal_areas
+    goal_anisotropies = best_state.goal_anisotropies
 
-    goal_areas = df["best_goal_area"].values
-    goal_anisotropies = df["best_goal_anisotropy"].values
-
-    # Regenerate new system
-    new_params = params.replace(seed=params.seed)
+    # Regenerate new system, base on cli seed
+    new_params = params.replace(seed=input_seed)
     new_jax_arrays = my_utils.get_jax_arrays(new_params)
     new_polygons = my_utils.get_shapely_polygons(
         new_jax_arrays["init_vertices"], new_jax_arrays["indices"]
@@ -88,11 +91,11 @@ def run(params, output):
         resulting_areas,
         resulting_anisotropies,
         new_params.n_growth_steps,
-        jax_arrays,
+        new_jax_arrays,
         new_params,
     )
 
-    param_string = parameters.get_param_string(params)
+    param_string = parameters.get_param_string(new_params)
     output_path = output.cache_path(f"{param_string}.pkl")
     io_utils.save_pkl(output_path, growth_evolution)
 

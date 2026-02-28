@@ -1,4 +1,5 @@
 from ..core import my_utils
+from ..core import shape_opt as shape_opt_core
 from . import io_utils, learned_growth, morphing, parameters
 from . import shape_opt as shape_opt_app
 
@@ -27,12 +28,13 @@ def run_shape_opt(params, base_dir=OUTPUT_DIR):
     output = io_utils.OutputManager(
         shape_opt_app.OUTPUT_TYPE_DIR, base_dir=base_dir
     )
+    sim_states = shape_opt_app.get_sim_states(params, output)
 
-    shape_opt_app.plot_final_tissues(params, output)
+    shape_opt_app.plot_final_tissues(sim_states.final_vertices, output, params)
 
-    best_goal_areas, best_goal_anisotropies = shape_opt_app.load_output_params(
-        params
-    )
+    best_state = shape_opt_core.get_best_state(sim_states)
+    best_goal_areas = best_state.goal_areas
+    best_goal_anisotropies = best_state.goal_anisotropies
 
     jax_arrays = my_utils.get_jax_arrays(params)
     param_string = parameters.get_param_string(params)
