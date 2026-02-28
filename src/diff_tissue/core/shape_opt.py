@@ -439,7 +439,7 @@ def _get_valid_best_idx(sim_state):
     return best_index
 
 
-def _get_best_state(sim_state):
+def get_best_state(sim_state):
     best_index = _get_valid_best_idx(sim_state)
     best = BestState(
         loss=sim_state.loss_vals[best_index],
@@ -455,16 +455,6 @@ def _get_best_state(sim_state):
 def _validate(final_areas):
     all_areas_positive = bool(~jnp.any(final_areas < 0.0))
     return all_areas_positive
-
-
-def _assemble_tabular_output(best):
-    tabular_output = {
-        "best_goal_area": best.goal_areas,
-        "best_goal_anisotropy": best.goal_anisotropies,
-        "final_area": best.final_areas,
-        "final_anisotropy": best.final_anisotropies,
-    }
-    return tabular_output
 
 
 def _iterate_towards_shape(
@@ -552,9 +542,4 @@ def run(params):
     sim_states = _iterate_towards_shape(
         init_logits, goal_area_bounds, jax_arrays, params
     )
-    final_tissues = jnp.array(sim_states.final_vertices)
-    best = _get_best_state(sim_states)
-
-    tabular_output = _assemble_tabular_output(best)
-
-    return best.loss, final_tissues, best, tabular_output
+    return sim_states

@@ -31,7 +31,9 @@ def objective_f(trial):
     params = params.replace(seed=3)
     params = params.replace(quiet=True)
 
-    loss, _, _, _ = shape_opt.run(params)
+    sim_states = shape_opt.run(params)
+    best = shape_opt.get_best_state(sim_states)
+    loss = best.loss
 
     return loss
 

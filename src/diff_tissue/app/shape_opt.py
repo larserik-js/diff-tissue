@@ -1,5 +1,6 @@
 import pandas as pd
 
+from ..core.jax_bootstrap import jnp
 from ..core import my_utils
 from ..core import shape_opt as shape_opt_core
 from . import io_utils, morphing, parameters, plotting
@@ -40,11 +41,25 @@ def _plot_final_tissues(final_tissues, output, param_string, params):
     figure.save_plot(vertices, fig_path, enumerate=True)
 
 
+def _assemble_tabular_output(best):
+    tabular_output = {
+        "best_goal_area": best.goal_areas,
+        "best_goal_anisotropy": best.goal_anisotropies,
+        "final_area": best.final_areas,
+        "final_anisotropy": best.final_anisotropies,
+    }
+    return tabular_output
+
+
 def optimize_shape(params, output):
     param_string = parameters.get_param_string(params)
     cache_path = output.cache_path(f"final_tissues__{param_string}.pkl")
 
-    _, final_tissues, _, tabular_output = shape_opt_core.run(params)
+    sim_states = shape_opt_core.run(params)
+    final_tissues = jnp.array(sim_states.final_vertices)
+    best = shape_opt_core.get_best_state(sim_states)
+
+    tabular_output = _assemble_tabular_output(best)
 
     _save_output_params(tabular_output, params)
 
@@ -57,7 +72,11 @@ def plot_final_tissues(params, output):
     if cache_path.exists():
         final_tissues = io_utils.load_pkl(cache_path)
     else:
-        _, final_tissues, _, tabular_output = shape_opt_core.run(params)
+        sim_states = shape_opt_core.run(params)
+        final_tissues = jnp.array(sim_states.final_vertices)
+        best = shape_opt_core.get_best_state(sim_states)
+
+        tabular_output = _assemble_tabular_output(best)
 
         _save_output_params(tabular_output, params)
 
