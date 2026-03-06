@@ -71,7 +71,7 @@ class Params:
         metadata={"help": "Anisotropies loss weight.", "cli_flag": "elw"},
     )
     shape_loss_weight: float = struct.field(
-        default=1.0,
+        default=2.0,
         pytree_node=True,
         metadata={"help": "Shape loss weight.", "cli_flag": "slw"},
     )
@@ -85,7 +85,7 @@ class Params:
         },
     )
     poly_id_loss_weight: float = struct.field(
-        default=0.1,
+        default=0.2,
         pytree_node=True,
         metadata={"help": "Poly identity loss weight.", "cli_flag": "ilw"},
     )
