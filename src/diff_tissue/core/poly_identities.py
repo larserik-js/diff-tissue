@@ -9,7 +9,7 @@ from . import my_utils, init_systems
 class _PolyIdentities:
     def __init__(self, tutte_centroids):
         self._tutte_centroids = tutte_centroids
-        self._proximal_dist = 4.0  # From paper
+        self._proximal_dist = 3.0  # From paper
 
     @cached_property
     def _y_dists_from_base(self):
@@ -44,8 +44,9 @@ def get_poly_identities(params):
         return None
     elif params.poly_id_configuration == 1:
         polygons = init_systems.get_system(params.system, params.seed)
-        tutte_metrics = my_utils.TutteMetrics(polygons, params.shape)
-        poly_identities = _PolyIdentities(tutte_metrics.centroids)
+        init_centroids = my_utils.calc_centroids(polygons.vertices, polygons.polygon_inds,
+                                                 polygons.valid_mask)
+        poly_identities = _PolyIdentities(init_centroids)
         jax_poly_identities = _JaxPolyIdentities(
             proximal_inds=jnp.array(poly_identities.proximal_inds),
             distal_inds=jnp.array(poly_identities.distal_inds),
