@@ -188,7 +188,13 @@ class TutteMetrics:
         return anisotropies_
 
 
-def _make_array_dict(polygons, tutte_metrics, target_boundary, knots):
+def get_tutte_metrics(params):
+    polygons = init_systems.get_system(params.system, params.seed)
+    tutte_metrics = TutteMetrics(polygons, params.shape)
+    return tutte_metrics
+
+
+def _make_array_dict(polygons, target_boundary, knots):
     arrays = {
         "indices": polygons.polygon_inds,
         "valid_mask": polygons.valid_mask,
@@ -198,10 +204,6 @@ def _make_array_dict(polygons, tutte_metrics, target_boundary, knots):
         "vertex_polygons": polygons.vertex_polygons,
         "free_mask": polygons.free_mask,
         "boundary_inds": polygons.boundary_inds,
-        "tutte_vertices": tutte_metrics.vertices,
-        "tutte_centroids": tutte_metrics.centroids,
-        "tutte_areas": tutte_metrics.areas,
-        "tutte_anisotropies": tutte_metrics.anisotropies,
         "target_boundary": target_boundary.vertices,
         "target_boundary_segments": target_boundary.segments,
         "left_knots": knots.left_knots,
@@ -215,18 +217,14 @@ def _make_array_dict(polygons, tutte_metrics, target_boundary, knots):
 def get_arrays(params):
     polygons = init_systems.get_system(params.system, params.seed)
 
-    mesh_area = polygons.mesh_area
     vertex_numbers = init_systems.VertexNumbers(polygons)
     target_boundary = shapes.get_target_boundary(
-        params.shape, mesh_area, vertex_numbers
+        params.shape, polygons.mesh_area, vertex_numbers
     )
-
-    tutte_metrics = TutteMetrics(polygons, params.shape)
 
     knots = init_systems.Knots()
     arrays = _make_array_dict(
         polygons,
-        tutte_metrics,
         target_boundary,
         knots,
     )
