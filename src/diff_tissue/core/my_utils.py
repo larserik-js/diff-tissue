@@ -58,8 +58,8 @@ def calc_anisotropies(all_cells, valid_mask):
     ys = all_cells[:, 1:-1, 1]
     valid = valid_mask[:, 1:-1]
 
-    xs_masked = jnp.where(valid, xs, jnp.nan)
-    ys_masked = jnp.where(valid, ys, jnp.nan)
+    xs_masked = jnp.asarray(jnp.where(valid, xs, jnp.nan))
+    ys_masked = jnp.asarray(jnp.where(valid, ys, jnp.nan))
 
     x_vars = jnp.nanvar(xs_masked, axis=1)
     y_vars = jnp.nanvar(ys_masked, axis=1)
@@ -72,7 +72,7 @@ def calc_anisotropies(all_cells, valid_mask):
 
 def calc_masked_cosines(all_cells, valid_mask):
     edges = all_cells[:, 1:] - all_cells[:, :-1]
-    epsilon = 1e-7
+    epsilon = 1e-6
     norms = jnp.linalg.norm(edges + epsilon, axis=2)
     dot_products = jnp.sum(edges[:, :-1] * edges[:, 1:], axis=2)
 
