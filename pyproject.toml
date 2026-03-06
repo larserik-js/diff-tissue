@@ -37,6 +37,11 @@ indent-style = "space"
 
 [tool.mypy]
 python_version = 3.12
+
+files = ["src", "scripts"]
+mypy_path = "src"
+
+explicit_package_bases = true
 check_untyped_defs = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
