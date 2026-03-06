@@ -26,14 +26,14 @@ jobs:
       - name: Install uv
         run: pip install uv
 
-      - name: Install project dependencies
+      - name: Install project dependencies (including dev)
         run: uv sync --dev --all-extras
 
       - name: Check formatting (Ruff)
-        run: uv run ruff format --check .
+        run: make format
 
       - name: Run Ruff lints
-        run: uv run ruff check .
+        run: make lint
 
       - name: Run mypy type checks
-        run: uv run mypy
+        run: make type
