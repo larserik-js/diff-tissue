@@ -194,7 +194,7 @@ def get_tutte_metrics(params):
     return tutte_metrics
 
 
-def _make_array_dict(polygons, target_boundary, knots):
+def _make_array_dict(polygons, target_boundary):
     arrays = {
         "indices": polygons.polygon_inds,
         "valid_mask": polygons.valid_mask,
@@ -206,10 +206,6 @@ def _make_array_dict(polygons, target_boundary, knots):
         "boundary_inds": polygons.boundary_inds,
         "target_boundary": target_boundary.vertices,
         "target_boundary_segments": target_boundary.segments,
-        "left_knots": knots.left_knots,
-        "center_knots": knots.center_knots,
-        "right_knots": knots.right_knots,
-        "all_knots": knots.all_knots,
     }
     return arrays
 
@@ -222,11 +218,9 @@ def get_arrays(params):
         params.shape, polygons.mesh_area, vertex_numbers
     )
 
-    knots = init_systems.Knots()
     arrays = _make_array_dict(
         polygons,
         target_boundary,
-        knots,
     )
     return arrays
 

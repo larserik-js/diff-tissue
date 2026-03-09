@@ -112,13 +112,13 @@ class _KnotCtx:
     knot_weights: jnp.ndarray
 
 
-def _get_knot_ctx(knots, tutte_centroids, jax_arrays):
-    if knots:
+def _get_knot_ctx(use_knots, knots, tutte_centroids):
+    if use_knots:
         dist_vecs = _calc_knots_to_tutte_centroids_dist_vecs(
-            jax_arrays["all_knots"], tutte_centroids
+            knots.all_knots, tutte_centroids
         )
         knot_ctx = _KnotCtx(
-            n_left_logits=jax_arrays["left_knots"].shape[0],
+            n_left_logits=knots.left_knots.shape[0],
             dist_vecs=dist_vecs,
             knot_weights=jnp.array([]),
         )
@@ -360,13 +360,9 @@ def _find_closest_polygon_by_knots(knots, tutte_centroids):
     return closest_inds
 
 
-def _calc_std_logits(jax_arrays):
-    knots_x_diff = (
-        jax_arrays["center_knots"][0, 0] - jax_arrays["left_knots"][-1, 0]
-    )
-    knots_y_diff = (
-        jax_arrays["left_knots"][-1, 1] - jax_arrays["left_knots"][-2, 1]
-    )
+def _calc_std_logits(knots):
+    knots_x_diff = knots.center_knots[0, 0] - knots.left_knots[-1, 0]
+    knots_y_diff = knots.left_knots[-1, 1] - knots.left_knots[-2, 1]
 
     init_smoothing_stds = jnp.array([knots_x_diff, knots_y_diff])
     std_logits = _calc_inverse_smoothing_stds(init_smoothing_stds)
@@ -390,19 +386,18 @@ def _get_poly_init_logits(tutte_areas, tutte_anisotropies, goal_area_bounds):
 
 
 def _get_knot_init_logits(
-    jax_arrays,
+    knots,
     tutte_centroids,
     tutte_areas,
     tutte_anisotropies,
     goal_area_bounds,
 ):
-    knot_positions = ["left", "center"]
+    knot_positions = [knots.left_knots, knots.center_knots]
     left_and_center_ar_logits = []
     left_and_center_an_logits = []
-    for pos in knot_positions:
-        knots = jax_arrays[pos + "_knots"]
+    for knots_subset in knot_positions:
         closest_polygon_by_knots = _find_closest_polygon_by_knots(
-            knots, tutte_centroids
+            knots_subset, tutte_centroids
         )
         closest_poly_areas = tutte_areas[closest_polygon_by_knots]
         closest_poly_anisotropies = tutte_anisotropies[
@@ -417,7 +412,7 @@ def _get_knot_init_logits(
 
     ar_logits = jnp.concatenate(left_and_center_ar_logits)
     an_logits = jnp.concatenate(left_and_center_an_logits)
-    std_logits = _calc_std_logits(jax_arrays)
+    std_logits = _calc_std_logits(knots)
 
     init_logits = _Logits(
         ar_logits=ar_logits, an_logits=an_logits, std_logits=std_logits
@@ -425,10 +420,10 @@ def _get_knot_init_logits(
     return init_logits
 
 
-def _get_init_logits(goal_area_bounds, tutte_metrics, jax_arrays, params):
+def _get_init_logits(goal_area_bounds, knots, tutte_metrics, params):
     if params.knots:
         init_logits = _get_knot_init_logits(
-            jax_arrays,
+            knots,
             tutte_metrics.centroids,
             tutte_metrics.areas,
             tutte_metrics.anisotropies,
@@ -595,12 +590,14 @@ def run(params):
 
     tutte_metrics = my_utils.get_tutte_metrics(params)
 
-    knot_ctx = _get_knot_ctx(params.knots, tutte_metrics.centroids, jax_arrays)
+    knots = init_systems.Knots()
+
+    knot_ctx = _get_knot_ctx(params.knots, knots, tutte_metrics.centroids)
 
     goal_area_bounds = _calc_goal_area_bounds(tutte_metrics.areas, params)
 
     init_logits = _get_init_logits(
-        goal_area_bounds, tutte_metrics, jax_arrays, params
+        goal_area_bounds, knots, tutte_metrics, params
     )
 
     sim_states = _iterate_towards_shape(
