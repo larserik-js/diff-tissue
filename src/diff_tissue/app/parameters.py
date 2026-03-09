@@ -46,7 +46,7 @@ class Params:
         },
     )
     n_shape_steps: int = struct.field(
-        default=200,
+        default=500,
         pytree_node=True,
         metadata={"help": "Number of shape steps.", "cli_flag": "ssteps"},
     )
@@ -56,7 +56,7 @@ class Params:
         metadata={"help": "Number of growth steps.", "cli_flag": "gsteps"},
     )
     areas_loss_weight: float = struct.field(
-        default=100.0,
+        default=800.0,
         pytree_node=True,
         metadata={"help": "Areas loss weight.", "cli_flag": "arlw"},
     )
@@ -66,22 +66,28 @@ class Params:
         metadata={"help": "Angles loss weight.", "cli_flag": "anlw"},
     )
     anisotropy_loss_weight: float = struct.field(
-        default=300.0,
+        default=1000.0,
         pytree_node=True,
         metadata={"help": "Anisotropies loss weight.", "cli_flag": "elw"},
     )
     shape_loss_weight: float = struct.field(
-        default=1.0,
+        default=5.0,
         pytree_node=True,
         metadata={"help": "Shape loss weight.", "cli_flag": "slw"},
     )
-    proximal_dist: float = struct.field(
-        default=0.0,
-        pytree_node=True,
+    poly_id_configuration: int = struct.field(
+        default=0,
+        pytree_node=False,
         metadata={
-            "help": "Distance from base for proximal polygons.",
-            "cli_flag": "pd",
+            "help": ("Polygon identity configuration."),
+            "choices": [0, 1],
+            "cli_flag": "id",
         },
+    )
+    poly_id_loss_weight: float = struct.field(
+        default=0.4,
+        pytree_node=True,
+        metadata={"help": "Poly identity loss weight.", "cli_flag": "ilw"},
     )
     max_area_scaling: float = struct.field(
         default=1.0,

@@ -1,16 +1,16 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..core import my_utils
+from ..core import init_systems, my_utils
 from . import parameters
 
 
 OUTPUT_TYPE_DIR = "tutte"
 
 
-def _add_artists(ax, jax_arrays, vertices):
-    for i in range(jax_arrays["indices"].shape[0]):
-        vertex_inds = jax_arrays["indices"][i][jax_arrays["valid_mask"][i]]
+def _add_artists(ax, indices, valid_mask, vertices):
+    for i in range(indices.shape[0]):
+        vertex_inds = indices[i][valid_mask[i]]
         polygon = vertices[vertex_inds]
         ax.scatter(
             polygon[:, 0], polygon[:, 1], s=2.0, color="green", zorder=1
@@ -18,20 +18,20 @@ def _add_artists(ax, jax_arrays, vertices):
         ax.plot(polygon[:, 0], polygon[:, 1], lw=0.7, color="black", zorder=2)
 
 
-def _plot_mapping(jax_arrays, output_path):
+def _plot_mapping(
+    init_vertices, indices, valid_mask, tutte_vertices, output_path
+):
     fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 
     # Initial mesh
     ax = axs[0]
-    init_vertices = jax_arrays["init_vertices"]
-    _add_artists(ax, jax_arrays, init_vertices)
+    _add_artists(ax, indices, valid_mask, init_vertices)
     ax.set_aspect("equal")
     ax.set_title("Initial mesh")
 
     # Tutte mesh
     ax = axs[1]
-    tutte_vertices = jax_arrays["tutte_vertices"]
-    _add_artists(ax, jax_arrays, tutte_vertices)
+    _add_artists(ax, indices, valid_mask, tutte_vertices)
     ax.set_aspect("equal")
     ax.set_title("Tutte mesh")
 
@@ -63,9 +63,16 @@ def _plot_mapping(jax_arrays, output_path):
 
 
 def plot(params, output):
-    jax_arrays = my_utils.get_jax_arrays(params)
+    polygons = init_systems.get_system(params.system, params.seed)
+    tutte_metrics = my_utils.get_tutte_metrics(params)
 
     param_string = parameters.get_param_string(params)
     output_path = output.file_path(f"{param_string}.pdf")
 
-    _plot_mapping(jax_arrays, output_path)
+    _plot_mapping(
+        polygons.vertices,
+        polygons.polygon_inds,
+        polygons.valid_mask,
+        tutte_metrics.vertices,
+        output_path,
+    )

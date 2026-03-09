@@ -58,8 +58,8 @@ def calc_anisotropies(all_cells, valid_mask):
     ys = all_cells[:, 1:-1, 1]
     valid = valid_mask[:, 1:-1]
 
-    xs_masked = jnp.where(valid, xs, jnp.nan)
-    ys_masked = jnp.where(valid, ys, jnp.nan)
+    xs_masked = jnp.asarray(jnp.where(valid, xs, jnp.nan))
+    ys_masked = jnp.asarray(jnp.where(valid, ys, jnp.nan))
 
     x_vars = jnp.nanvar(xs_masked, axis=1)
     y_vars = jnp.nanvar(ys_masked, axis=1)
@@ -72,7 +72,7 @@ def calc_anisotropies(all_cells, valid_mask):
 
 def calc_masked_cosines(all_cells, valid_mask):
     edges = all_cells[:, 1:] - all_cells[:, :-1]
-    epsilon = 1e-7
+    epsilon = 1e-6
     norms = jnp.linalg.norm(edges + epsilon, axis=2)
     dot_products = jnp.sum(edges[:, :-1] * edges[:, 1:], axis=2)
 
@@ -188,17 +188,13 @@ class TutteMetrics:
         return anisotropies_
 
 
-def calc_proximal_mask(tutte_centroids, proximal_dist):
-    y_dists_from_base = (
-        tutte_centroids[:, 1] - init_systems.Coords.base_origin[1]
-    )
-    proximal_mask = y_dists_from_base <= proximal_dist
-    return proximal_mask
+def get_tutte_metrics(params):
+    polygons = init_systems.get_system(params.system, params.seed)
+    tutte_metrics = TutteMetrics(polygons, params.shape)
+    return tutte_metrics
 
 
-def _make_array_dict(
-    polygons, tutte_metrics, target_boundary, proximal_mask, knots
-):
+def _make_array_dict(polygons, target_boundary):
     arrays = {
         "indices": polygons.polygon_inds,
         "valid_mask": polygons.valid_mask,
@@ -208,17 +204,8 @@ def _make_array_dict(
         "vertex_polygons": polygons.vertex_polygons,
         "free_mask": polygons.free_mask,
         "boundary_inds": polygons.boundary_inds,
-        "tutte_vertices": tutte_metrics.vertices,
-        "tutte_centroids": tutte_metrics.centroids,
-        "tutte_areas": tutte_metrics.areas,
-        "tutte_anisotropies": tutte_metrics.anisotropies,
         "target_boundary": target_boundary.vertices,
         "target_boundary_segments": target_boundary.segments,
-        "proximal_mask": proximal_mask,
-        "left_knots": knots.left_knots,
-        "center_knots": knots.center_knots,
-        "right_knots": knots.right_knots,
-        "all_knots": knots.all_knots,
     }
     return arrays
 
@@ -226,20 +213,14 @@ def _make_array_dict(
 def get_arrays(params):
     polygons = init_systems.get_system(params.system, params.seed)
 
-    mesh_area = polygons.mesh_area
     vertex_numbers = init_systems.VertexNumbers(polygons)
     target_boundary = shapes.get_target_boundary(
-        params.shape, mesh_area, vertex_numbers
+        params.shape, polygons.mesh_area, vertex_numbers
     )
 
-    tutte_metrics = TutteMetrics(polygons, params.shape)
-    proximal_mask = calc_proximal_mask(
-        tutte_metrics.centroids, params.proximal_dist
-    )
-
-    knots = init_systems.Knots()
     arrays = _make_array_dict(
-        polygons, tutte_metrics, target_boundary, proximal_mask, knots
+        polygons,
+        target_boundary,
     )
     return arrays
 

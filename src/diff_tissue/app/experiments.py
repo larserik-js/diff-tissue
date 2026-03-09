@@ -1,6 +1,6 @@
 from ..core import my_utils
 from ..core import shape_opt as shape_opt_core
-from . import io_utils, learned_growth, morphing, parameters
+from . import io_utils, learned_growth, morphing, parameters, tutte_fields
 from . import shape_opt as shape_opt_app
 
 
@@ -57,3 +57,17 @@ def run_learned_growth(params):
     results = learned_growth.run(params, output)
 
     learned_growth.plot(results, params, output)
+
+
+def plot_tutte_fields():
+    output = io_utils.OutputManager(
+        f"{tutte_fields.OUTPUT_TYPE_DIR}", base_dir="outputs"
+    )
+
+    shape = "petal"
+
+    tutte_fields_ = tutte_fields.get_fields(shape, output)
+
+    fig = tutte_fields.plot(tutte_fields_)
+
+    tutte_fields.save_plot(fig, shape, output)

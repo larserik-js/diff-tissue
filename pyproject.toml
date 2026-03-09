@@ -1,7 +1,7 @@
 [project]
 name = "diff-tissue"
-version = "0.6.0"
-description = "Add your description here"
+version = "1.0.0"
+description = "Optimization of growing tissues using differentiable programming"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -10,12 +10,10 @@ dependencies = [
     "jaxlib>=0.5.1",
     "jaxopt>=0.8.5",
     "matplotlib>=3.10.1",
-    "mypy>=1.19.1",
     "numpy>=2.2.3",
     "optax>=0.2.4",
     "optuna>=4.6.0",
     "pandas>=2.2.3",
-    "ruff>=0.15.1",
     "scipy>=1.15.2",
     "shapely>=2.1.1",
     "torch>=2.6.0",
@@ -37,6 +35,16 @@ indent-style = "space"
 
 [tool.mypy]
 python_version = 3.12
+files = ["src", "scripts"]
+mypy_path = "src"
+explicit_package_bases = true
 check_untyped_defs = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pre-commit>=4.5.1",
+    "ruff>=0.15.5",
+]
