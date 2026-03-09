@@ -230,7 +230,7 @@ def _calc_area_id_loss(poly_metrics, poly_ids):
     proximal_areas = poly_metrics.areas[poly_ids.proximal_inds]
     distal_areas = poly_metrics.areas[poly_ids.distal_inds]
 
-    proximal_to_distal_scale = 1.5
+    proximal_to_distal_scale = 2.0
 
     target_area = proximal_to_distal_scale * jnp.mean(distal_areas)
     proximal_loss = jnp.mean(jnp.square(proximal_areas - target_area))
