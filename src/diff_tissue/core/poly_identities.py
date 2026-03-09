@@ -9,7 +9,7 @@ from . import my_utils, init_systems
 class _PolyIdentities:
     def __init__(self, tutte_centroids):
         self._tutte_centroids = tutte_centroids
-        self._proximal_dist = 3.0  # From paper
+        self._proximal_dist = 4.5  # From paper
 
     @cached_property
     def _y_dists_from_base(self):

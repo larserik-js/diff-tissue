@@ -5,10 +5,13 @@ repos:
       - id: ruff        # linting
       - id: ruff-format # auto-formatting
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
+  - repo: local
     hooks:
       - id: mypy        # type checking
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
