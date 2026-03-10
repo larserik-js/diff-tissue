@@ -189,7 +189,7 @@ class TutteMetrics:
 
 
 def get_tutte_metrics(params):
-    polygons = init_systems.get_system(params.system, params.seed)
+    polygons = init_systems.get_system(params)
     tutte_metrics = TutteMetrics(polygons, params.shape)
     return tutte_metrics
 
@@ -211,7 +211,7 @@ def _make_array_dict(polygons, target_boundary):
 
 
 def get_arrays(params):
-    polygons = init_systems.get_system(params.system, params.seed)
+    polygons = init_systems.get_system(params)
 
     vertex_numbers = init_systems.VertexNumbers(polygons)
     target_boundary = shapes.get_target_boundary(

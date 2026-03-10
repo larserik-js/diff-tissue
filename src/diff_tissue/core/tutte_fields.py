@@ -10,7 +10,8 @@ from . import init_systems, my_utils, shapes
 
 
 def _get_general_target_boundary(shape):
-    polygons = init_systems.get_system(system="voronoi", seed=0)
+    general_params = parameters.Params(system="voronoi", seed=0)
+    polygons = init_systems.get_system(general_params)
     vertex_numbers = init_systems.VertexNumbers(polygons)
     target_boundary = shapes.get_target_boundary(
         shape, polygons.mesh_area, vertex_numbers
@@ -64,7 +65,7 @@ def _build_meshes(shape, n_meshes=100):
             print(f"{i + 1} / {n_meshes}")
 
         params = params.replace(seed=i)
-        polygons = init_systems.get_system(params.system, params.seed)
+        polygons = init_systems.get_system(params)
         tutte_vertices = my_utils.TutteMetrics(polygons, params.shape).vertices
         shapely_polygons = my_utils.get_shapely_polygons(
             tutte_vertices, polygons.polygon_inds

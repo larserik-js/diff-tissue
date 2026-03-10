@@ -121,7 +121,7 @@ class _Artists:
 class _Figure(ABC):
     def __init__(self, params):
         self._params = params
-        self._polygons = init_systems.get_system(params.system, params.seed)
+        self._polygons = init_systems.get_system(params)
         self._all_knots = init_systems.Knots().all_knots
         self._fig: matplotlib_figure.Figure
         self._init_figure()

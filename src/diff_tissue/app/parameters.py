@@ -45,6 +45,14 @@ class Params:
             "cli_flag": "quiet",
         },
     )
+    point_density: float = struct.field(
+        default=0.30,
+        pytree_node=True,
+        metadata={
+            "help": "Density of generating points for Voronoi mesh.",
+            "cli_flag": "d",
+        },
+    )
     n_shape_steps: int = struct.field(
         default=500,
         pytree_node=True,
@@ -61,7 +69,7 @@ class Params:
         metadata={"help": "Areas loss weight.", "cli_flag": "arlw"},
     )
     angles_loss_weight: float = struct.field(
-        default=200.0,
+        default=150.0,
         pytree_node=True,
         metadata={"help": "Angles loss weight.", "cli_flag": "anlw"},
     )

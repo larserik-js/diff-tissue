@@ -3,7 +3,6 @@ from collections import defaultdict
 from functools import cached_property
 from importlib.resources import files
 import json
-import sys
 
 import numpy as np
 from numpy.typing import NDArray
@@ -25,7 +24,8 @@ def sort_counterclockwise(indices, vertices):
         vertices[:, 1] - centroid[1], vertices[:, 0] - centroid[0]
     )
     inds_for_sorting = np.argsort(angles)
-    sorted_poly_inds = list(np.array(indices)[inds_for_sorting])
+    sorted_poly_inds_arr = np.array(indices)[inds_for_sorting]
+    sorted_poly_inds = sorted_poly_inds_arr.tolist()
     return sorted_poly_inds
 
 
@@ -67,6 +67,10 @@ class _Polygons(ABC):
 
     @abstractmethod
     def _build(self):
+        pass
+
+    @abstractmethod
+    def _calc_mesh_area(self):
         pass
 
     def _find_valid_mask(self):
@@ -201,17 +205,14 @@ class _Polygons(ABC):
 
 
 class _VoronoiPolygons(_Polygons):
-    def __init__(self, seed):
+    def __init__(self, generating_point_density, seed):
+        self._point_density = generating_point_density
         self._seed = seed
         super().__init__()
 
     def _build(self):
-        self._radius_x = 12.0
-        self._radius_y = 12.0
-        self._polygon_area = 3.0
-        self._n_polygons_in_full_circle = (
-            self._calc_n_polygons_in_full_circle()
-        )
+        self._circle_r = 12.0
+        self._circle_area = np.pi * self._circle_r**2
         self._mesh_area = self._calc_mesh_area()
 
         self._generating_shape = self._get_generating_shape()
@@ -222,14 +223,14 @@ class _VoronoiPolygons(_Polygons):
 
     def _get_generating_shape(self):
         cx, cy = Coords.base_origin
-        base_coords = np.linspace(cx - self._radius_x, cx + self._radius_x, 5)
+        base_coords = np.linspace(cx - self._circle_r, cx + self._circle_r, 5)
         base_coords = [(x, cy) for x in base_coords]
 
         num_points = 10
         thetas = np.linspace(0, np.pi, num_points, endpoint=False)
 
-        xs = cx + self._radius_x * np.cos(thetas)
-        ys = cy + self._radius_y * np.sin(thetas)
+        xs = cx + self._circle_r * np.cos(thetas)
+        ys = cy + self._circle_r * np.sin(thetas)
         half_circle_coords = [point for point in zip(xs, ys)]
         coords = base_coords + half_circle_coords
         stacked_coords = np.vstack(coords)
@@ -237,22 +238,18 @@ class _VoronoiPolygons(_Polygons):
         generating_shape = Polygon(stacked_coords)
         return generating_shape
 
-    def _calc_n_polygons_in_full_circle(self):
-        n_polygons = int(
-            np.pi * self._radius_x * self._radius_y / self._polygon_area
-        )
-        return n_polygons
-
     def _calc_mesh_area(self):
-        area = 0.5 * self._n_polygons_in_full_circle * self._polygon_area
+        area = 0.5 * self._circle_area
         return area
 
     def _generate_random_points(self):
         bounds = self._generating_shape.bounds
 
+        n_generating_points = int(self._circle_area * self._point_density)
+
         rng = np.random.default_rng(self._seed)
-        xs = rng.uniform(bounds[0], bounds[2], self._n_polygons_in_full_circle)
-        ys = rng.uniform(bounds[1], bounds[3], self._n_polygons_in_full_circle)
+        xs = rng.uniform(bounds[0], bounds[2], n_generating_points)
+        ys = rng.uniform(bounds[1], bounds[3], n_generating_points)
         points_array = np.vstack((xs, ys)).T
         points = shapely.points(points_array)
         inside_mask = shapely.contains(self._generating_shape, points)
@@ -264,11 +261,6 @@ class _VoronoiPolygons(_Polygons):
         points = shapely.points(points_array)
         inside_mask = shapely.contains(self._generating_shape, points)
         return inside_mask
-
-    def _get_inside_points(self, points_array):
-        inside_mask = self._get_inside_mask(points_array)
-        inside_points = points_array[inside_mask]
-        return inside_points
 
     def _generate_relaxed_random_points(self):
         points = self._generate_random_points()
@@ -397,35 +389,6 @@ class _VoronoiPolygons(_Polygons):
         vertices = np.array(unique_vertices)
         return poly_indices, vertices
 
-    def _separate_close_vertices(self, vertices):
-        min_dist = 0.5 * np.sqrt(self._polygon_area)
-        jitter_scale = 0.1 * min_dist
-        max_n = 1000
-        for n in range(max_n):
-            diffs = vertices[:, None, :] - vertices
-            dists = np.linalg.norm(diffs, axis=-1)
-            np.fill_diagonal(dists, np.inf)
-
-            too_close = (dists < min_dist) & (dists > 0.0)
-            n_too_close = too_close.sum()
-            if n_too_close == 0:
-                break
-            if n == max_n - 1:
-                print(f"Jittering did not converge after {max_n} iterations.")
-                sys.exit()
-
-            for i in range(dists.shape[0]):
-                for j in range(i + 1, dists.shape[1]):
-                    if dists[i, j] < min_dist:
-                        norm_diff_vec = diffs[i, j] / np.linalg.norm(
-                            diffs[i, j]
-                        )
-                        jitter = 0.5 * jitter_scale * norm_diff_vec
-                        vertices[i] += jitter
-                        vertices[j] -= jitter
-
-        return vertices
-
     def _sort_all_counterclockwise(self, all_poly_inds, all_vertices):
         all_sorted_poly_inds = []
         for poly_inds in all_poly_inds:
@@ -451,12 +414,6 @@ class _VoronoiPolygons(_Polygons):
             all_polygon_inds, vertices
         )
         all_polygon_inds = self._extend_polygons(all_polygon_inds)
-
-        # Commented out to keep base vertices exactly at the base line.
-        # If the program remains numerically stable,
-        # this can eventually be deleted entirely.
-
-        # vertices = self._separate_close_vertices(vertices)
 
         return all_polygon_inds, vertices
 
@@ -669,11 +626,11 @@ class _SinglePolygon(_Polygons):
         return area
 
 
-def get_system(system, seed) -> _Polygons:
+def get_system(params) -> _Polygons:
     polygons: _Polygons
-    match system:
+    match params.system:
         case "voronoi":
-            polygons = _VoronoiPolygons(seed)
+            polygons = _VoronoiPolygons(params.point_density, params.seed)
         case "full":
             polygons = _FullPolygons()
         case "single":

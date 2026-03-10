@@ -43,7 +43,7 @@ def get_poly_identities(params):
     if params.poly_id_configuration == 0:
         return None
     elif params.poly_id_configuration == 1:
-        polygons = init_systems.get_system(params.system, params.seed)
+        polygons = init_systems.get_system(params)
         init_centroids = my_utils.calc_centroids(
             polygons.vertices, polygons.polygon_inds, polygons.valid_mask
         )

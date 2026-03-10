@@ -63,7 +63,7 @@ def _plot_mapping(
 
 
 def plot(params, output):
-    polygons = init_systems.get_system(params.system, params.seed)
+    polygons = init_systems.get_system(params)
     tutte_metrics = my_utils.get_tutte_metrics(params)
 
     param_string = parameters.get_param_string(params)
