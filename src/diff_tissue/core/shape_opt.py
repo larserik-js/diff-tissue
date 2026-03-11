@@ -5,7 +5,7 @@ from typing import cast
 from diff_tissue.app import parameters
 
 from .jax_bootstrap import jax, jnp, struct
-from . import init_systems, morphing, my_utils, poly_identities
+from . import init_systems, morphing, my_utils, poly_identities, shapes
 
 
 def _calc_sigmoid(min_val, max_val, logits):
@@ -85,11 +85,11 @@ def _calc_goal_anisotropies(an_logits, knots, knot_ctx):
     return goal_anisotropies
 
 
-def _make_min_dist_mask(jax_arrays):
+def _make_min_dist_mask(jax_arrays, target_boundary):
     min_dist_mask = jnp.ones(
         (
             jax_arrays["boundary_inds"].shape[0],
-            jax_arrays["target_boundary"].shape[0],
+            target_boundary.vertices.shape[0],
         ),
         dtype=bool,
     )
@@ -97,12 +97,29 @@ def _make_min_dist_mask(jax_arrays):
     fixed_mask = jnp.any(fixed_boundary_mask, axis=1)
 
     target_boundary_basal_mask = jnp.isclose(
-        jax_arrays["target_boundary"][:, 1], init_systems.Coords.base_origin[1]
+        target_boundary.vertices[:, 1], init_systems.Coords.base_origin[1]
     )
     min_dist_mask = min_dist_mask.at[fixed_mask].set(
         target_boundary_basal_mask
     )
     return min_dist_mask
+
+
+@struct.dataclass
+class _JaxTargetBoundary:
+    vertices: jnp.ndarray
+    segments: jnp.ndarray
+
+
+def _get_jax_target_boundary(polygons, params):
+    target_boundary = shapes.get_target_boundary(
+        params.shape, polygons.mesh_area, init_systems.VertexNumbers(polygons)
+    )
+    jax_target_boundary = _JaxTargetBoundary(
+        vertices=jnp.array(target_boundary.vertices),
+        segments=jnp.array(target_boundary.segments),
+    )
+    return jax_target_boundary
 
 
 @struct.dataclass
@@ -204,13 +221,12 @@ def _calc_mesh_target_loss(
 def _calc_shape_loss(
     boundary_vertices,
     target_boundary,
-    target_boundary_segments,
     min_dist_mask,
 ):
     mesh_to_target_loss = _calc_mesh_target_loss(
         boundary_vertices,
-        target_boundary,
-        target_boundary_segments,
+        target_boundary.vertices,
+        target_boundary.segments,
         min_dist_mask,
     )
 
@@ -218,7 +234,10 @@ def _calc_shape_loss(
     min_dist_mask = min_dist_mask.T
 
     target_to_mesh_loss = _calc_mesh_target_loss(
-        target_boundary, boundary_vertices, boundary_segments, min_dist_mask
+        target_boundary.vertices,
+        boundary_vertices,
+        boundary_segments,
+        min_dist_mask,
     )
 
     shape_loss = mesh_to_target_loss + target_to_mesh_loss
@@ -281,6 +300,7 @@ def _loss_fn(
     logits,
     knot_ctx,
     goal_area_bounds,
+    target_boundary,
     min_dist_mask,
     n_growth_steps,
     poly_metrics,
@@ -311,8 +331,7 @@ def _loss_fn(
 
     shape_loss = params.shape_loss_weight * _calc_shape_loss(
         boundary_vertices,
-        jax_arrays["target_boundary"],
-        jax_arrays["target_boundary_segments"],
+        target_boundary,
         min_dist_mask,
     )
 
@@ -511,12 +530,13 @@ def _iterate_towards_shape(
     logits: _Logits,
     knot_ctx: _KnotCtx | None,
     goal_area_bounds: tuple,
+    target_boundary: _JaxTargetBoundary,
     jax_arrays: dict,
     params: parameters.Params,
 ) -> _SimStates:
     vertices = jax_arrays["init_vertices"]
 
-    min_dist_mask = _make_min_dist_mask(jax_arrays)
+    min_dist_mask = _make_min_dist_mask(jax_arrays, target_boundary)
 
     optimizer = _MyOptimizer(logits)
 
@@ -538,6 +558,7 @@ def _iterate_towards_shape(
             logits,
             knot_ctx,
             goal_area_bounds,
+            target_boundary,
             min_dist_mask,
             params.n_growth_steps,
             poly_metrics,
@@ -588,6 +609,10 @@ def _iterate_towards_shape(
 def run(params):
     jax_arrays = my_utils.get_jax_arrays(params)
 
+    polygons = init_systems.get_system(params)
+
+    target_boundary = _get_jax_target_boundary(polygons, params)
+
     tutte_metrics = my_utils.get_tutte_metrics(params)
 
     knots = init_systems.Knots()
@@ -601,6 +626,11 @@ def run(params):
     )
 
     sim_states = _iterate_towards_shape(
-        init_logits, knot_ctx, goal_area_bounds, jax_arrays, params
+        init_logits,
+        knot_ctx,
+        goal_area_bounds,
+        target_boundary,
+        jax_arrays,
+        params,
     )
     return sim_states
