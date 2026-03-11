@@ -9,6 +9,9 @@ import numpy as np
 from ..core import init_systems, my_utils, shapes
 
 
+_GROWTH_SCALE = 5.0
+
+
 def _get_polygons(vertices, indices, valid_mask):
     polygons_ = vertices[indices]
     polygons = [polygon[mask] for polygon, mask in zip(polygons_, valid_mask)]
@@ -173,14 +176,13 @@ class MorphGrowthFigure(_Figure):
     def __init__(self, params):
         super().__init__(params)
         self._total_steps = params.n_growth_steps
-        self._scale = params.growth_scale
         self._gs = gridspec.GridSpec(
             nrows=2, ncols=1, figure=self._fig, height_ratios=[0.8, 1.0]
         )
         self._scaled_target_boundary = (
-            self._scale * self._closed_target_boundary
+            _GROWTH_SCALE * self._closed_target_boundary
         )
-        self._scaled_knots = self._scale * self._all_knots
+        self._scaled_knots = _GROWTH_SCALE * self._all_knots
 
         ax0 = self._fig.add_subplot(self._gs[0])
         self._morph_artists = _Artists(
@@ -204,7 +206,7 @@ class MorphGrowthFigure(_Figure):
 
     def _scale_vertices(self, vertices, step):
         t_frac = step / self._total_steps
-        partial_scale = 1.0 + (self._scale - 1.0) * np.sin(
+        partial_scale = 1.0 + (_GROWTH_SCALE - 1.0) * np.sin(
             0.5 * np.pi * t_frac
         )
         scaled_vertices = partial_scale * vertices

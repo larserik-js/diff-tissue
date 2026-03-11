@@ -102,11 +102,6 @@ class Params:
         pytree_node=True,
         metadata={"help": "Maximum area scaling.", "cli_flag": "marsc"},
     )
-    growth_scale: float = struct.field(
-        default=5.0,
-        pytree_node=True,
-        metadata={"help": "Growth scale.", "cli_flag": "gsc"},
-    )
     seed: int = struct.field(
         default=0,
         pytree_node=True,

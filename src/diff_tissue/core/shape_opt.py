@@ -40,7 +40,7 @@ def _calc_inverse_smoothing_stds(smoothing_stds):
 
 
 def _calc_goal_area_bounds(tutte_areas, params):
-    min_goal_area = tutte_areas.min() / params.growth_scale
+    min_goal_area = 0.0
     max_goal_area = tutte_areas.max() * params.max_area_scaling
     return (min_goal_area, max_goal_area)
 
