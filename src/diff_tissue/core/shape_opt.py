@@ -39,9 +39,10 @@ def _calc_inverse_smoothing_stds(smoothing_stds):
     return logits
 
 
-def _calc_goal_area_bounds(tutte_areas, params):
+def _calc_goal_area_bounds(polygons):
     min_goal_area = 0.0
-    max_goal_area = tutte_areas.max() * params.max_area_scaling
+    avg_polygon_area = polygons.mesh_area / len(polygons.indices)
+    max_goal_area = 5.0 * avg_polygon_area  # From paper
     return (min_goal_area, max_goal_area)
 
 
@@ -619,7 +620,7 @@ def run(params):
 
     knot_ctx = _get_knot_ctx(params.knots, knots, tutte_metrics.centroids)
 
-    goal_area_bounds = _calc_goal_area_bounds(tutte_metrics.areas, params)
+    goal_area_bounds = _calc_goal_area_bounds(polygons)
 
     init_logits = _get_init_logits(
         goal_area_bounds, knots, tutte_metrics, params

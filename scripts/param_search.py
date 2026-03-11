@@ -25,9 +25,6 @@ def objective_f(trial):
             "anisotropy loss weight", 1.0, 1e4, log=True
         )
     )
-    params = params.replace(
-        max_area_scaling=trial.suggest_float("max area scaling", 0.5, 2.0)
-    )
     params = params.replace(seed=3)
     params = params.replace(quiet=True)
 

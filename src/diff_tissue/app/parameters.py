@@ -97,11 +97,6 @@ class Params:
         pytree_node=True,
         metadata={"help": "Poly identity loss weight.", "cli_flag": "ilw"},
     )
-    max_area_scaling: float = struct.field(
-        default=1.0,
-        pytree_node=True,
-        metadata={"help": "Maximum area scaling.", "cli_flag": "marsc"},
-    )
     seed: int = struct.field(
         default=0,
         pytree_node=True,
