@@ -26,7 +26,7 @@ class _Artists:
 
     def _get_ax_lims(self):
         all_plotted_vertices = np.vstack(
-            [self._polygons.vertices, self._target_boundary]
+            [self._polygons.init_vertices, self._target_boundary]
         )
         minvals = all_plotted_vertices.min(axis=0)
         maxvals = all_plotted_vertices.max(axis=0)
@@ -69,7 +69,7 @@ class _Artists:
     def _add_vertices(self, vertices):
         polygons = _get_polygons(
             vertices,
-            self._polygons.polygon_inds,
+            self._polygons.indices,
             self._polygons.valid_mask,
         )
         for polygon_ in polygons:
@@ -84,7 +84,7 @@ class _Artists:
     def _enumerate_centroids(self, vertices):
         centroids = my_utils.calc_centroids(
             vertices,
-            self._polygons.polygon_inds,
+            self._polygons.indices,
             self._polygons.valid_mask,
         )
         markers = np.arange(centroids.shape[0])

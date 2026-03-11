@@ -45,7 +45,7 @@ def get_poly_identities(params):
     elif params.poly_id_configuration == 1:
         polygons = init_systems.get_system(params)
         init_centroids = my_utils.calc_centroids(
-            polygons.vertices, polygons.polygon_inds, polygons.valid_mask
+            polygons.init_vertices, polygons.indices, polygons.valid_mask
         )
         poly_identities = _PolyIdentities(init_centroids)
         jax_poly_identities = _JaxPolyIdentities(

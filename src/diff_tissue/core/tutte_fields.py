@@ -68,7 +68,7 @@ def _build_meshes(shape, n_meshes=100):
         polygons = init_systems.get_system(params)
         tutte_vertices = my_utils.TutteMetrics(polygons, params.shape).vertices
         shapely_polygons = my_utils.get_shapely_polygons(
-            tutte_vertices, polygons.polygon_inds
+            tutte_vertices, polygons.indices
         )
         tutte_metrics = my_utils.TutteMetrics(polygons, shape)
 

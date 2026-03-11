@@ -70,8 +70,8 @@ def plot(params, output):
     output_path = output.file_path(f"{param_string}.pdf")
 
     _plot_mapping(
-        polygons.vertices,
-        polygons.polygon_inds,
+        polygons.init_vertices,
+        polygons.indices,
         polygons.valid_mask,
         tutte_metrics.vertices,
         output_path,

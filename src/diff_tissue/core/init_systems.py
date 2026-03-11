@@ -53,8 +53,8 @@ def _extend(indices):
 
 class _Polygons(ABC):
     def __init__(self):
-        self._vertices: NDArray[np.floating]
-        self._polygon_inds: NDArray[np.integer]
+        self._init_vertices: NDArray[np.floating]
+        self._indices: NDArray[np.integer]
         self._free_mask: NDArray[np.bool_]
         self._mesh_area: float
         self._build()
@@ -74,13 +74,13 @@ class _Polygons(ABC):
         pass
 
     def _find_valid_mask(self):
-        valid_mask = self._polygon_inds != -1
+        valid_mask = self._indices != -1
         return valid_mask
 
     def _get_boundary_inds(self):
         all_edges = set()
         interior_edges = set()
-        for extended_polygon in self._polygon_inds:
+        for extended_polygon in self._indices:
             unpadded_polygon = extended_polygon[extended_polygon != -1]
             # Removes the last vertex, which was an extension for efficiency
             polygon = unpadded_polygon[:-1]
@@ -116,9 +116,9 @@ class _Polygons(ABC):
         neighbors = []
         max_n_neighbors = 0
 
-        for idx, vertex_inds_ in enumerate(self._polygon_inds):
+        for idx, vertex_inds_ in enumerate(self._indices):
             vertex_inds = vertex_inds_[vertex_inds_ != -1]
-            inds_in_polygons = np.isin(self._polygon_inds, vertex_inds)
+            inds_in_polygons = np.isin(self._indices, vertex_inds)
             poly_neighbors_with_self = np.where(
                 np.any(inds_in_polygons, axis=1)
             )[0]
@@ -136,7 +136,7 @@ class _Polygons(ABC):
 
     def _calc_vertex_neighbors(self):
         vertex_neighbors = defaultdict(set)
-        for polygon in self._polygon_inds:
+        for polygon in self._indices:
             for i in range(len(polygon) - 1):
                 vertex_idx, vertex_neighbor_idx = (
                     int(polygon[i]),
@@ -157,8 +157,8 @@ class _Polygons(ABC):
 
     def _calc_vertex_polygons(self):
         vertex_polygons_lists = list()
-        for vertex_idx in range(self._vertices.shape[0]):
-            vertex_polygons = np.where(vertex_idx == self._polygon_inds)[0]
+        for vertex_idx in range(self._init_vertices.shape[0]):
+            vertex_polygons = np.where(vertex_idx == self._indices)[0]
             vertex_polygons_list = list(set(vertex_polygons))
             vertex_polygons_lists.append(vertex_polygons_list)
 
@@ -168,12 +168,12 @@ class _Polygons(ABC):
         return vertex_polygons
 
     @property
-    def vertices(self):
-        return self._vertices
+    def init_vertices(self):
+        return self._init_vertices
 
     @property
-    def polygon_inds(self):
-        return self._polygon_inds
+    def indices(self):
+        return self._indices
 
     @property
     def free_mask(self):
@@ -216,9 +216,11 @@ class _VoronoiPolygons(_Polygons):
         self._mesh_area = self._calc_mesh_area()
 
         self._generating_shape = self._get_generating_shape()
-        self._all_polygon_inds, self._vertices = self._make_init_polygons()
+        self._all_polygon_inds, self._init_vertices = (
+            self._make_init_polygons()
+        )
         self._max_vertices = self._find_max_vertices()
-        self._polygon_inds = self._finalize_polygon_inds()
+        self._indices = self._finalize_polygon_inds()
         self._free_mask = self._get_free_mask()
 
     def _get_generating_shape(self):
@@ -438,9 +440,9 @@ class _VoronoiPolygons(_Polygons):
 
     def _get_free_mask(self):
         are_fixed = np.isclose(
-            self._vertices[:, 1] - Coords.base_origin[1], 0.0
+            self._init_vertices[:, 1] - Coords.base_origin[1], 0.0
         )
-        free_mask = np.ones(self._vertices.shape, dtype=bool)
+        free_mask = np.ones(self._init_vertices.shape, dtype=bool)
         free_mask[are_fixed, 1] = False
         return free_mask
 
@@ -452,7 +454,7 @@ class _FullPolygons(_Polygons):
     def _build(self):
         self._input_cells = self._read_input_cells()
         self._max_vertices = self._find_max_vertices()
-        self._polygon_inds, self._vertices = self._make_init_polygons()
+        self._indices, self._init_vertices = self._make_init_polygons()
         self._free_mask = self._get_free_mask()
         self._mesh_area = self._calc_mesh_area()
 
@@ -554,7 +556,7 @@ class _FullPolygons(_Polygons):
 
     def _get_free_mask(self):
         fixed_inds = self._get_fixed_inds()
-        free_mask = np.ones(self._vertices.shape, dtype=bool)
+        free_mask = np.ones(self._init_vertices.shape, dtype=bool)
         free_mask[fixed_inds] = False
         return free_mask
 
@@ -585,9 +587,9 @@ class _SinglePolygon(_Polygons):
         super().__init__()
 
     def _build(self):
-        self._vertices = self._make_init_polygons()
-        self._n_vertices = self._vertices.shape[0]
-        self._polygon_inds = self._find_polygon_inds()
+        self._init_vertices = self._make_init_polygons()
+        self._n_vertices = self._init_vertices.shape[0]
+        self._indices = self._find_polygon_inds()
         self._free_mask = self._get_free_mask()
         self._mesh_area = self._calc_mesh_area()
 
@@ -607,18 +609,18 @@ class _SinglePolygon(_Polygons):
 
     def _find_polygon_inds(self):
         polygon_inds = np.arange(self._n_vertices)
-        polygon_inds = sort_counterclockwise(polygon_inds, self._vertices)
+        polygon_inds = sort_counterclockwise(polygon_inds, self._init_vertices)
         polygon_inds = _extend(polygon_inds)
         return np.array(polygon_inds).reshape(1, -1)
 
     def _get_free_mask(self):
-        free_mask = np.ones(self._vertices.shape, dtype=bool)
+        free_mask = np.ones(self._init_vertices.shape, dtype=bool)
         free_mask[:3, 1] = False
         return free_mask
 
     def _calc_mesh_area(self):
-        xs = self._vertices[:, 0]
-        ys = self._vertices[:, 1]
+        xs = self._init_vertices[:, 0]
+        ys = self._init_vertices[:, 1]
 
         area = 0.5 * np.abs(
             np.dot(xs, np.roll(ys, -1)) - np.dot(ys, np.roll(xs, -1))

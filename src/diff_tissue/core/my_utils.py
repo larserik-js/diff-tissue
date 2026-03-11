@@ -154,8 +154,8 @@ class TutteMetrics:
             init_systems.VertexNumbers(self._polygons),
         )
         vertices_ = tutte.get_mapped_vertices(
-            self._polygons.vertices,
-            self._polygons.polygon_inds,
+            self._polygons.init_vertices,
+            self._polygons.indices,
             self._polygons.boundary_inds,
             target_boundary.vertices,
         )
@@ -163,14 +163,14 @@ class TutteMetrics:
 
     @cached_property
     def _all_cells(self):
-        all_cells = get_all_cells(self.vertices, self._polygons.polygon_inds)
+        all_cells = get_all_cells(self.vertices, self._polygons.indices)
         return all_cells
 
     @cached_property
     def centroids(self):
         centroids_ = calc_centroids(
             self.vertices,
-            self._polygons.polygon_inds,
+            self._polygons.indices,
             self._polygons.valid_mask,
         )
         return centroids_
@@ -196,9 +196,9 @@ def get_tutte_metrics(params):
 
 def _make_array_dict(polygons, target_boundary):
     arrays = {
-        "indices": polygons.polygon_inds,
+        "indices": polygons.indices,
         "valid_mask": polygons.valid_mask,
-        "init_vertices": polygons.vertices,
+        "init_vertices": polygons.init_vertices,
         "poly_neighbors": polygons.poly_neighbors,
         "vertex_neighbors": polygons.vertex_neighbors,
         "vertex_polygons": polygons.vertex_polygons,
