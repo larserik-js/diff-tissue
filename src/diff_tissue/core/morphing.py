@@ -3,20 +3,20 @@ from . import my_utils
 
 
 def _calc_areas_loss(target_areas, areas):
-    areas_loss = jnp.sum(jnp.square((areas - target_areas) / target_areas))
+    areas_loss = jnp.mean(jnp.square((areas - target_areas) / target_areas))
     return areas_loss
 
 
 def _calc_angles_loss(masked_cosines, optimal_angles):
     optimal_cosines = jnp.cos(optimal_angles)
     squared_diffs = jnp.square(masked_cosines - optimal_cosines)
-    angles_loss = jnp.nansum(squared_diffs)
+    angles_loss = jnp.nanmean(squared_diffs)
     return angles_loss
 
 
 def _calc_anisotropies_loss(target_anisotropies, anisotropies):
     anisotropy_diffs = target_anisotropies - anisotropies
-    anisotropies_loss = jnp.sum(jnp.square(anisotropy_diffs))
+    anisotropies_loss = jnp.mean(jnp.square(anisotropy_diffs))
     return anisotropies_loss
 
 
