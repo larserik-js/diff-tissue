@@ -4,6 +4,7 @@ from functools import cached_property
 from importlib.resources import files
 import json
 
+from .jax_bootstrap import jnp, struct
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial import Voronoi
@@ -640,6 +641,35 @@ def get_system(params) -> _Polygons:
         case _:
             raise ValueError("Invalid initial system!")
     return polygons
+
+
+@struct.dataclass
+class JaxPolygons:
+    init_vertices: jnp.ndarray
+    indices: jnp.ndarray
+    free_mask: jnp.ndarray
+    valid_mask: jnp.ndarray
+    boundary_inds: jnp.ndarray
+    poly_neighbors: jnp.ndarray
+    vertex_neighbors: jnp.ndarray
+    vertex_polygons: jnp.ndarray
+    mesh_area: float
+
+
+def get_jax_polygons(params):
+    polygons = get_system(params)
+    jax_polygons = JaxPolygons(
+        init_vertices=jnp.array(polygons.init_vertices),
+        indices=jnp.array(polygons.indices),
+        free_mask=jnp.array(polygons.free_mask),
+        valid_mask=jnp.array(polygons.valid_mask),
+        boundary_inds=jnp.array(polygons.boundary_inds),
+        poly_neighbors=jnp.array(polygons.poly_neighbors),
+        vertex_neighbors=jnp.array(polygons.vertex_neighbors),
+        vertex_polygons=jnp.array(polygons.vertex_polygons),
+        mesh_area=polygons.mesh_area,
+    )
+    return jax_polygons
 
 
 class VertexNumbers:

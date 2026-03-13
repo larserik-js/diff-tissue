@@ -107,23 +107,6 @@ def _make_min_dist_mask(jax_arrays, target_boundary):
 
 
 @struct.dataclass
-class _JaxTargetBoundary:
-    vertices: jnp.ndarray
-    segments: jnp.ndarray
-
-
-def _get_jax_target_boundary(polygons, params):
-    target_boundary = shapes.get_target_boundary(
-        params.shape, polygons.mesh_area, init_systems.VertexNumbers(polygons)
-    )
-    jax_target_boundary = _JaxTargetBoundary(
-        vertices=jnp.array(target_boundary.vertices),
-        segments=jnp.array(target_boundary.segments),
-    )
-    return jax_target_boundary
-
-
-@struct.dataclass
 class _KnotCtx:
     n_left_logits: int = struct.field(pytree_node=False)
     dist_vecs: jnp.ndarray
@@ -531,7 +514,7 @@ def _iterate_towards_shape(
     logits: _Logits,
     knot_ctx: _KnotCtx | None,
     goal_area_bounds: tuple,
-    target_boundary: _JaxTargetBoundary,
+    target_boundary: shapes.JaxTargetBoundary,
     jax_arrays: dict,
     params: parameters.Params,
 ) -> _SimStates:
@@ -610,9 +593,9 @@ def _iterate_towards_shape(
 def run(params):
     jax_arrays = my_utils.get_jax_arrays(params)
 
-    polygons = init_systems.get_system(params)
+    polygons = init_systems.get_jax_polygons(params)
 
-    target_boundary = _get_jax_target_boundary(polygons, params)
+    target_boundary = shapes.get_jax_target_boundary(polygons, params)
 
     tutte_metrics = my_utils.get_tutte_metrics(params)
 

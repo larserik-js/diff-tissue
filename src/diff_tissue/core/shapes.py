@@ -3,6 +3,7 @@ from functools import cached_property
 
 import numpy as np
 
+from .jax_bootstrap import jnp, struct
 from . import init_systems
 
 
@@ -216,3 +217,20 @@ def get_target_boundary(shape, mesh_area, vertex_numbers):
         case _:
             raise ValueError("Invalid target boundary shape!")
     return shape
+
+
+@struct.dataclass
+class JaxTargetBoundary:
+    vertices: jnp.ndarray
+    segments: jnp.ndarray
+
+
+def get_jax_target_boundary(polygons, params):
+    target_boundary = get_target_boundary(
+        params.shape, polygons.mesh_area, init_systems.VertexNumbers(polygons)
+    )
+    jax_target_boundary = JaxTargetBoundary(
+        vertices=jnp.array(target_boundary.vertices),
+        segments=jnp.array(target_boundary.segments),
+    )
+    return jax_target_boundary
