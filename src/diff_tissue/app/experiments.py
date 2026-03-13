@@ -1,4 +1,4 @@
-from ..core import my_utils
+from ..core import init_systems
 from ..core import shape_opt as shape_opt_core
 from . import io_utils, learned_growth, morphing, parameters, tutte_fields
 from . import shape_opt as shape_opt_app
@@ -8,7 +8,7 @@ OUTPUT_DIR = "outputs"
 
 
 def run_morphing(params, base_dir=OUTPUT_DIR):
-    jax_arrays = my_utils.get_jax_arrays(params)
+    polygons = init_systems.get_jax_polygons(params)
 
     output = io_utils.OutputManager(
         morphing.OUTPUT_TYPE_DIR, base_dir=base_dir
@@ -18,7 +18,7 @@ def run_morphing(params, base_dir=OUTPUT_DIR):
     cache_path = output.cache_path(f"{param_string}.pkl")
 
     growth_evolution = morphing.get_growth_evolution(
-        cache_path, jax_arrays, params
+        cache_path, polygons, params
     )
 
     morphing.save_figs(growth_evolution, output, param_string, params)
@@ -36,12 +36,12 @@ def run_shape_opt(params, base_dir=OUTPUT_DIR):
     best_goal_areas = best_state.goal_areas
     best_goal_anisotropies = best_state.goal_anisotropies
 
-    jax_arrays = my_utils.get_jax_arrays(params)
+    polygons = init_systems.get_jax_polygons(params)
     param_string = parameters.get_param_string(params)
 
     cache_path = output.cache_path(f"best_growth__{param_string}.pkl")
     best_growth_evolution = shape_opt_app.get_best_growth_evolution(
-        best_goal_areas, best_goal_anisotropies, jax_arrays, params, cache_path
+        best_goal_areas, best_goal_anisotropies, polygons, params, cache_path
     )
 
     shape_opt_app.plot_best_growth(

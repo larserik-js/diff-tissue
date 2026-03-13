@@ -4,7 +4,7 @@ import numpy as np
 
 from ..core.jax_bootstrap import jnp
 from ..core import shape_opt as shape_opt_core
-from ..core import morphing, my_utils
+from ..core import init_systems, morphing, my_utils
 from . import shape_opt as shape_opt_app
 from . import io_utils, parameters, plotting
 
@@ -62,10 +62,9 @@ def run(params, output):
     input_seed = params.seed  # Store for regenerated system
     params = params.replace(seed=0)  # Always base on same initial system
 
-    jax_arrays = my_utils.get_jax_arrays(params)
-
-    old_polygons = my_utils.get_shapely_polygons(
-        jax_arrays["init_vertices"], jax_arrays["indices"]
+    polygons = init_systems.get_system(params)
+    old_shapely_polygons = my_utils.get_shapely_polygons(
+        polygons.init_vertices, polygons.indices
     )
 
     sim_states = shape_opt_app.get_sim_states(params, output)
@@ -75,23 +74,24 @@ def run(params, output):
 
     # Regenerate new system, base on cli seed
     new_params = params.replace(seed=input_seed)
-    new_jax_arrays = my_utils.get_jax_arrays(new_params)
-    new_polygons = my_utils.get_shapely_polygons(
-        new_jax_arrays["init_vertices"], new_jax_arrays["indices"]
+    new_polygons = init_systems.get_jax_polygons(new_params)
+
+    new_shapely_polygons = my_utils.get_shapely_polygons(
+        new_polygons.init_vertices, new_polygons.indices
     )
 
     resulting_areas = _assign_weighted_goals(
-        old_polygons, goal_areas, new_polygons
+        old_shapely_polygons, goal_areas, new_shapely_polygons
     )
     resulting_anisotropies = _assign_weighted_goals(
-        old_polygons, goal_anisotropies, new_polygons
+        old_shapely_polygons, goal_anisotropies, new_shapely_polygons
     )
 
     growth_evolution = morphing.iterate(
         resulting_areas,
         resulting_anisotropies,
         new_params.n_growth_steps,
-        new_jax_arrays,
+        new_polygons,
         new_params,
     )
 

@@ -37,7 +37,7 @@ def get_sim_states(params, output):
 
 
 def get_best_growth_evolution(
-    best_goal_areas, best_goal_anisotropies, jax_arrays, params, cache_path
+    best_goal_areas, best_goal_anisotropies, polygons, params, cache_path
 ):
     if cache_path.exists():
         best_growth_evolution = io_utils.load_pkl(cache_path)
@@ -46,7 +46,7 @@ def get_best_growth_evolution(
             best_goal_areas,
             best_goal_anisotropies,
             params.n_growth_steps,
-            jax_arrays,
+            polygons,
             params,
         )
         io_utils.save_pkl(cache_path, best_growth_evolution)

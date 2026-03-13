@@ -86,15 +86,15 @@ def _calc_goal_anisotropies(an_logits, knots, knot_ctx):
     return goal_anisotropies
 
 
-def _make_min_dist_mask(jax_arrays, target_boundary):
+def _make_min_dist_mask(polygons, target_boundary):
     min_dist_mask = jnp.ones(
         (
-            jax_arrays["boundary_inds"].shape[0],
+            polygons.boundary_inds.shape[0],
             target_boundary.vertices.shape[0],
         ),
         dtype=bool,
     )
-    fixed_boundary_mask = ~jax_arrays["free_mask"][jax_arrays["boundary_inds"]]
+    fixed_boundary_mask = ~polygons.free_mask[polygons.boundary_inds]
     fixed_mask = jnp.any(fixed_boundary_mask, axis=1)
 
     target_boundary_basal_mask = jnp.isclose(
@@ -289,7 +289,7 @@ def _loss_fn(
     n_growth_steps,
     poly_metrics,
     poly_ids,
-    jax_arrays,
+    polygons,
     params,
 ):
     knot_ctx = _update_knot_ctx(logits, knot_ctx, params.knots)
@@ -305,11 +305,11 @@ def _loss_fn(
     )
 
     growth_evolution = morphing.iterate(
-        goal_areas, goal_anisotropies, n_growth_steps, jax_arrays, params
+        goal_areas, goal_anisotropies, n_growth_steps, polygons, params
     )
     final_vertices = growth_evolution[-1]
 
-    boundary_vertices = final_vertices[jax_arrays["boundary_inds"]]
+    boundary_vertices = final_vertices[polygons.boundary_inds]
 
     poly_metrics = my_utils.update_poly_metrics(poly_metrics, final_vertices)
 
@@ -515,19 +515,19 @@ def _iterate_towards_shape(
     knot_ctx: _KnotCtx | None,
     goal_area_bounds: tuple,
     target_boundary: shapes.JaxTargetBoundary,
-    jax_arrays: dict,
+    polygons: init_systems.JaxPolygons,
     params: parameters.Params,
 ) -> _SimStates:
-    vertices = jax_arrays["init_vertices"]
+    vertices = polygons.init_vertices
 
-    min_dist_mask = _make_min_dist_mask(jax_arrays, target_boundary)
+    min_dist_mask = _make_min_dist_mask(polygons, target_boundary)
 
     optimizer = _MyOptimizer(logits)
 
     poly_metrics = my_utils.initialize_poly_metrics(
         vertices=vertices,
-        indices=jax_arrays["indices"],
-        valid_mask=jax_arrays["valid_mask"],
+        indices=polygons.indices,
+        valid_mask=polygons.valid_mask,
     )
 
     poly_ids = poly_identities.get_poly_identities(params)
@@ -547,7 +547,7 @@ def _iterate_towards_shape(
             params.n_growth_steps,
             poly_metrics,
             poly_ids,
-            jax_arrays,
+            polygons,
             params,
         )
         vertices, goal_areas, goal_anisotropies, knot_ctx, poly_metrics = (
@@ -591,8 +591,6 @@ def _iterate_towards_shape(
 
 
 def run(params):
-    jax_arrays = my_utils.get_jax_arrays(params)
-
     polygons = init_systems.get_jax_polygons(params)
 
     target_boundary = shapes.get_jax_target_boundary(polygons, params)
@@ -614,7 +612,7 @@ def run(params):
         knot_ctx,
         goal_area_bounds,
         target_boundary,
-        jax_arrays,
+        polygons,
         params,
     )
     return sim_states

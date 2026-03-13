@@ -84,7 +84,7 @@ def _update_vertices(
     init_anisotropies,
     optimal_angles,
     poly_metrics,
-    jax_arrays,
+    polygons,
     params,
 ):
     t_frac = t / params.n_growth_steps
@@ -102,23 +102,21 @@ def _update_vertices(
         params,
     )
     updated_vertices = jnp.where(
-        jax_arrays["free_mask"], updated_vertices, jax_arrays["init_vertices"]
+        polygons.free_mask, updated_vertices, polygons.init_vertices
     )
 
     return updated_vertices
 
 
-def iterate(goal_areas, goal_anisotropies, n_steps, jax_arrays, params):
-    init_vertices = jax_arrays["init_vertices"]
-
+def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
     poly_metrics = my_utils.initialize_poly_metrics(
-        vertices=init_vertices,
-        indices=jax_arrays["indices"],
-        valid_mask=jax_arrays["valid_mask"],
+        vertices=polygons.init_vertices,
+        indices=polygons.indices,
+        valid_mask=polygons.valid_mask,
     )
     init_areas = poly_metrics.areas
     init_anisotropies = poly_metrics.anisotropies
-    optimal_angles = my_utils.calc_optimal_angles(jax_arrays["valid_mask"])
+    optimal_angles = my_utils.calc_optimal_angles(polygons.valid_mask)
 
     def update_step(carry, t):
         vertices, poly_metrics, goal_areas, goal_anisotropies = carry
@@ -132,7 +130,7 @@ def iterate(goal_areas, goal_anisotropies, n_steps, jax_arrays, params):
             init_anisotropies,
             optimal_angles,
             poly_metrics,
-            jax_arrays,
+            polygons,
             params,
         )
 
@@ -140,7 +138,12 @@ def iterate(goal_areas, goal_anisotropies, n_steps, jax_arrays, params):
 
         return carry, vertices
 
-    init_carry = (init_vertices, poly_metrics, goal_areas, goal_anisotropies)
+    init_carry = (
+        polygons.init_vertices,
+        poly_metrics,
+        goal_areas,
+        goal_anisotropies,
+    )
 
     _, growth_evolution = jax.lax.scan(
         update_step, init_carry, jnp.arange(n_steps)

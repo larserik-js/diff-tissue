@@ -4,7 +4,7 @@ import timeit
 import numpy as np
 from shapely.geometry import Polygon
 
-from .jax_bootstrap import jax, jnp, struct
+from .jax_bootstrap import jnp, struct
 from . import init_systems, shapes, tutte
 
 
@@ -192,49 +192,6 @@ def get_tutte_metrics(params):
     polygons = init_systems.get_system(params)
     tutte_metrics = TutteMetrics(polygons, params.shape)
     return tutte_metrics
-
-
-def _make_array_dict(polygons):
-    arrays = {
-        "indices": polygons.indices,
-        "valid_mask": polygons.valid_mask,
-        "init_vertices": polygons.init_vertices,
-        "poly_neighbors": polygons.poly_neighbors,
-        "vertex_neighbors": polygons.vertex_neighbors,
-        "vertex_polygons": polygons.vertex_polygons,
-        "free_mask": polygons.free_mask,
-        "boundary_inds": polygons.boundary_inds,
-    }
-    return arrays
-
-
-def get_arrays(params):
-    polygons = init_systems.get_system(params)
-    arrays = _make_array_dict(polygons)
-    return arrays
-
-
-def _get_device():
-    return jax.devices("cpu")[0]
-
-
-def _send_to_device(jax_array):
-    return jax.device_put(jax_array, device=_get_device())
-
-
-def to_jax(np_array):
-    return _send_to_device(jnp.array(np_array))
-
-
-def _make_jax_arrays(arrays):
-    jax_arrays = {name: to_jax(array) for name, array in arrays.items()}
-    return jax_arrays
-
-
-def get_jax_arrays(params):
-    arrays = get_arrays(params)
-    jax_arrays = _make_jax_arrays(arrays)
-    return jax_arrays
 
 
 def _make_poly_idx_lists(polygon_indices):

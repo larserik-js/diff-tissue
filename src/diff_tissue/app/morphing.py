@@ -21,11 +21,11 @@ def save_figs(growth_evolution, output, param_string, params):
 jiterate = jax.jit(morphing_core.iterate, static_argnames=["n_steps"])
 
 
-def _morph(jax_arrays, params):
+def _morph(polygons, params):
     poly_metrics = my_utils.initialize_poly_metrics(
-        vertices=jax_arrays["init_vertices"],
-        indices=jax_arrays["indices"],
-        valid_mask=jax_arrays["valid_mask"],
+        vertices=polygons.init_vertices,
+        indices=polygons.indices,
+        valid_mask=polygons.valid_mask,
     )
     init_areas = poly_metrics.areas
 
@@ -36,17 +36,17 @@ def _morph(jax_arrays, params):
         goal_areas,
         goal_anisotropies,
         params.n_growth_steps,
-        jax_arrays,
+        polygons,
         params,
     )
 
     return growth_evolution
 
 
-def get_growth_evolution(cache_path, jax_arrays, params):
+def get_growth_evolution(cache_path, polygons, params):
     if cache_path.exists():
         growth_evolution = io_utils.load_pkl(cache_path)
     else:
-        growth_evolution = _morph(jax_arrays, params)
+        growth_evolution = _morph(polygons, params)
         io_utils.save_pkl(cache_path, growth_evolution)
     return growth_evolution
