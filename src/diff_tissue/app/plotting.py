@@ -175,7 +175,7 @@ class MorphFigure(_Figure):
 class MorphGrowthFigure(_Figure):
     def __init__(self, params):
         super().__init__(params)
-        self._total_steps = params.n_growth_steps
+        self._total_steps = params.n_morph_steps
         self._gs = gridspec.GridSpec(
             nrows=2, ncols=1, figure=self._fig, height_ratios=[0.8, 1.0]
         )

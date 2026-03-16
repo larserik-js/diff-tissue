@@ -286,7 +286,7 @@ def _loss_fn(
     goal_area_bounds,
     target_boundary,
     min_dist_mask,
-    n_growth_steps,
+    n_morph_steps,
     poly_metrics,
     poly_ids,
     polygons,
@@ -304,10 +304,10 @@ def _loss_fn(
         logits.an_logits, params.knots, knot_ctx
     )
 
-    growth_evolution = morphing.iterate(
-        goal_areas, goal_anisotropies, n_growth_steps, polygons, params
+    morph_evolution = morphing.iterate(
+        goal_areas, goal_anisotropies, n_morph_steps, polygons, params
     )
-    final_vertices = growth_evolution[-1]
+    final_vertices = morph_evolution[-1]
 
     boundary_vertices = final_vertices[polygons.boundary_inds]
 
@@ -338,7 +338,7 @@ def _loss_fn(
 
 loss_fn = jax.jit(
     jax.value_and_grad(_loss_fn, has_aux=True, argnums=0),
-    static_argnames=["n_growth_steps"],
+    static_argnames=["n_morph_steps"],
 )
 
 
@@ -544,7 +544,7 @@ def _iterate_towards_shape(
             goal_area_bounds,
             target_boundary,
             min_dist_mask,
-            params.n_growth_steps,
+            params.n_morph_steps,
             poly_metrics,
             poly_ids,
             polygons,

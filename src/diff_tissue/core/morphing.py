@@ -20,7 +20,7 @@ def _calc_anisotropies_loss(target_anisotropies, anisotropies):
     return anisotropies_loss
 
 
-def _calc_growth_loss(
+def _calc_morph_loss(
     vertices,
     target_areas,
     target_anisotropies,
@@ -61,7 +61,7 @@ def _lbfgs_solve(
     poly_metrics,
     params,
 ):
-    solver = jaxopt.LBFGS(fun=_calc_growth_loss, maxiter=50)
+    solver = jaxopt.LBFGS(fun=_calc_morph_loss, maxiter=50)
     result = solver.run(
         vertices,
         target_areas,
@@ -87,7 +87,7 @@ def _update_vertices(
     polygons,
     params,
 ):
-    t_frac = t / params.n_growth_steps
+    t_frac = t / params.n_morph_steps
     target_areas = _update_targets(init_areas, goal_areas, t_frac)
     target_anisotropies = _update_targets(
         init_anisotropies, goal_anisotropies, t_frac
@@ -145,8 +145,8 @@ def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
         goal_anisotropies,
     )
 
-    _, growth_evolution = jax.lax.scan(
+    _, morph_evolution = jax.lax.scan(
         update_step, init_carry, jnp.arange(n_steps)
     )
 
-    return growth_evolution
+    return morph_evolution

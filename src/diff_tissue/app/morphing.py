@@ -7,10 +7,10 @@ from . import io_utils, plotting
 OUTPUT_TYPE_DIR = "morphing"
 
 
-def save_figs(growth_evolution, output, param_string, params):
+def save_figs(morph_evolution, output, param_string, params):
     figure = plotting.MorphFigure(params)
 
-    for t, vertices in enumerate(growth_evolution):
+    for t, vertices in enumerate(morph_evolution):
         if t % 10 == 0:
             fig_path = output.file_path(param_string, f"step={t:03d}.png")
             figure.save_plot(vertices, fig_path)
@@ -32,21 +32,21 @@ def _morph(polygons, params):
     goal_areas = 2.0 * init_areas
     goal_anisotropies = 5.0 * jnp.ones_like(init_areas)
 
-    growth_evolution = jiterate(
+    morph_evolution = jiterate(
         goal_areas,
         goal_anisotropies,
-        params.n_growth_steps,
+        params.n_morph_steps,
         polygons,
         params,
     )
 
-    return growth_evolution
+    return morph_evolution
 
 
-def get_growth_evolution(cache_path, polygons, params):
+def get_morph_evolution(cache_path, polygons, params):
     if cache_path.exists():
-        growth_evolution = io_utils.load_pkl(cache_path)
+        morph_evolution = io_utils.load_pkl(cache_path)
     else:
-        growth_evolution = _morph(polygons, params)
-        io_utils.save_pkl(cache_path, growth_evolution)
-    return growth_evolution
+        morph_evolution = _morph(polygons, params)
+        io_utils.save_pkl(cache_path, morph_evolution)
+    return morph_evolution

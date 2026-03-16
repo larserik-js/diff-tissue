@@ -8,7 +8,7 @@ def objective_f(trial):
     params = parameters.Params()
 
     params = params.replace(
-        n_growth_steps=trial.suggest_int("growth steps", 50, 2000)
+        n_morph_steps=trial.suggest_int("morph steps", 50, 2000)
     )
     params = params.replace(
         areas_loss_weight=trial.suggest_float(

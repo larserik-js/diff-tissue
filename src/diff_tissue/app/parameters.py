@@ -58,10 +58,10 @@ class Params:
         pytree_node=True,
         metadata={"help": "Number of shape steps.", "cli_flag": "ssteps"},
     )
-    n_growth_steps: int = struct.field(
+    n_morph_steps: int = struct.field(
         default=500,
         pytree_node=True,
-        metadata={"help": "Number of growth steps.", "cli_flag": "gsteps"},
+        metadata={"help": "Number of morph steps.", "cli_flag": "msteps"},
     )
     areas_loss_weight: float = struct.field(
         default=20.0,

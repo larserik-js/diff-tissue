@@ -1,6 +1,6 @@
 from ..core import init_systems
 from ..core import shape_opt as shape_opt_core
-from . import io_utils, learned_growth, morphing, parameters, tutte_fields
+from . import io_utils, learned_morph, morphing, parameters, tutte_fields
 from . import shape_opt as shape_opt_app
 
 
@@ -17,11 +17,11 @@ def run_morphing(params, base_dir=OUTPUT_DIR):
     param_string = parameters.get_param_string(params)
     cache_path = output.cache_path(f"{param_string}.pkl")
 
-    growth_evolution = morphing.get_growth_evolution(
+    morph_evolution = morphing.get_morph_evolution(
         cache_path, polygons, params
     )
 
-    morphing.save_figs(growth_evolution, output, param_string, params)
+    morphing.save_figs(morph_evolution, output, param_string, params)
 
 
 def run_shape_opt(params, base_dir=OUTPUT_DIR):
@@ -39,24 +39,24 @@ def run_shape_opt(params, base_dir=OUTPUT_DIR):
     polygons = init_systems.get_jax_polygons(params)
     param_string = parameters.get_param_string(params)
 
-    cache_path = output.cache_path(f"best_growth__{param_string}.pkl")
-    best_growth_evolution = shape_opt_app.get_best_growth_evolution(
+    cache_path = output.cache_path(f"best_morph__{param_string}.pkl")
+    best_morph_evolution = shape_opt_app.get_best_morph_evolution(
         best_goal_areas, best_goal_anisotropies, polygons, params, cache_path
     )
 
-    shape_opt_app.plot_best_growth(
-        best_growth_evolution, output, param_string, params
+    shape_opt_app.plot_best_morph(
+        best_morph_evolution, output, param_string, params
     )
 
 
-def run_learned_growth(params):
+def run_learned_morph(params):
     output = io_utils.OutputManager(
-        learned_growth.OUTPUT_TYPE_DIR, base_dir=OUTPUT_DIR
+        learned_morph.OUTPUT_TYPE_DIR, base_dir=OUTPUT_DIR
     )
 
-    results = learned_growth.run(params, output)
+    results = learned_morph.run(params, output)
 
-    learned_growth.plot(results, params, output)
+    learned_morph.plot(results, params, output)
 
 
 def plot_tutte_fields():
