@@ -64,12 +64,12 @@ class Params:
         metadata={"help": "Number of morph steps.", "cli_flag": "msteps"},
     )
     areas_loss_weight: float = struct.field(
-        default=20.0,
+        default=5.0,
         pytree_node=True,
         metadata={"help": "Areas loss weight.", "cli_flag": "arlw"},
     )
     angles_loss_weight: float = struct.field(
-        default=11.0,
+        default=13.0,
         pytree_node=True,
         metadata={"help": "Angles loss weight.", "cli_flag": "anlw"},
     )
