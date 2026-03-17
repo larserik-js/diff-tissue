@@ -5,7 +5,7 @@ from typing import cast
 from diff_tissue.app import parameters
 
 from .jax_bootstrap import jax, jnp, struct
-from . import init_systems, morphing, my_utils, poly_identities, shapes
+from . import init_systems, metrics, morphing, poly_identities, shapes
 
 
 def _calc_sigmoid(min_val, max_val, logits):
@@ -311,7 +311,7 @@ def _loss_fn(
 
     boundary_vertices = final_vertices[polygons.boundary_inds]
 
-    poly_metrics = my_utils.update_poly_metrics(poly_metrics, final_vertices)
+    poly_metrics = metrics.update_poly_metrics(poly_metrics, final_vertices)
 
     shape_loss = params.shape_loss_weight * _calc_shape_loss(
         boundary_vertices,
@@ -524,7 +524,7 @@ def _iterate_towards_shape(
 
     optimizer = _MyOptimizer(logits)
 
-    poly_metrics = my_utils.initialize_poly_metrics(
+    poly_metrics = metrics.initialize_poly_metrics(
         vertices=vertices,
         indices=polygons.indices,
         valid_mask=polygons.valid_mask,
@@ -554,7 +554,7 @@ def _iterate_towards_shape(
             aux_data
         )
 
-        poly_metrics = my_utils.update_poly_metrics(poly_metrics, vertices)
+        poly_metrics = metrics.update_poly_metrics(poly_metrics, vertices)
 
         sim_states.loss_vals.append(loss)
         sim_states.final_vertices.append(vertices)
@@ -595,7 +595,7 @@ def run(params):
 
     target_boundary = shapes.get_jax_target_boundary(polygons, params)
 
-    tutte_metrics = my_utils.get_tutte_metrics(params)
+    tutte_metrics = metrics.get_tutte_metrics(params)
 
     knots = init_systems.Knots()
 

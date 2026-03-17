@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from matplotlib import figure as matplotlib_figure
 import numpy as np
 
-from ..core import init_systems, my_utils, shapes
+from ..core import init_systems, metrics, shapes
 
 
 _GROWTH_SCALE = 5.0
@@ -85,7 +85,7 @@ class _Artists:
             )
 
     def _enumerate_centroids(self, vertices):
-        centroids = my_utils.calc_centroids(
+        centroids = metrics.calc_centroids(
             vertices,
             self._polygons.indices,
             self._polygons.valid_mask,

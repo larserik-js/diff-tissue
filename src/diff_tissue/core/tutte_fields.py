@@ -6,7 +6,7 @@ import shapely
 from shapely.strtree import STRtree
 
 from ..app import parameters
-from . import init_systems, my_utils, shapes
+from . import init_systems, metrics, shapes
 
 
 def _get_general_target_boundary(shape):
@@ -66,11 +66,11 @@ def _build_meshes(shape, n_meshes=100):
 
         params = params.replace(seed=i)
         polygons = init_systems.get_system(params)
-        tutte_vertices = my_utils.TutteMetrics(polygons, params.shape).vertices
+        tutte_vertices = metrics.TutteMetrics(polygons, params.shape).vertices
         shapely_polygons = init_systems.get_shapely_polygons(
             tutte_vertices, polygons.indices
         )
-        tutte_metrics = my_utils.TutteMetrics(polygons, shape)
+        tutte_metrics = metrics.TutteMetrics(polygons, shape)
 
         mesh = _Mesh(
             shapely_polygons,

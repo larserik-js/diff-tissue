@@ -1,5 +1,5 @@
 from .jax_bootstrap import jax, jaxopt, jnp
-from . import my_utils
+from . import metrics
 
 
 def _calc_areas_loss(target_areas, areas):
@@ -28,7 +28,7 @@ def _calc_morph_loss(
     poly_metrics,
     params,
 ):
-    poly_metrics = my_utils.update_poly_metrics(poly_metrics, vertices)
+    poly_metrics = metrics.update_poly_metrics(poly_metrics, vertices)
 
     areas_loss = params.areas_loss_weight * _calc_areas_loss(
         target_areas, poly_metrics.areas
@@ -109,14 +109,14 @@ def _update_vertices(
 
 
 def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
-    poly_metrics = my_utils.initialize_poly_metrics(
+    poly_metrics = metrics.initialize_poly_metrics(
         vertices=polygons.init_vertices,
         indices=polygons.indices,
         valid_mask=polygons.valid_mask,
     )
     init_areas = poly_metrics.areas
     init_anisotropies = poly_metrics.anisotropies
-    optimal_angles = my_utils.calc_optimal_angles(polygons.valid_mask)
+    optimal_angles = metrics.calc_optimal_angles(polygons.valid_mask)
 
     def update_step(carry, t):
         vertices, poly_metrics, goal_areas, goal_anisotropies = carry

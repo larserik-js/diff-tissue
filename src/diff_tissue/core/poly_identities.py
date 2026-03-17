@@ -3,7 +3,7 @@ from functools import cached_property
 import numpy as np
 
 from .jax_bootstrap import jnp, struct
-from . import my_utils, init_systems
+from . import init_systems, metrics
 
 
 class _PolyIdentities:
@@ -44,7 +44,7 @@ def get_poly_identities(params):
         return None
     elif params.poly_id_configuration == 1:
         polygons = init_systems.get_system(params)
-        init_centroids = my_utils.calc_centroids(
+        init_centroids = metrics.calc_centroids(
             polygons.init_vertices, polygons.indices, polygons.valid_mask
         )
         poly_identities = _PolyIdentities(init_centroids)

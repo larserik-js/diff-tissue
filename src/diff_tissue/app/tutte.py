@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..core import init_systems, my_utils
+from ..core import init_systems, metrics
 from . import parameters
 
 
@@ -64,7 +64,7 @@ def _plot_mapping(
 
 def plot(params, output):
     polygons = init_systems.get_system(params)
-    tutte_metrics = my_utils.get_tutte_metrics(params)
+    tutte_metrics = metrics.get_tutte_metrics(params)
 
     param_string = parameters.get_param_string(params)
     output_path = output.file_path(f"{param_string}.pdf")

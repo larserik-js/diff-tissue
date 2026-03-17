@@ -1,6 +1,6 @@
 from ..core.jax_bootstrap import jax, jnp
+from ..core import metrics
 from ..core import morphing as morphing_core
-from ..core import my_utils
 from . import io_utils, plotting
 
 
@@ -22,7 +22,7 @@ jiterate = jax.jit(morphing_core.iterate, static_argnames=["n_steps"])
 
 
 def _morph(polygons, params):
-    poly_metrics = my_utils.initialize_poly_metrics(
+    poly_metrics = metrics.initialize_poly_metrics(
         vertices=polygons.init_vertices,
         indices=polygons.indices,
         valid_mask=polygons.valid_mask,
