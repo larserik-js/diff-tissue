@@ -9,11 +9,11 @@ from ..core.jax_bootstrap import struct
 @struct.dataclass
 class Params:
     system: str = struct.field(
-        default="voronoi",
+        default="few",
         pytree_node=False,
         metadata={
             "help": "Initial polygon configuration.",
-            "choices": ["voronoi", "full", "single"],
+            "choices": ["few", "many", "full", "single"],
             "cli_flag": "system",
         },
     )

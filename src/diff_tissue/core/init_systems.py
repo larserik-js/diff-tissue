@@ -357,10 +357,8 @@ class _ClippedVoronoiGenerator:
 
 
 class _VoronoiPolygons(_Polygons):
-    def __init__(self, params):
-        self._clipped_voronoi_generator = _ClippedVoronoiGenerator(
-            point_density=0.33, seed=params.seed
-        )
+    def __init__(self, clipped_voronoi_generator):
+        self._clipped_voronoi_generator = clipped_voronoi_generator
         super().__init__()
 
     def _build(self):
@@ -633,8 +631,16 @@ class _SinglePolygon(_Polygons):
 def get_system(params) -> _Polygons:
     polygons: _Polygons
     match params.system:
-        case "voronoi":
-            polygons = _VoronoiPolygons(params)
+        case "few":
+            clipped_voronoi_generator = _ClippedVoronoiGenerator(
+                point_density=0.33, seed=params.seed
+            )
+            polygons = _VoronoiPolygons(clipped_voronoi_generator)
+        case "many":
+            clipped_voronoi_generator = _ClippedVoronoiGenerator(
+                point_density=1.0, seed=params.seed
+            )
+            polygons = _VoronoiPolygons(clipped_voronoi_generator)
         case "full":
             polygons = _FullPolygons()
         case "single":

@@ -10,7 +10,7 @@ from . import init_systems, metrics, shapes
 
 
 def _get_general_target_boundary(shape):
-    general_params = parameters.Params(system="voronoi", seed=0)
+    general_params = parameters.Params(system="few", seed=0)
     polygons = init_systems.get_system(general_params)
     vertex_numbers = init_systems.VertexNumbers(polygons)
     target_boundary = shapes.get_target_boundary(
