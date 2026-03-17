@@ -1,4 +1,4 @@
-from .jax_bootstrap import jax, jaxopt, jnp
+from .jax_bootstrap import jax, jaxopt, jnp, struct
 from . import metrics
 
 
@@ -25,18 +25,18 @@ def _calc_morph_loss(
     target_areas,
     target_anisotropies,
     poly_metrics,
-    params,
+    potential_weights,
 ):
     poly_metrics = metrics.update_poly_metrics(poly_metrics, vertices)
 
-    areas_loss = params.areas_loss_weight * _calc_areas_loss(
+    areas_loss = potential_weights.areas * _calc_areas_loss(
         target_areas, poly_metrics.areas
     )
-    angles_loss = params.angles_loss_weight * _calc_angles_loss(
+    angles_loss = potential_weights.angles * _calc_angles_loss(
         poly_metrics.masked_cosines, poly_metrics.optimal_angles
     )
     anisotropies_loss = (
-        params.anisotropy_loss_weight
+        potential_weights.anisotropies
         * _calc_anisotropies_loss(
             target_anisotropies, poly_metrics.anisotropies
         )
@@ -57,7 +57,7 @@ def _lbfgs_solve(
     target_areas,
     target_anisotropies,
     poly_metrics,
-    params,
+    potential_weights,
 ):
     solver = jaxopt.LBFGS(fun=_calc_morph_loss, maxiter=50)
     result = solver.run(
@@ -65,7 +65,7 @@ def _lbfgs_solve(
         target_areas,
         target_anisotropies,
         poly_metrics,
-        params,
+        potential_weights,
     )
     updated_vertices = result.params
 
@@ -75,15 +75,16 @@ def _lbfgs_solve(
 def _update_vertices(
     vertices,
     t,
+    n_morph_steps,
     goal_areas,
     goal_anisotropies,
     init_areas,
     init_anisotropies,
     poly_metrics,
+    potential_weights,
     polygons,
-    params,
 ):
-    t_frac = t / params.n_morph_steps
+    t_frac = t / n_morph_steps
     target_areas = _update_targets(init_areas, goal_areas, t_frac)
     target_anisotropies = _update_targets(
         init_anisotropies, goal_anisotropies, t_frac
@@ -94,13 +95,32 @@ def _update_vertices(
         target_areas,
         target_anisotropies,
         poly_metrics,
-        params,
+        potential_weights,
     )
     updated_vertices = jnp.where(
         polygons.free_mask, updated_vertices, polygons.init_vertices
     )
 
     return updated_vertices
+
+
+@struct.dataclass
+class _PotentialWeights:
+    areas: float
+    angles: float
+    anisotropies: float
+
+
+def _get_potential_weights(system):
+    match system:
+        case "few":
+            return _PotentialWeights(areas=5.0, angles=13.0, anisotropies=50.0)
+        case "many":
+            return _PotentialWeights(areas=5.0, angles=13.0, anisotropies=50.0)
+        case _:
+            raise NotImplementedError(
+                f"Potential weights not implemented for system: {system}"
+            )
 
 
 def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
@@ -112,19 +132,22 @@ def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
     init_areas = poly_metrics.areas
     init_anisotropies = poly_metrics.anisotropies
 
+    potential_weights = _get_potential_weights(params.system)
+
     def update_step(carry, t):
         vertices, poly_metrics, goal_areas, goal_anisotropies = carry
 
         vertices = _update_vertices(
             vertices,
             t,
+            params.n_morph_steps,
             goal_areas,
             goal_anisotropies,
             init_areas,
             init_anisotropies,
             poly_metrics,
+            potential_weights,
             polygons,
-            params,
         )
 
         carry = (vertices, poly_metrics, goal_areas, goal_anisotropies)
