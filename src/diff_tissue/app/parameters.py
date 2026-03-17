@@ -55,20 +55,23 @@ class Params:
         pytree_node=True,
         metadata={"help": "Number of morph steps.", "cli_flag": "msteps"},
     )
-    areas_loss_weight: float = struct.field(
+    areas_pot_weight: float = struct.field(
         default=5.0,
         pytree_node=True,
-        metadata={"help": "Areas loss weight.", "cli_flag": "arlw"},
+        metadata={"help": "Areas potential weight.", "cli_flag": "arpw"},
     )
-    angles_loss_weight: float = struct.field(
+    angles_pot_weight: float = struct.field(
         default=13.0,
         pytree_node=True,
-        metadata={"help": "Angles loss weight.", "cli_flag": "anlw"},
+        metadata={"help": "Angles potential weight.", "cli_flag": "anpw"},
     )
-    anisotropy_loss_weight: float = struct.field(
+    anisotropies_pot_weight: float = struct.field(
         default=50.0,
         pytree_node=True,
-        metadata={"help": "Anisotropies loss weight.", "cli_flag": "elw"},
+        metadata={
+            "help": "Anisotropies potential weight.",
+            "cli_flag": "aspw",
+        },
     )
     shape_loss_weight: float = struct.field(
         default=1.0,

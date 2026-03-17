@@ -111,16 +111,27 @@ class _PotentialWeights:
     anisotropies: float
 
 
-def _get_potential_weights(system):
-    match system:
+def _get_potential_weights(params):
+    match params.system:
         case "few":
-            return _PotentialWeights(areas=5.0, angles=13.0, anisotropies=50.0)
+            potential_weights = _PotentialWeights(
+                areas=params.areas_pot_weight,
+                angles=params.angles_pot_weight,
+                anisotropies=params.anisotropies_pot_weight,
+            )
         case "many":
-            return _PotentialWeights(areas=5.0, angles=13.0, anisotropies=50.0)
+            # TODO: Tune these weights.
+            potential_weights = _PotentialWeights(
+                areas=10.0,
+                angles=20.0,
+                anisotropies=10.0,
+            )
         case _:
             raise NotImplementedError(
-                f"Potential weights not implemented for system: {system}"
+                "Potential weights not implemented for system: "
+                f"{params.system}"
             )
+    return potential_weights
 
 
 def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
@@ -132,7 +143,7 @@ def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
     init_areas = poly_metrics.areas
     init_anisotropies = poly_metrics.anisotropies
 
-    potential_weights = _get_potential_weights(params.system)
+    potential_weights = _get_potential_weights(params)
 
     def update_step(carry, t):
         vertices, poly_metrics, goal_areas, goal_anisotropies = carry
