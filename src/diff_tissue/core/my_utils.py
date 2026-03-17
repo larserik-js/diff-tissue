@@ -1,25 +1,10 @@
 from functools import cached_property
-import timeit
 
 import numpy as np
 from shapely.geometry import Polygon
 
 from .jax_bootstrap import jnp, struct
 from . import init_systems, shapes, tutte
-
-
-def timer(func):
-    def timed(*args, **kwargs):
-        t_init = timeit.default_timer()
-        res = func(*args, **kwargs)
-        t_end = timeit.default_timer()
-
-        t_tot = t_end - t_init
-
-        print(f"Total time: {t_tot:.4f} s")
-        return res
-
-    return timed
 
 
 def get_all_cells(vertices, indices):
