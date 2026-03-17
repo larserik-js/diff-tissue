@@ -6,7 +6,7 @@ from .jax_bootstrap import jnp, struct
 from . import init_systems, shapes, tutte
 
 
-def get_all_cells(vertices, indices):
+def _get_all_cells(vertices, indices):
     all_cells = vertices[indices]
     return all_cells
 
@@ -19,7 +19,7 @@ def calc_centroids(vertices, indices, valid_mask):
     return centroids
 
 
-def calc_areas(all_cells, valid_mask):
+def _calc_areas(all_cells, valid_mask):
     xs = all_cells[:, 1:-1, 0]
     y_plus_ones = all_cells[:, 2:, 1]
     y_minus_ones = all_cells[:, :-2, 1]
@@ -37,7 +37,7 @@ def calc_areas(all_cells, valid_mask):
     return areas
 
 
-def calc_anisotropies(all_cells, valid_mask):
+def _calc_anisotropies(all_cells, valid_mask):
     xs = all_cells[:, 1:-1, 0]
     ys = all_cells[:, 1:-1, 1]
     valid = valid_mask[:, 1:-1]
@@ -54,7 +54,7 @@ def calc_anisotropies(all_cells, valid_mask):
     return anisotropies
 
 
-def calc_masked_cosines(all_cells, valid_mask):
+def _calc_masked_cosines(all_cells, valid_mask):
     edges = all_cells[:, 1:] - all_cells[:, :-1]
     epsilon = 1e-6
     norms = jnp.linalg.norm(edges + epsilon, axis=2)
@@ -80,7 +80,7 @@ def calc_optimal_angles(valid_mask):
 
 
 @struct.dataclass
-class PolyMetrics:
+class _PolyMetrics:
     _indices: jnp.ndarray
     _valid_mask: jnp.ndarray
     areas: jnp.ndarray
@@ -89,11 +89,11 @@ class PolyMetrics:
 
 
 def _calc_poly_metrics(vertices, indices, valid_mask):
-    all_cells = get_all_cells(vertices, indices)
+    all_cells = _get_all_cells(vertices, indices)
 
-    areas = calc_areas(all_cells, valid_mask)
-    anisotropies = calc_anisotropies(all_cells, valid_mask)
-    masked_cosines = calc_masked_cosines(all_cells, valid_mask)
+    areas = _calc_areas(all_cells, valid_mask)
+    anisotropies = _calc_anisotropies(all_cells, valid_mask)
+    masked_cosines = _calc_masked_cosines(all_cells, valid_mask)
 
     return areas, anisotropies, masked_cosines
 
@@ -103,7 +103,7 @@ def initialize_poly_metrics(vertices, indices, valid_mask):
         vertices, indices, valid_mask
     )
 
-    return PolyMetrics(
+    return _PolyMetrics(
         _indices=indices,
         _valid_mask=valid_mask,
         areas=areas,
@@ -147,7 +147,7 @@ class TutteMetrics:
 
     @cached_property
     def _all_cells(self):
-        all_cells = get_all_cells(self.vertices, self._polygons.indices)
+        all_cells = _get_all_cells(self.vertices, self._polygons.indices)
         return all_cells
 
     @cached_property
@@ -161,12 +161,12 @@ class TutteMetrics:
 
     @cached_property
     def areas(self):
-        areas_ = calc_areas(self._all_cells, self._polygons.valid_mask)
+        areas_ = _calc_areas(self._all_cells, self._polygons.valid_mask)
         return areas_
 
     @cached_property
     def anisotropies(self):
-        anisotropies_ = calc_anisotropies(
+        anisotropies_ = _calc_anisotropies(
             self._all_cells, self._polygons.valid_mask
         )
         return anisotropies_
