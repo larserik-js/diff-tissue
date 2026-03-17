@@ -24,7 +24,6 @@ def _calc_morph_loss(
     vertices,
     target_areas,
     target_anisotropies,
-    optimal_angles,
     poly_metrics,
     params,
 ):
@@ -34,7 +33,7 @@ def _calc_morph_loss(
         target_areas, poly_metrics.areas
     )
     angles_loss = params.angles_loss_weight * _calc_angles_loss(
-        poly_metrics.masked_cosines, optimal_angles
+        poly_metrics.masked_cosines, poly_metrics.optimal_angles
     )
     anisotropies_loss = (
         params.anisotropy_loss_weight
@@ -57,7 +56,6 @@ def _lbfgs_solve(
     vertices,
     target_areas,
     target_anisotropies,
-    optimal_angles,
     poly_metrics,
     params,
 ):
@@ -66,7 +64,6 @@ def _lbfgs_solve(
         vertices,
         target_areas,
         target_anisotropies,
-        optimal_angles,
         poly_metrics,
         params,
     )
@@ -82,7 +79,6 @@ def _update_vertices(
     goal_anisotropies,
     init_areas,
     init_anisotropies,
-    optimal_angles,
     poly_metrics,
     polygons,
     params,
@@ -97,7 +93,6 @@ def _update_vertices(
         vertices,
         target_areas,
         target_anisotropies,
-        optimal_angles,
         poly_metrics,
         params,
     )
@@ -116,7 +111,6 @@ def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
     )
     init_areas = poly_metrics.areas
     init_anisotropies = poly_metrics.anisotropies
-    optimal_angles = metrics.calc_optimal_angles(polygons.valid_mask)
 
     def update_step(carry, t):
         vertices, poly_metrics, goal_areas, goal_anisotropies = carry
@@ -128,7 +122,6 @@ def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
             goal_anisotropies,
             init_areas,
             init_anisotropies,
-            optimal_angles,
             poly_metrics,
             polygons,
             params,

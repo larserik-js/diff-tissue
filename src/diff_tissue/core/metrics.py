@@ -71,7 +71,7 @@ def _calc_masked_cosines(all_cells, valid_mask):
     return masked_cosines
 
 
-def calc_optimal_angles(valid_mask):
+def _calc_optimal_angles(valid_mask):
     n_vertices = valid_mask.sum(axis=1) - 2
     interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
     optimal_angles = jnp.pi - interior_angles
@@ -86,6 +86,7 @@ class _PolyMetrics:
     areas: jnp.ndarray
     anisotropies: jnp.ndarray
     masked_cosines: jnp.ndarray
+    optimal_angles: jnp.ndarray
 
 
 def _calc_poly_metrics(vertices, indices, valid_mask):
@@ -102,6 +103,7 @@ def initialize_poly_metrics(vertices, indices, valid_mask):
     areas, anisotropies, masked_cosines = _calc_poly_metrics(
         vertices, indices, valid_mask
     )
+    optimal_angles = _calc_optimal_angles(valid_mask)
 
     return _PolyMetrics(
         _indices=indices,
@@ -109,6 +111,7 @@ def initialize_poly_metrics(vertices, indices, valid_mask):
         areas=areas,
         anisotropies=anisotropies,
         masked_cosines=masked_cosines,
+        optimal_angles=optimal_angles,
     )
 
 
