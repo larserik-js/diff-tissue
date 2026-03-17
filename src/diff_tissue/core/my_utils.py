@@ -1,7 +1,6 @@
 from functools import cached_property
 
 import numpy as np
-from shapely.geometry import Polygon
 
 from .jax_bootstrap import jnp, struct
 from . import init_systems, shapes, tutte
@@ -177,26 +176,3 @@ def get_tutte_metrics(params):
     polygons = init_systems.get_system(params)
     tutte_metrics = TutteMetrics(polygons, params.shape)
     return tutte_metrics
-
-
-def _make_poly_idx_lists(polygon_indices):
-    poly_idx_lists = []
-
-    for polygon in polygon_indices:
-        poly_inds = polygon[polygon != -1]
-        poly_idx_list = poly_inds[:-2]
-        poly_idx_lists.append(poly_idx_list)
-    return poly_idx_lists
-
-
-def get_shapely_polygons(vertices, poly_indices):
-    poly_idx_lists = _make_poly_idx_lists(poly_indices)
-    polygons = []
-    for idx_list in poly_idx_lists:
-        coords = vertices[idx_list]
-        # Ensure closure: Shapely closes automatically,
-        # but doing it explicitly avoids issues
-        if not (coords[0] == coords[-1]).all():
-            coords = np.vstack([coords, coords[0]])
-        polygons.append(Polygon(coords))
-    return polygons

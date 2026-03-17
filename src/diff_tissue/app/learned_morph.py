@@ -4,7 +4,7 @@ import numpy as np
 
 from ..core.jax_bootstrap import jnp
 from ..core import shape_opt as shape_opt_core
-from ..core import init_systems, morphing, my_utils
+from ..core import init_systems, morphing
 from . import shape_opt as shape_opt_app
 from . import io_utils, parameters, plotting
 
@@ -63,7 +63,7 @@ def run(params, output):
     params = params.replace(seed=0)  # Always base on same initial system
 
     polygons = init_systems.get_system(params)
-    old_shapely_polygons = my_utils.get_shapely_polygons(
+    old_shapely_polygons = init_systems.get_shapely_polygons(
         polygons.init_vertices, polygons.indices
     )
 
@@ -76,7 +76,7 @@ def run(params, output):
     new_params = params.replace(seed=input_seed)
     new_polygons = init_systems.get_jax_polygons(new_params)
 
-    new_shapely_polygons = my_utils.get_shapely_polygons(
+    new_shapely_polygons = init_systems.get_shapely_polygons(
         new_polygons.init_vertices, new_polygons.indices
     )
 

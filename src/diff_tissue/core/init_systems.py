@@ -672,6 +672,29 @@ def get_jax_polygons(params):
     return jax_polygons
 
 
+def _make_poly_idx_lists(polygon_indices):
+    poly_idx_lists = []
+
+    for polygon in polygon_indices:
+        poly_inds = polygon[polygon != -1]
+        poly_idx_list = poly_inds[:-2]
+        poly_idx_lists.append(poly_idx_list)
+    return poly_idx_lists
+
+
+def get_shapely_polygons(vertices, poly_indices):
+    poly_idx_lists = _make_poly_idx_lists(poly_indices)
+    polygons = []
+    for idx_list in poly_idx_lists:
+        coords = vertices[idx_list]
+        # Ensure closure: Shapely closes automatically,
+        # but doing it explicitly avoids issues
+        if not (coords[0] == coords[-1]).all():
+            coords = np.vstack([coords, coords[0]])
+        polygons.append(Polygon(coords))
+    return polygons
+
+
 class VertexNumbers:
     def __init__(self, polygons):
         self._polygons = polygons
