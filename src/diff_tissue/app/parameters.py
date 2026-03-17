@@ -45,14 +45,6 @@ class Params:
             "cli_flag": "quiet",
         },
     )
-    point_density: float = struct.field(
-        default=0.33,
-        pytree_node=True,
-        metadata={
-            "help": "Density of generating points for Voronoi mesh.",
-            "cli_flag": "d",
-        },
-    )
     n_shape_steps: int = struct.field(
         default=500,
         pytree_node=True,
