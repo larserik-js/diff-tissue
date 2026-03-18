@@ -15,7 +15,7 @@ def run_morphing(params, base_dir=OUTPUT_DIR):
     )
 
     param_string = parameters.get_param_string(params)
-    cache_path = output.cache_path(f"{param_string}.pkl")
+    cache_path = output.cache_path(f"{param_string}.npz")
 
     morph_evolution = morphing.get_morph_evolution(
         cache_path, polygons, params

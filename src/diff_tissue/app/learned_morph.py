@@ -96,8 +96,8 @@ def run(params, output):
     )
 
     param_string = parameters.get_param_string(new_params)
-    output_path = output.cache_path(f"{param_string}.pkl")
-    io_utils.save_pkl(output_path, morph_evolution)
+    output_path = output.cache_path(f"{param_string}.npz")
+    io_utils.save_arrays(output_path, morph_evolution)
 
     results = _Results(
         morph_evolution=morph_evolution,

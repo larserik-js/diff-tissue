@@ -45,8 +45,8 @@ def _morph(polygons, params):
 
 def get_morph_evolution(cache_path, polygons, params):
     if cache_path.exists():
-        morph_evolution = io_utils.load_pkl(cache_path)
+        morph_evolution = io_utils.load_arrays(cache_path)
     else:
         morph_evolution = _morph(polygons, params)
-        io_utils.save_pkl(cache_path, morph_evolution)
+        io_utils.save_arrays(cache_path, morph_evolution)
     return morph_evolution
