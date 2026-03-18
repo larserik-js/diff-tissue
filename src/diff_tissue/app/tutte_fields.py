@@ -1,10 +1,8 @@
-import pickle
-
 from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from . import parameters
+from . import io_utils, parameters
 from ..core import tutte_fields as tutte_fields_core
 from ..core import init_systems, shapes
 
@@ -25,13 +23,11 @@ def _get_general_target_boundary(shape):
 def _get_meshes(output_manager, shape):
     meshes_file = output_manager.cache_path(f"meshes__{shape}.pkl")
     if meshes_file.exists():
-        with open(meshes_file, "rb") as f:
-            meshes = pickle.load(f)
+        meshes = io_utils.load_pkl(meshes_file)
     else:
         params = parameters.Params(shape=shape)
         meshes = tutte_fields_core.build_meshes(params)
-        with open(meshes_file, "wb") as f:
-            pickle.dump(meshes, f)
+        io_utils.save_pkl(meshes_file, meshes)
     return meshes
 
 
@@ -56,12 +52,10 @@ def _generate_fields(output_manager, shape):
 def get_fields(shape, output):
     tutte_fields_file = output.cache_path(f"fields__{shape}.pkl")
     if tutte_fields_file.exists():
-        with open(tutte_fields_file, "rb") as f:
-            tutte_fields_ = pickle.load(f)
+        tutte_fields_ = io_utils.load_pkl(tutte_fields_file)
     else:
         tutte_fields_ = _generate_fields(output, shape)
-        with open(tutte_fields_file, "wb") as f:
-            pickle.dump(tutte_fields_, f)
+        io_utils.save_pkl(tutte_fields_file, tutte_fields_)
     return tutte_fields_
 
 
