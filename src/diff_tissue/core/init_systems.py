@@ -638,7 +638,7 @@ def get_system(params) -> _Polygons:
             polygons = _VoronoiPolygons(clipped_voronoi_generator)
         case "many":
             clipped_voronoi_generator = _ClippedVoronoiGenerator(
-                point_density=1.0, seed=params.seed
+                point_density=0.66, seed=params.seed
             )
             polygons = _VoronoiPolygons(clipped_voronoi_generator)
         case "full":
