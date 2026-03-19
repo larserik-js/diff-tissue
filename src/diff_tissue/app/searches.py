@@ -1,21 +1,6 @@
-import argparse
-
 import optuna
 
 from diff_tissue.app import io_utils
-
-
-def _parse_args():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--n",
-        type=str,
-        default="my_study",
-        dest="study_name",
-        help="Study name.",
-    )
-    return parser.parse_args()
 
 
 def _show_studies(storage):
@@ -46,21 +31,34 @@ def _show_best_trial(study):
     print("")
 
 
-def _main():
-    args = _parse_args()
+def _show_n_completed(study):
+    trials = study.get_trials(deepcopy=False)
+    n_completed = sum(1 for t in trials if t.state.is_finished())
+    print(f"Trials completed: {n_completed}")
 
-    output_manager = io_utils.OutputManager(None, base_dir="outputs")
-    db_path = output_manager.file_path("optuna.db")
+
+def _run(db_path, study_name):
     db_url = f"sqlite:///{db_path}"
     storage = optuna.storages.RDBStorage(db_url)
 
     _show_studies(storage)
 
-    study = optuna.load_study(study_name=f"{args.study_name}", storage=storage)
+    study = optuna.load_study(study_name=f"{study_name}", storage=storage)
 
     _show_first_trials(study)
     _show_best_trial(study)
+    _show_n_completed(study)
 
 
-if __name__ == "__main__":
-    _main()
+def inspect_param_search(study_name):
+    output_manager = io_utils.OutputManager(None, base_dir="outputs")
+    db_path = output_manager.file_path("optuna.db")
+
+    _run(db_path, study_name)
+
+
+def inspect_grid_search(study_name):
+    output_manager = io_utils.OutputManager(None, base_dir="outputs")
+    db_path = output_manager.file_path("grid_search.db")
+
+    _run(db_path, study_name)
