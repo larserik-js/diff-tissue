@@ -1,6 +1,7 @@
 import numpy as np
 
-from diff_tissue.core import metrics
+from diff_tissue.core import init_systems, metrics
+from diff_tissue.app import parameters
 
 
 def _assert(vertices, indices, expected):
@@ -71,8 +72,15 @@ def _test_three_overlapping_squares():
     _assert(vertices, indices, expected=4)
 
 
+def _test_init_mesh():
+    polygons = init_systems.get_system(parameters.Params())
+    valid_inds = init_systems.make_poly_idx_lists(polygons.indices)
+    _assert(polygons.init_vertices, valid_inds, expected=0)
+
+
 def test_count_edge_crossings():
     _test_touching_triangles()
     _test_non_overlapping_squares()
     _test_two_overlapping_squares()
     _test_three_overlapping_squares()
+    _test_init_mesh()

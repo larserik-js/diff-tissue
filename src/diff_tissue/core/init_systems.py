@@ -679,7 +679,7 @@ def get_jax_polygons(params):
     return jax_polygons
 
 
-def _make_poly_idx_lists(polygon_indices):
+def make_poly_idx_lists(polygon_indices):
     poly_idx_lists = []
 
     for polygon in polygon_indices:
@@ -690,7 +690,7 @@ def _make_poly_idx_lists(polygon_indices):
 
 
 def get_shapely_polygons(vertices, poly_indices):
-    poly_idx_lists = _make_poly_idx_lists(poly_indices)
+    poly_idx_lists = make_poly_idx_lists(poly_indices)
     polygons = []
     for idx_list in poly_idx_lists:
         coords = vertices[idx_list]
