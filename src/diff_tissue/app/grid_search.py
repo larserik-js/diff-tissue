@@ -80,7 +80,7 @@ def _optimize(study, objective_f, n_total_trials):
     )
 
 
-def run(shapes, areas_pot_ws, anisotropies_pot_ws, angles_pot_ws):
+def run(study_name, shapes, areas_pot_ws, anisotropies_pot_ws, angles_pot_ws):
     def _objective(trial):
         shape = trial.suggest_categorical("shape", shapes)
         arpw = trial.suggest_categorical("areas_pot_weight", areas_pot_ws)
@@ -101,13 +101,13 @@ def run(shapes, areas_pot_ws, anisotropies_pot_ws, angles_pot_ws):
     db_url = f"sqlite:///{db_path}"
 
     study = optuna.create_study(
-        study_name="grid_search",
+        study_name=study_name,
         storage=db_url,
         load_if_exists=True,
         direction="minimize",
     )
 
-    vars = (shapes, areas_pot_ws, anisotropies_pot_ws, areas_pot_ws)
+    vars = (shapes, areas_pot_ws, anisotropies_pot_ws, angles_pot_ws)
 
     _enqueue_trials(vars, study=study)
 

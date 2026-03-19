@@ -9,7 +9,7 @@ def _parse_args():
     parser.add_argument(
         "--n",
         type=str,
-        default="grid_search",
+        default="base_model",
         dest="study_name",
         help="Study name.",
     )
