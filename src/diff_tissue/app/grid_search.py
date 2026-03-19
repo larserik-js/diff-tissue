@@ -7,7 +7,7 @@ from . import io_utils, parameters
 from ..core import init_systems, metrics, shape_opt
 
 
-def _calc_n_total_runs(
+def _calc_n_total_trials(
     area_pot_loss_vals, anisotropy_pot_loss_vals, angle_pot_loss_vals
 ):
     n_total_runs = (
@@ -59,6 +59,27 @@ def _enqueue_trials(vars, study):
         study.enqueue_trial(trial_params)
 
 
+def _optimize(study, objective_f, n_total_trials):
+    def _progress_callback(study_, trial):
+        completed_trials = len(
+            [
+                t
+                for t in study_.get_trials(deepcopy=False)
+                if t.state.is_finished()
+            ]
+        )
+        print(
+            f"Progress: {completed_trials}/{n_total_trials} trials completed"
+        )
+
+    study.optimize(
+        objective_f,
+        n_trials=n_total_trials,
+        n_jobs=20,
+        callbacks=[_progress_callback],
+    )
+
+
 def run(shapes, areas_pot_ws, anisotropies_pot_ws, angles_pot_ws):
     def _objective(trial):
         shape = trial.suggest_categorical("shape", shapes)
@@ -90,7 +111,7 @@ def run(shapes, areas_pot_ws, anisotropies_pot_ws, angles_pot_ws):
 
     _enqueue_trials(vars, study=study)
 
-    n_total_runs = _calc_n_total_runs(
+    n_total_trials = _calc_n_total_trials(
         areas_pot_ws, anisotropies_pot_ws, angles_pot_ws
     )
-    study.optimize(_objective, n_trials=n_total_runs, n_jobs=20)
+    _optimize(study, _objective, n_total_trials)
