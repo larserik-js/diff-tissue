@@ -1,6 +1,8 @@
 from functools import cached_property
 
 import numpy as np
+from shapely.geometry import LineString
+from shapely.strtree import STRtree
 
 from .jax_bootstrap import jnp, struct
 from . import init_systems, shapes, tutte
@@ -179,3 +181,49 @@ def get_tutte_metrics(params):
     polygons = init_systems.get_system(params)
     tutte_metrics = TutteMetrics(polygons, params.shape)
     return tutte_metrics
+
+
+def _build_edge_vertex_pairs(vertices, indices):
+    edges = []
+    edge_vertex_pairs = []
+    for poly in indices:
+        m = len(poly)
+        for i in range(m):
+            a = poly[i]
+            b = poly[(i + 1) % m]
+            edges.append(LineString([vertices[a], vertices[b]]))
+            edge_vertex_pairs.append((a, b))
+    edge_vertex_pairs_arr = np.array(edge_vertex_pairs)
+    return edges, edge_vertex_pairs_arr
+
+
+def count_edge_crossings(vertices, indices):
+    vertices = np.asarray(vertices)
+    edges, edge_vertex_pairs = _build_edge_vertex_pairs(vertices, indices)
+
+    # Build spatial index
+    tree = STRtree(edges)
+
+    # Query all edge-vs-edge candidates
+    # This returns a (2, N) array where
+    # row 0 = query index, row 1 = match index
+    pairs = tree.query(edges, predicate="crosses")
+
+    if pairs.size == 0:
+        return 0
+
+    i_indices, j_indices = pairs
+
+    # Only keep i < j to avoid double counting
+    keep = i_indices < j_indices
+    i_indices = i_indices[keep]
+    j_indices = j_indices[keep]
+
+    # Filter out edge pairs that share a vertex
+    ev = edge_vertex_pairs
+    shared = [
+        len(set(ev[i]).intersection(ev[j])) > 0
+        for i, j in zip(i_indices, j_indices)
+    ]
+
+    return np.count_nonzero(~np.array(shared))
