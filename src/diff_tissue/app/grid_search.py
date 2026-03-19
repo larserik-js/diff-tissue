@@ -1,34 +1,10 @@
-import itertools
-import sqlite3
+from itertools import product
 
 import numpy as np
+import optuna
 
 from . import io_utils, parameters
 from ..core import init_systems, metrics, shape_opt
-
-
-def _init_db(db_path):
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS results (
-            arpw REAL,
-            aspw REAL,
-            anpw REAL,
-            loss REAL,
-            PRIMARY KEY (arpw, aspw, anpw)
-        )
-    """)
-
-    conn.commit()
-    return conn
-
-
-def _get_completed_count(conn):
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM results")
-    return cur.fetchone()[0]
 
 
 def _calc_n_total_runs(
@@ -42,26 +18,19 @@ def _calc_n_total_runs(
     return n_total_runs
 
 
-def _round(x, digits=3):
-    return round(x, digits)
+def _round(var, digits=3):
+    return round(var, digits)
 
 
-def _is_done(conn, arpw, aspw, anpw):
-    arpw, aspw, anpw = map(_round, (arpw, aspw, anpw))
+def _simulate(vars):
+    shape, areas_pot_w, anisotropies_pot_w, angles_pot_w = vars
 
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT 1 FROM results WHERE arpw=? AND aspw=? AND anpw=?",
-        (arpw, aspw, anpw),
-    )
-    return cur.fetchone() is not None
-
-
-def _simulate(areas_pot_w, anisotropies_pot_w, angles_pot_w):
     params = parameters.Params(
+        shape=shape,
         areas_pot_weight=areas_pot_w,
         anisotropies_pot_weight=anisotropies_pot_w,
         angles_pot_weight=angles_pot_w,
+        quiet=True,
     )
     sim_states = shape_opt.run(params)
     best_state = shape_opt.get_best_state(sim_states)
@@ -78,50 +47,50 @@ def _simulate(areas_pot_w, anisotropies_pot_w, angles_pot_w):
     return loss
 
 
-def _save_result(conn, arpw, aspw, anpw, loss):
-    arpw, aspw, anpw = map(_round, (arpw, aspw, anpw))
-
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT OR REPLACE INTO results (arpw, aspw, anpw, loss)
-        VALUES (?, ?, ?, ?)
-    """,
-        (arpw, aspw, anpw, loss),
-    )
-    conn.commit()
+def _enqueue_trials(vars, study):
+    for shape, arpw, aspw, anpw in product(*vars):
+        arpw, aspw, anpw = map(_round, (arpw, aspw, anpw))
+        trial_params = {
+            "shape": shape,
+            "areas_pot_weight": arpw,
+            "anosotropies_pot_weight": aspw,
+            "angles_pot_weight": anpw,
+        }
+        study.enqueue_trial(trial_params)
 
 
-def run(areas_pot_ws, anisotropies_pot_ws, angles_pot_ws):
+def run(shapes, areas_pot_ws, anisotropies_pot_ws, angles_pot_ws):
+    def _objective(trial):
+        shape = trial.suggest_categorical("shape", shapes)
+        arpw = trial.suggest_categorical("areas_pot_weight", areas_pot_ws)
+        aspw = trial.suggest_categorical(
+            "anisotropies_pot_weight", anisotropies_pot_ws
+        )
+        anpw = trial.suggest_categorical("angles_pot_weight", angles_pot_ws)
+
+        arpw, aspw, anpw = map(_round, (arpw, aspw, anpw))
+
+        vars = (shape, arpw, aspw, anpw)
+
+        loss = _simulate(vars)
+        return loss
+
     output_manager = io_utils.OutputManager(None, base_dir="outputs")
     db_path = output_manager.file_path("grid_search.db")
+    db_url = f"sqlite:///{db_path}"
 
-    conn = _init_db(db_path)
+    study = optuna.create_study(
+        study_name="grid_search",
+        storage=db_url,
+        load_if_exists=True,
+        direction="minimize",
+    )
 
-    count = _get_completed_count(conn)
+    vars = (shapes, areas_pot_ws, anisotropies_pot_ws, areas_pot_ws)
+
+    _enqueue_trials(vars, study=study)
+
     n_total_runs = _calc_n_total_runs(
         areas_pot_ws, anisotropies_pot_ws, angles_pot_ws
     )
-
-    param_combs = itertools.product(
-        areas_pot_ws, anisotropies_pot_ws, angles_pot_ws
-    )
-
-    for arpw, aspw, anpw in param_combs:
-        count += 1
-        print(
-            f"[{count}/{n_total_runs}] "
-            f"Running (arpw={arpw}, "
-            f"aspw={aspw}, "
-            f"anpw={anpw})"
-        )
-
-        if _is_done(conn, arpw, aspw, anpw):
-            print("  -> Skipping (already computed)")
-            continue
-
-        loss = _simulate(arpw, aspw, anpw)
-
-        _save_result(conn, arpw, aspw, anpw, loss)
-
-    conn.close()
+    study.optimize(_objective, n_trials=n_total_runs, n_jobs=20)
