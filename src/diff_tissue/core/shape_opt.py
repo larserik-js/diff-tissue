@@ -492,15 +492,15 @@ def _get_valid_best_idx(sim_state):
     return best_index
 
 
-def get_best_state(sim_state):
-    best_index = _get_valid_best_idx(sim_state)
+def get_best_state(sim_states):
+    best_index = _get_valid_best_idx(sim_states)
     best = BestState(
-        loss=sim_state.loss_vals[best_index],
-        final_vertices=sim_state.final_vertices[best_index],
-        goal_areas=sim_state.goal_areas[best_index],
-        goal_anisotropies=sim_state.goal_anisotropies[best_index],
-        final_areas=sim_state.final_areas[best_index],
-        final_anisotropies=sim_state.final_anisotropies[best_index],
+        loss=sim_states.loss_vals[best_index],
+        final_vertices=sim_states.final_vertices[best_index],
+        goal_areas=sim_states.goal_areas[best_index],
+        goal_anisotropies=sim_states.goal_anisotropies[best_index],
+        final_areas=sim_states.final_areas[best_index],
+        final_anisotropies=sim_states.final_anisotropies[best_index],
     )
     return best
 
