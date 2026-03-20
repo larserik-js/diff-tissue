@@ -5,6 +5,7 @@ import json
 import multiprocessing as mp
 import re
 
+from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -153,6 +154,14 @@ def _get_plotting_data(unique_anpw_val_strs, input_dir):
     return data_by_anpw
 
 
+def _add_colorbar(ax, cmap_vals, cmap_name):
+    normalize = colors.Normalize(vmin=0.0, vmax=cmap_vals.max())
+    cmap = plt.get_cmap(cmap_name)
+    sm = plt.cm.ScalarMappable(norm=normalize, cmap=cmap)
+    sm.set_array(cmap_vals)
+    ax.figure.colorbar(sm, ax=ax, shrink=1.0)
+
+
 def plot(study_name):
     output_manager = io_utils.OutputManager(
         f"grid_search/{study_name}", "outputs"
@@ -171,6 +180,8 @@ def plot(study_name):
         "nconv": (1, 1),
     }
 
+    cmap_name = "RdYlGn_r"
+
     for anpw_str, plotting_data in data_by_anpw.items():
         fig, axs = plt.subplots(2, 2)
 
@@ -180,17 +191,20 @@ def plot(study_name):
             arpw_vals = data_array[:, 0]
             aspw_vals = data_array[:, 1]
             losses = data_array[:, 2]
-            markers = np.where(data_array[:, 3] > 0.0, "x", "o")
-            for xi, yi, vi, mi in zip(arpw_vals, aspw_vals, losses, markers):
+            valid = np.isclose(data_array[:, 3], 0.0)
+
+            valid_losses = losses[valid]
+
+            if len(valid_losses) > 0:
                 ax.scatter(
-                    xi,
-                    yi,
-                    c=vi,
-                    cmap="viridis",
-                    s=100,
-                    marker=mi,
-                    edgecolor="k",
+                    arpw_vals[valid],
+                    aspw_vals[valid],
+                    c=valid_losses,
+                    cmap=cmap_name,
                 )
+                _add_colorbar(ax, valid_losses, cmap_name)
+
+            ax.scatter(arpw_vals[~valid], aspw_vals[~valid], marker="x", c="k")
 
         fig_path = output_manager.file_path("figures", f"{anpw_str}.pdf")
         fig.savefig(fig_path)
