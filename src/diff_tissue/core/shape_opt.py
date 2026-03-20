@@ -556,7 +556,7 @@ def _iterate_towards_shape(
 
         poly_metrics = metrics.update_poly_metrics(poly_metrics, vertices)
 
-        sim_states.loss_vals.append(loss)
+        sim_states.loss_vals.append(float(loss))
         sim_states.final_vertices.append(vertices)
         sim_states.goal_areas.append(goal_areas)
         sim_states.goal_anisotropies.append(goal_anisotropies)
