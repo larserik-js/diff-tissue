@@ -1,25 +1,12 @@
+from dataclasses import fields
 from itertools import product
+import json
+import multiprocessing as mp
 
 import numpy as np
-import optuna
 
 from . import io_utils, parameters
 from ..core import init_systems, metrics, shape_opt
-
-
-def _calc_n_total_trials(
-    area_pot_loss_vals, anisotropy_pot_loss_vals, angle_pot_loss_vals
-):
-    n_total_runs = (
-        len(area_pot_loss_vals)
-        * len(anisotropy_pot_loss_vals)
-        * len(angle_pot_loss_vals)
-    )
-    return n_total_runs
-
-
-def _round(var, digits=3):
-    return round(var, digits)
 
 
 def _simulate(vars):
@@ -47,71 +34,48 @@ def _simulate(vars):
     return loss
 
 
-def _enqueue_trials(vars, study):
-    for shape, arpw, aspw, anpw in product(*vars):
-        arpw, aspw, anpw = map(_round, (arpw, aspw, anpw))
-        trial_params = {
-            "shape": shape,
-            "areas_pot_weight": arpw,
-            "anosotropies_pot_weight": aspw,
-            "angles_pot_weight": anpw,
-        }
-        study.enqueue_trial(trial_params)
+def _worker(trial_vars, output_manager):
+    """Run a single trial and save results to a JSON file."""
+    shape, arpw, aspw, anpw = trial_vars
+    loss = _simulate(trial_vars)
+
+    result = {
+        "shape": shape,
+        "areas_pot_weight": arpw,
+        "anisotropies_pot_weight": aspw,
+        "angles_pot_weight": anpw,
+        "loss": loss,
+    }
+
+    file_path = output_manager.file_path(
+        f"shape={shape}__arpw={arpw}__aspw={aspw}__anpw={anpw}.json"
+    )
+    with open(file_path, "w") as f:
+        json.dump(result, f)
+
+    return result
 
 
-def _optimize(study, objective_f, n_total_trials):
-    def _progress_callback(study_, trial):
-        completed_trials = len(
-            [
-                t
-                for t in study_.get_trials(deepcopy=False)
-                if t.state.is_finished()
-            ]
-        )
-        print(
-            f"Progress: {completed_trials}/{n_total_trials} trials completed"
-        )
+def run(grid_variables, study_name, n_workers):
+    grid_values = [
+        getattr(grid_variables, f.name) for f in fields(grid_variables)
+    ]
+    all_trials = list(product(*grid_values))
 
-    study.optimize(
-        objective_f,
-        n_trials=n_total_trials,
-        n_jobs=20,
-        callbacks=[_progress_callback],
+    output_manager = io_utils.OutputManager(
+        f"grid_search/{study_name}", "outputs"
     )
 
+    inputs = [(trial, output_manager) for trial in all_trials]
 
-def run(study_name, shapes, areas_pot_ws, anisotropies_pot_ws, angles_pot_ws):
-    def _objective(trial):
-        shape = trial.suggest_categorical("shape", shapes)
-        arpw = trial.suggest_categorical("areas_pot_weight", areas_pot_ws)
-        aspw = trial.suggest_categorical(
-            "anisotropies_pot_weight", anisotropies_pot_ws
-        )
-        anpw = trial.suggest_categorical("angles_pot_weight", angles_pot_ws)
+    results = []
+    with mp.Pool(processes=n_workers) as pool:
+        for result in pool.starmap(_worker, inputs):
+            results.append(result)
+            completed = len(results)
+            print(
+                f"Completed {completed}/{len(all_trials)} trials\n",
+                flush=True,
+            )
 
-        arpw, aspw, anpw = map(_round, (arpw, aspw, anpw))
-
-        vars = (shape, arpw, aspw, anpw)
-
-        loss = _simulate(vars)
-        return loss
-
-    output_manager = io_utils.OutputManager(None, base_dir="outputs")
-    db_path = output_manager.file_path("grid_search.db")
-    db_url = f"sqlite:///{db_path}"
-
-    study = optuna.create_study(
-        study_name=study_name,
-        storage=db_url,
-        load_if_exists=True,
-        direction="minimize",
-    )
-
-    vars = (shapes, areas_pot_ws, anisotropies_pot_ws, angles_pot_ws)
-
-    _enqueue_trials(vars, study=study)
-
-    n_total_trials = _calc_n_total_trials(
-        areas_pot_ws, anisotropies_pot_ws, angles_pot_ws
-    )
-    _optimize(study, _objective, n_total_trials)
+    print("\nAll trials completed.")
