@@ -3,8 +3,6 @@ from itertools import product
 import json
 import multiprocessing as mp
 
-import numpy as np
-
 from . import io_utils, parameters
 from ..core import init_systems, metrics, shape_opt
 
@@ -27,24 +25,21 @@ def _simulate(vars):
         best_state.final_vertices, polygon_inds
     )
 
-    if n_edge_crossings > 0:
-        loss = np.inf
-    else:
-        loss = best_state.loss
-    return loss
+    return best_state.loss, n_edge_crossings
 
 
 def _worker(trial_vars, output_manager):
     """Run a single trial and save results to a JSON file."""
     shape, arpw, aspw, anpw = trial_vars
-    loss = _simulate(trial_vars)
+    loss, n_edge_crossings = _simulate(trial_vars)
 
     result = {
         "shape": shape,
-        "areas_pot_weight": arpw,
-        "anisotropies_pot_weight": aspw,
-        "angles_pot_weight": anpw,
+        "areas_pot_weight": float(arpw),
+        "anisotropies_pot_weight": float(aspw),
+        "angles_pot_weight": float(anpw),
         "loss": loss,
+        "n_edge_crossings": n_edge_crossings,
     }
 
     file_path = output_manager.file_path(
