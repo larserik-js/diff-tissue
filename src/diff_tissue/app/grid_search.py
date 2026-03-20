@@ -21,8 +21,9 @@ def _simulate(vars):
     best_state = shape_opt.get_best_state(sim_states)
 
     polygon_inds = init_systems.get_system(params).indices
+    valid_inds = init_systems.make_poly_idx_lists(polygon_inds)
     n_edge_crossings = metrics.count_edge_crossings(
-        best_state.final_vertices, polygon_inds
+        best_state.final_vertices, valid_inds
     )
 
     return best_state.loss, n_edge_crossings
