@@ -28,6 +28,14 @@ def _simulate(vars):
     return best_state.loss, n_edge_crossings
 
 
+def _format_float(float_):
+    rounded_float = round(float_, 8)
+    float_str = str(rounded_float)
+    if float_str[0] == "-":
+        float_str = f"m{float_str[1:]}"
+    return float_str.replace(".", "p")
+
+
 def _worker(trial_vars, output_manager):
     """Run a single trial and save results to a JSON file."""
     shape, arpw, aspw, anpw = trial_vars
@@ -43,7 +51,8 @@ def _worker(trial_vars, output_manager):
     }
 
     file_path = output_manager.file_path(
-        f"shape={shape}__arpw={arpw}__aspw={aspw}__anpw={anpw}.json"
+        f"shape={shape}__arpw={_format_float(arpw)}__"
+        f"aspw={_format_float(aspw)}__anpw={_format_float(anpw)}.json"
     )
     with open(file_path, "w") as f:
         json.dump(result, f)
