@@ -39,6 +39,14 @@ def _format_float(float_):
 def _worker(trial_vars, output_manager):
     """Run a single trial and save results to a JSON file."""
     shape, arpw, aspw, anpw = trial_vars
+
+    file_path = output_manager.file_path(
+        f"shape={shape}__arpw={_format_float(arpw)}__"
+        f"aspw={_format_float(aspw)}__anpw={_format_float(anpw)}.json"
+    )
+    if file_path.exists():
+        return None
+
     loss, n_edge_crossings = _simulate(trial_vars)
 
     result = {
@@ -50,10 +58,6 @@ def _worker(trial_vars, output_manager):
         "n_edge_crossings": n_edge_crossings,
     }
 
-    file_path = output_manager.file_path(
-        f"shape={shape}__arpw={_format_float(arpw)}__"
-        f"aspw={_format_float(aspw)}__anpw={_format_float(anpw)}.json"
-    )
     with open(file_path, "w") as f:
         json.dump(result, f)
 
@@ -82,4 +86,4 @@ def run(grid_variables, study_name, n_workers):
                 flush=True,
             )
 
-    print("\nAll trials completed.")
+    print("All trials completed.")
