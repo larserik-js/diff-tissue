@@ -55,10 +55,3 @@ def inspect_param_search(study_name):
     db_path = output_manager.file_path("optuna.db")
 
     _run(db_path, study_name)
-
-
-def inspect_grid_search(study_name):
-    output_manager = io_utils.OutputManager(None, base_dir="outputs")
-    db_path = output_manager.file_path("grid_search.db")
-
-    _run(db_path, study_name)
