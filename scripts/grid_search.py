@@ -39,9 +39,9 @@ def _main():
     args = _parse_args()
 
     shapes = ["petal", "trapezoid", "triangle", "nconv"]
-    areas_pot_ws = np.arange(1.0, 50.0, 4)
-    anisotropies_pot_ws = np.arange(1.0, 50.0, 4)
-    angles_pot_ws = np.arange(1.0, 50.0, 4)
+    areas_pot_ws = np.arange(1.0, 54.0, 4)
+    anisotropies_pot_ws = np.arange(1.0, 54.0, 4)
+    angles_pot_ws = np.arange(1.0, 54.0, 4)
 
     grid_variables = _GridVariables(
         shapes=shapes,

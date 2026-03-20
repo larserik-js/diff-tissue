@@ -7,6 +7,15 @@ from . import io_utils, parameters
 from ..core import init_systems, metrics, shape_opt
 
 
+def _calc_n_edge_crossings(sim_states, valid_inds):
+    all_final_vertices = sim_states.final_vertices
+    n_edge_crossings = [
+        metrics.count_edge_crossings(final_vertices, valid_inds)
+        for final_vertices in all_final_vertices
+    ]
+    return n_edge_crossings
+
+
 def _simulate(vars):
     shape, areas_pot_w, anisotropies_pot_w, angles_pot_w = vars
 
@@ -22,9 +31,8 @@ def _simulate(vars):
 
     polygon_inds = init_systems.get_system(params).indices
     valid_inds = init_systems.make_poly_idx_lists(polygon_inds)
-    n_edge_crossings = metrics.count_edge_crossings(
-        best_state.final_vertices, valid_inds
-    )
+
+    n_edge_crossings = _calc_n_edge_crossings(sim_states, valid_inds)
 
     return best_state.loss, n_edge_crossings
 
