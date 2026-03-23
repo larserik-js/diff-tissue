@@ -92,7 +92,7 @@ def run(grid_variables, study_name, n_workers):
     all_trials = list(product(*grid_values))
 
     output_manager = io_utils.OutputManager(
-        f"grid_search/{study_name}", "outputs"
+        f"grid_search/{study_name}/data", "outputs"
     )
 
     inputs = [(trial, output_manager) for trial in all_trials]
@@ -159,7 +159,7 @@ def _add_colorbar(ax, cmap_vals, cmap_name):
 
 def plot(study_name):
     output_manager = io_utils.OutputManager(
-        f"grid_search/{study_name}", "outputs"
+        f"grid_search/{study_name}/data", "outputs"
     )
     input_dir = output_manager.file_path(".")
 
