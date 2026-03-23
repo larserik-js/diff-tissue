@@ -564,8 +564,9 @@ def _iterate_towards_shape(
         )
 
         poly_metrics = metrics.update_poly_metrics(poly_metrics, vertices)
+        poly_idx_lists = init_systems.make_poly_idx_lists(polygons.indices)
         n_edge_crossings = metrics.count_edge_crossings(
-            vertices, polygons.indices
+            vertices, poly_idx_lists
         )
 
         sim_states.loss_vals.append(float(loss))
