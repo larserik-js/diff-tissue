@@ -47,7 +47,7 @@ def _simulate(vars):
     return best_state.loss, n_edge_crossings
 
 
-def _format_float(float_):
+def _format_float_to_str(float_):
     rounded_float = round(float_, 8)
     float_str = str(rounded_float)
     if float_str[0] == "-":
@@ -55,20 +55,15 @@ def _format_float(float_):
     return float_str.replace(".", "p")
 
 
-def _format_str_to_float(str_):
-    float_str = str_.replace("p", ".")
-    if float_str[0] == "m":
-        float_str = f"-{float_str[1:]}"
-    return float(float_str)
-
-
 def _worker(trial_vars, output_manager):
     """Run a single trial and save results to a JSON file."""
     shape, arpw, aspw, anpw = trial_vars
 
     file_path = output_manager.file_path(
-        f"shape={shape}__arpw={_format_float(arpw)}__"
-        f"aspw={_format_float(aspw)}__anpw={_format_float(anpw)}.json"
+        f"shape={shape}__"
+        f"arpw={_format_float_to_str(arpw)}__"
+        f"aspw={_format_float_to_str(aspw)}__"
+        f"anpw={_format_float_to_str(anpw)}.json"
     )
     if file_path.exists():
         return None
@@ -175,12 +170,15 @@ def plot(study_name):
 
     cmap_name = "RdYlGn_r"
 
+    ordered_shapes = ["petal", "trapezoid", "triangle", "nconv"]
+
     for anpw_str, plotting_data in data_by_anpw.items():
         fig, axs = plt.subplots(2, 2, constrained_layout=True)
 
-        for k, (shape, data_list_of_tuples) in enumerate(
-            plotting_data.items()
-        ):
+        for k, shape in enumerate(ordered_shapes):
+            data_list_of_tuples = plotting_data.get(shape)
+            if data_list_of_tuples is None:
+                continue
             i, j = divmod(k, 2)
             ax = axs[i, j]
             data_array = np.vstack(data_list_of_tuples)
