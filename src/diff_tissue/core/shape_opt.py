@@ -569,14 +569,14 @@ def _iterate_towards_shape(
         sim_states.final_anisotropies.append(poly_metrics.anisotropies)
         sim_states.n_edge_crossings.append(n_edge_crossings)
 
-        if short and (n_edge_crossings > 0):
-            break
-
         if not params.quiet:
             print(f"{shape_step}: Shape loss = {loss}")
 
         valid_sim = _validate(poly_metrics.areas)
         sim_states.valid.append(valid_sim)
+
+        if short and (n_edge_crossings > 0):
+            break
 
         if loss < best_loss and valid_sim:
             best_loss = loss
