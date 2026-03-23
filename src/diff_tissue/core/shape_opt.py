@@ -484,14 +484,17 @@ class BestState:
 
 
 def _get_valid_best_idx(sim_states):
-    masked_loss_vals = jnp.asarray(
-        jnp.where(
-            jnp.array(sim_states.valid),
-            jnp.array(sim_states.loss_vals),
-            jnp.inf,
+    if not any(sim_states.valid):
+        best_index = jnp.argmin(jnp.array(sim_states.loss_vals))
+    else:
+        masked_loss_vals = jnp.asarray(
+            jnp.where(
+                jnp.array(sim_states.valid),
+                jnp.array(sim_states.loss_vals),
+                jnp.inf,
+            )
         )
-    )
-    best_index = jnp.argmin(masked_loss_vals)
+        best_index = jnp.argmin(masked_loss_vals)
     return best_index
 
 
