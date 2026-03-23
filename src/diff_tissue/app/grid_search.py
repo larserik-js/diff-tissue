@@ -36,7 +36,7 @@ def _simulate(vars):
         angles_pot_weight=angles_pot_w,
         quiet=True,
     )
-    sim_states = shape_opt.run(params)
+    sim_states = shape_opt.run(params, short=True)
     best_state = shape_opt.get_best_state(sim_states)
 
     polygon_inds = init_systems.get_system(params).indices

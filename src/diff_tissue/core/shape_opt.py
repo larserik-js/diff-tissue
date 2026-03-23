@@ -470,6 +470,7 @@ class _SimStates:
     goal_anisotropies: list[jnp.ndarray] = field(default_factory=list)
     final_areas: list[jnp.ndarray] = field(default_factory=list)
     final_anisotropies: list[jnp.ndarray] = field(default_factory=list)
+    n_edge_crossings: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -517,6 +518,7 @@ def _iterate_towards_shape(
     target_boundary: shapes.JaxTargetBoundary,
     polygons: init_systems.JaxPolygons,
     params: parameters.Params,
+    short: bool,
 ) -> _SimStates:
     vertices = polygons.init_vertices
 
@@ -555,6 +557,9 @@ def _iterate_towards_shape(
         )
 
         poly_metrics = metrics.update_poly_metrics(poly_metrics, vertices)
+        n_edge_crossings = metrics.count_edge_crossings(
+            vertices, polygons.indices
+        )
 
         sim_states.loss_vals.append(float(loss))
         sim_states.final_vertices.append(vertices)
@@ -562,6 +567,10 @@ def _iterate_towards_shape(
         sim_states.goal_anisotropies.append(goal_anisotropies)
         sim_states.final_areas.append(poly_metrics.areas)
         sim_states.final_anisotropies.append(poly_metrics.anisotropies)
+        sim_states.n_edge_crossings.append(n_edge_crossings)
+
+        if short and (n_edge_crossings > 0):
+            break
 
         if not params.quiet:
             print(f"{shape_step}: Shape loss = {loss}")
@@ -590,7 +599,7 @@ def _iterate_towards_shape(
     return sim_states
 
 
-def run(params):
+def run(params, short=False):
     polygons = init_systems.get_jax_polygons(params)
 
     target_boundary = shapes.get_jax_target_boundary(polygons, params)
@@ -614,5 +623,6 @@ def run(params):
         target_boundary,
         polygons,
         params,
+        short,
     )
     return sim_states
