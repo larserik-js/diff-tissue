@@ -1,3 +1,7 @@
+import logging
+
+logging.getLogger("jax._src.xla_bridge").setLevel(logging.ERROR)
+
 import jax
 
 jax.config.update("jax_enable_x64", True)
