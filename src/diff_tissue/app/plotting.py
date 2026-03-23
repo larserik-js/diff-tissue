@@ -6,7 +6,10 @@ from matplotlib import pyplot as plt
 from matplotlib import figure as matplotlib_figure
 import numpy as np
 
-from ..core import init_systems, my_utils, shapes
+from ..core import init_systems, metrics, shapes
+
+
+_GROWTH_SCALE = 5.0
 
 
 def _get_polygons(vertices, indices, valid_mask):
@@ -26,7 +29,7 @@ class _Artists:
 
     def _get_ax_lims(self):
         all_plotted_vertices = np.vstack(
-            [self._polygons.vertices, self._target_boundary]
+            [self._polygons.init_vertices, self._target_boundary]
         )
         minvals = all_plotted_vertices.min(axis=0)
         maxvals = all_plotted_vertices.max(axis=0)
@@ -69,7 +72,7 @@ class _Artists:
     def _add_vertices(self, vertices):
         polygons = _get_polygons(
             vertices,
-            self._polygons.polygon_inds,
+            self._polygons.indices,
             self._polygons.valid_mask,
         )
         for polygon_ in polygons:
@@ -82,9 +85,9 @@ class _Artists:
             )
 
     def _enumerate_centroids(self, vertices):
-        centroids = my_utils.calc_centroids(
+        centroids = metrics.calc_centroids(
             vertices,
-            self._polygons.polygon_inds,
+            self._polygons.indices,
             self._polygons.valid_mask,
         )
         markers = np.arange(centroids.shape[0])
@@ -121,7 +124,7 @@ class _Artists:
 class _Figure(ABC):
     def __init__(self, params):
         self._params = params
-        self._polygons = init_systems.get_system(params.system, params.seed)
+        self._polygons = init_systems.get_system(params)
         self._all_knots = init_systems.Knots().all_knots
         self._fig: matplotlib_figure.Figure
         self._init_figure()
@@ -172,15 +175,14 @@ class MorphFigure(_Figure):
 class MorphGrowthFigure(_Figure):
     def __init__(self, params):
         super().__init__(params)
-        self._total_steps = params.n_growth_steps
-        self._scale = params.growth_scale
+        self._total_steps = params.n_morph_steps
         self._gs = gridspec.GridSpec(
             nrows=2, ncols=1, figure=self._fig, height_ratios=[0.8, 1.0]
         )
         self._scaled_target_boundary = (
-            self._scale * self._closed_target_boundary
+            _GROWTH_SCALE * self._closed_target_boundary
         )
-        self._scaled_knots = self._scale * self._all_knots
+        self._scaled_knots = _GROWTH_SCALE * self._all_knots
 
         ax0 = self._fig.add_subplot(self._gs[0])
         self._morph_artists = _Artists(
@@ -204,7 +206,7 @@ class MorphGrowthFigure(_Figure):
 
     def _scale_vertices(self, vertices, step):
         t_frac = step / self._total_steps
-        partial_scale = 1.0 + (self._scale - 1.0) * np.sin(
+        partial_scale = 1.0 + (_GROWTH_SCALE - 1.0) * np.sin(
             0.5 * np.pi * t_frac
         )
         scaled_vertices = partial_scale * vertices

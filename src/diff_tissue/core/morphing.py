@@ -1,43 +1,42 @@
-from .jax_bootstrap import jax, jaxopt, jnp
-from . import my_utils
+from .jax_bootstrap import jax, jaxopt, jnp, struct
+from . import metrics
 
 
 def _calc_areas_loss(target_areas, areas):
-    areas_loss = jnp.sum((target_areas - areas) ** 2)
+    areas_loss = jnp.mean(jnp.square(areas - target_areas))
     return areas_loss
 
 
 def _calc_angles_loss(masked_cosines, optimal_angles):
     optimal_cosines = jnp.cos(optimal_angles)
     squared_diffs = jnp.square(masked_cosines - optimal_cosines)
-    angles_loss = jnp.nansum(squared_diffs)
+    angles_loss = jnp.nanmean(squared_diffs)
     return angles_loss
 
 
 def _calc_anisotropies_loss(target_anisotropies, anisotropies):
     anisotropy_diffs = target_anisotropies - anisotropies
-    anisotropies_loss = jnp.sum(jnp.square(anisotropy_diffs))
+    anisotropies_loss = jnp.mean(jnp.square(anisotropy_diffs))
     return anisotropies_loss
 
 
-def _calc_growth_loss(
+def _calc_morph_loss(
     vertices,
     target_areas,
     target_anisotropies,
-    optimal_angles,
     poly_metrics,
-    params,
+    potential_weights,
 ):
-    poly_metrics = my_utils.update_poly_metrics(poly_metrics, vertices)
+    poly_metrics = metrics.update_poly_metrics(poly_metrics, vertices)
 
-    areas_loss = params.areas_loss_weight * _calc_areas_loss(
+    areas_loss = potential_weights.areas * _calc_areas_loss(
         target_areas, poly_metrics.areas
     )
-    angles_loss = params.angles_loss_weight * _calc_angles_loss(
-        poly_metrics.masked_cosines, optimal_angles
+    angles_loss = potential_weights.angles * _calc_angles_loss(
+        poly_metrics.masked_cosines, poly_metrics.optimal_angles
     )
     anisotropies_loss = (
-        params.anisotropy_loss_weight
+        potential_weights.anisotropies
         * _calc_anisotropies_loss(
             target_anisotropies, poly_metrics.anisotropies
         )
@@ -57,18 +56,16 @@ def _lbfgs_solve(
     vertices,
     target_areas,
     target_anisotropies,
-    optimal_angles,
     poly_metrics,
-    params,
+    potential_weights,
 ):
-    solver = jaxopt.LBFGS(fun=_calc_growth_loss, maxiter=50)
+    solver = jaxopt.LBFGS(fun=_calc_morph_loss, maxiter=50)
     result = solver.run(
         vertices,
         target_areas,
         target_anisotropies,
-        optimal_angles,
         poly_metrics,
-        params,
+        potential_weights,
     )
     updated_vertices = result.params
 
@@ -78,16 +75,16 @@ def _lbfgs_solve(
 def _update_vertices(
     vertices,
     t,
+    n_morph_steps,
     goal_areas,
     goal_anisotropies,
     init_areas,
     init_anisotropies,
-    optimal_angles,
     poly_metrics,
-    jax_arrays,
-    params,
+    potential_weights,
+    polygons,
 ):
-    t_frac = t / params.n_growth_steps
+    t_frac = t / n_morph_steps
     target_areas = _update_targets(init_areas, goal_areas, t_frac)
     target_anisotropies = _update_targets(
         init_anisotropies, goal_anisotropies, t_frac
@@ -97,28 +94,56 @@ def _update_vertices(
         vertices,
         target_areas,
         target_anisotropies,
-        optimal_angles,
         poly_metrics,
-        params,
+        potential_weights,
     )
     updated_vertices = jnp.where(
-        jax_arrays["free_mask"], updated_vertices, jax_arrays["init_vertices"]
+        polygons.free_mask, updated_vertices, polygons.init_vertices
     )
 
     return updated_vertices
 
 
-def iterate(goal_areas, goal_anisotropies, n_steps, jax_arrays, params):
-    init_vertices = jax_arrays["init_vertices"]
+@struct.dataclass
+class _PotentialWeights:
+    areas: float
+    angles: float
+    anisotropies: float
 
-    poly_metrics = my_utils.initialize_poly_metrics(
-        vertices=init_vertices,
-        indices=jax_arrays["indices"],
-        valid_mask=jax_arrays["valid_mask"],
+
+def _get_potential_weights(params):
+    match params.system:
+        case "few":
+            potential_weights = _PotentialWeights(
+                areas=params.areas_pot_weight,
+                angles=params.angles_pot_weight,
+                anisotropies=params.anisotropies_pot_weight,
+            )
+        case "many":
+            # TODO: Tune these weights.
+            potential_weights = _PotentialWeights(
+                areas=10.0,
+                angles=20.0,
+                anisotropies=10.0,
+            )
+        case _:
+            raise NotImplementedError(
+                "Potential weights not implemented for system: "
+                f"{params.system}"
+            )
+    return potential_weights
+
+
+def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
+    poly_metrics = metrics.initialize_poly_metrics(
+        vertices=polygons.init_vertices,
+        indices=polygons.indices,
+        valid_mask=polygons.valid_mask,
     )
     init_areas = poly_metrics.areas
     init_anisotropies = poly_metrics.anisotropies
-    optimal_angles = my_utils.calc_optimal_angles(jax_arrays["valid_mask"])
+
+    potential_weights = _get_potential_weights(params)
 
     def update_step(carry, t):
         vertices, poly_metrics, goal_areas, goal_anisotropies = carry
@@ -126,24 +151,29 @@ def iterate(goal_areas, goal_anisotropies, n_steps, jax_arrays, params):
         vertices = _update_vertices(
             vertices,
             t,
+            params.n_morph_steps,
             goal_areas,
             goal_anisotropies,
             init_areas,
             init_anisotropies,
-            optimal_angles,
             poly_metrics,
-            jax_arrays,
-            params,
+            potential_weights,
+            polygons,
         )
 
         carry = (vertices, poly_metrics, goal_areas, goal_anisotropies)
 
         return carry, vertices
 
-    init_carry = (init_vertices, poly_metrics, goal_areas, goal_anisotropies)
+    init_carry = (
+        polygons.init_vertices,
+        poly_metrics,
+        goal_areas,
+        goal_anisotropies,
+    )
 
-    _, growth_evolution = jax.lax.scan(
+    _, morph_evolution = jax.lax.scan(
         update_step, init_carry, jnp.arange(n_steps)
     )
 
-    return growth_evolution
+    return morph_evolution

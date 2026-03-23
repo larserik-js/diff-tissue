@@ -1,6 +1,6 @@
 [project]
 name = "diff-tissue"
-version = "1.0.0"
+version = "1.1.0"
 description = "Optimization of growing tissues using differentiable programming"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -42,9 +42,20 @@ check_untyped_defs = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
 
+[tool.pytest.ini_options]
+minversion = "9.0"
+addopts = "-ra -q --strict-markers"
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks integration tests",
+]
+
 [dependency-groups]
 dev = [
     "mypy>=1.19.1",
     "pre-commit>=4.5.1",
+    "pytest>=9.0.2",
     "ruff>=0.15.5",
 ]

@@ -5,7 +5,7 @@ from typing import cast
 from diff_tissue.app import parameters
 
 from .jax_bootstrap import jax, jnp, struct
-from . import init_systems, morphing, my_utils, poly_identities
+from . import init_systems, metrics, morphing, poly_identities, shapes
 
 
 def _calc_sigmoid(min_val, max_val, logits):
@@ -39,9 +39,10 @@ def _calc_inverse_smoothing_stds(smoothing_stds):
     return logits
 
 
-def _calc_goal_area_bounds(tutte_areas, params):
-    min_goal_area = tutte_areas.min() / params.growth_scale
-    max_goal_area = tutte_areas.max() * params.max_area_scaling
+def _calc_goal_area_bounds(polygons):
+    min_goal_area = 0.0
+    avg_polygon_area = polygons.mesh_area / len(polygons.indices)
+    max_goal_area = 5.0 * avg_polygon_area  # From paper
     return (min_goal_area, max_goal_area)
 
 
@@ -85,19 +86,19 @@ def _calc_goal_anisotropies(an_logits, knots, knot_ctx):
     return goal_anisotropies
 
 
-def _make_min_dist_mask(jax_arrays):
+def _make_min_dist_mask(polygons, target_boundary):
     min_dist_mask = jnp.ones(
         (
-            jax_arrays["boundary_inds"].shape[0],
-            jax_arrays["target_boundary"].shape[0],
+            polygons.boundary_inds.shape[0],
+            target_boundary.vertices.shape[0],
         ),
         dtype=bool,
     )
-    fixed_boundary_mask = ~jax_arrays["free_mask"][jax_arrays["boundary_inds"]]
+    fixed_boundary_mask = ~polygons.free_mask[polygons.boundary_inds]
     fixed_mask = jnp.any(fixed_boundary_mask, axis=1)
 
     target_boundary_basal_mask = jnp.isclose(
-        jax_arrays["target_boundary"][:, 1], init_systems.Coords.base_origin[1]
+        target_boundary.vertices[:, 1], init_systems.Coords.base_origin[1]
     )
     min_dist_mask = min_dist_mask.at[fixed_mask].set(
         target_boundary_basal_mask
@@ -204,13 +205,12 @@ def _calc_mesh_target_loss(
 def _calc_shape_loss(
     boundary_vertices,
     target_boundary,
-    target_boundary_segments,
     min_dist_mask,
 ):
     mesh_to_target_loss = _calc_mesh_target_loss(
         boundary_vertices,
-        target_boundary,
-        target_boundary_segments,
+        target_boundary.vertices,
+        target_boundary.segments,
         min_dist_mask,
     )
 
@@ -218,7 +218,10 @@ def _calc_shape_loss(
     min_dist_mask = min_dist_mask.T
 
     target_to_mesh_loss = _calc_mesh_target_loss(
-        target_boundary, boundary_vertices, boundary_segments, min_dist_mask
+        target_boundary.vertices,
+        boundary_vertices,
+        boundary_segments,
+        min_dist_mask,
     )
 
     shape_loss = mesh_to_target_loss + target_to_mesh_loss
@@ -281,11 +284,12 @@ def _loss_fn(
     logits,
     knot_ctx,
     goal_area_bounds,
+    target_boundary,
     min_dist_mask,
-    n_growth_steps,
+    n_morph_steps,
     poly_metrics,
     poly_ids,
-    jax_arrays,
+    polygons,
     params,
 ):
     knot_ctx = _update_knot_ctx(logits, knot_ctx, params.knots)
@@ -300,19 +304,18 @@ def _loss_fn(
         logits.an_logits, params.knots, knot_ctx
     )
 
-    growth_evolution = morphing.iterate(
-        goal_areas, goal_anisotropies, n_growth_steps, jax_arrays, params
+    morph_evolution = morphing.iterate(
+        goal_areas, goal_anisotropies, n_morph_steps, polygons, params
     )
-    final_vertices = growth_evolution[-1]
+    final_vertices = morph_evolution[-1]
 
-    boundary_vertices = final_vertices[jax_arrays["boundary_inds"]]
+    boundary_vertices = final_vertices[polygons.boundary_inds]
 
-    poly_metrics = my_utils.update_poly_metrics(poly_metrics, final_vertices)
+    poly_metrics = metrics.update_poly_metrics(poly_metrics, final_vertices)
 
     shape_loss = params.shape_loss_weight * _calc_shape_loss(
         boundary_vertices,
-        jax_arrays["target_boundary"],
-        jax_arrays["target_boundary_segments"],
+        target_boundary,
         min_dist_mask,
     )
 
@@ -335,7 +338,7 @@ def _loss_fn(
 
 loss_fn = jax.jit(
     jax.value_and_grad(_loss_fn, has_aux=True, argnums=0),
-    static_argnames=["n_growth_steps"],
+    static_argnames=["n_morph_steps"],
 )
 
 
@@ -467,6 +470,7 @@ class _SimStates:
     goal_anisotropies: list[jnp.ndarray] = field(default_factory=list)
     final_areas: list[jnp.ndarray] = field(default_factory=list)
     final_anisotropies: list[jnp.ndarray] = field(default_factory=list)
+    n_edge_crossings: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -479,51 +483,60 @@ class BestState:
     final_anisotropies: jnp.ndarray
 
 
-def _get_valid_best_idx(sim_state):
-    masked_loss_vals = jnp.asarray(
-        jnp.where(
-            jnp.array(sim_state.valid), jnp.array(sim_state.loss_vals), jnp.inf
+def _get_valid_best_idx(sim_states):
+    if not any(sim_states.valid):
+        best_index = jnp.argmin(jnp.array(sim_states.loss_vals))
+    else:
+        masked_loss_vals = jnp.asarray(
+            jnp.where(
+                jnp.array(sim_states.valid),
+                jnp.array(sim_states.loss_vals),
+                jnp.inf,
+            )
         )
-    )
-    best_index = jnp.argmin(masked_loss_vals)
+        best_index = jnp.argmin(masked_loss_vals)
     return best_index
 
 
-def get_best_state(sim_state):
-    best_index = _get_valid_best_idx(sim_state)
+def get_best_state(sim_states):
+    best_index = _get_valid_best_idx(sim_states)
     best = BestState(
-        loss=sim_state.loss_vals[best_index],
-        final_vertices=sim_state.final_vertices[best_index],
-        goal_areas=sim_state.goal_areas[best_index],
-        goal_anisotropies=sim_state.goal_anisotropies[best_index],
-        final_areas=sim_state.final_areas[best_index],
-        final_anisotropies=sim_state.final_anisotropies[best_index],
+        loss=sim_states.loss_vals[best_index],
+        final_vertices=sim_states.final_vertices[best_index],
+        goal_areas=sim_states.goal_areas[best_index],
+        goal_anisotropies=sim_states.goal_anisotropies[best_index],
+        final_areas=sim_states.final_areas[best_index],
+        final_anisotropies=sim_states.final_anisotropies[best_index],
     )
     return best
 
 
-def _validate(final_areas):
+def _validate(final_areas, edge_crossings):
     all_areas_positive = bool(~jnp.any(final_areas < 0.0))
-    return all_areas_positive
+    no_edge_crossings = edge_crossings == 0
+    is_valid = all_areas_positive and no_edge_crossings
+    return is_valid
 
 
 def _iterate_towards_shape(
     logits: _Logits,
     knot_ctx: _KnotCtx | None,
     goal_area_bounds: tuple,
-    jax_arrays: dict,
+    target_boundary: shapes.JaxTargetBoundary,
+    polygons: init_systems.JaxPolygons,
     params: parameters.Params,
+    short: bool,
 ) -> _SimStates:
-    vertices = jax_arrays["init_vertices"]
+    vertices = polygons.init_vertices
 
-    min_dist_mask = _make_min_dist_mask(jax_arrays)
+    min_dist_mask = _make_min_dist_mask(polygons, target_boundary)
 
     optimizer = _MyOptimizer(logits)
 
-    poly_metrics = my_utils.initialize_poly_metrics(
+    poly_metrics = metrics.initialize_poly_metrics(
         vertices=vertices,
-        indices=jax_arrays["indices"],
-        valid_mask=jax_arrays["valid_mask"],
+        indices=polygons.indices,
+        valid_mask=polygons.valid_mask,
     )
 
     poly_ids = poly_identities.get_poly_identities(params)
@@ -538,31 +551,40 @@ def _iterate_towards_shape(
             logits,
             knot_ctx,
             goal_area_bounds,
+            target_boundary,
             min_dist_mask,
-            params.n_growth_steps,
+            params.n_morph_steps,
             poly_metrics,
             poly_ids,
-            jax_arrays,
+            polygons,
             params,
         )
         vertices, goal_areas, goal_anisotropies, knot_ctx, poly_metrics = (
             aux_data
         )
 
-        poly_metrics = my_utils.update_poly_metrics(poly_metrics, vertices)
+        poly_metrics = metrics.update_poly_metrics(poly_metrics, vertices)
+        poly_idx_lists = init_systems.make_poly_idx_lists(polygons.indices)
+        n_edge_crossings = metrics.count_edge_crossings(
+            vertices, poly_idx_lists
+        )
 
-        sim_states.loss_vals.append(loss)
+        sim_states.loss_vals.append(float(loss))
         sim_states.final_vertices.append(vertices)
         sim_states.goal_areas.append(goal_areas)
         sim_states.goal_anisotropies.append(goal_anisotropies)
         sim_states.final_areas.append(poly_metrics.areas)
         sim_states.final_anisotropies.append(poly_metrics.anisotropies)
+        sim_states.n_edge_crossings.append(n_edge_crossings)
 
         if not params.quiet:
             print(f"{shape_step}: Shape loss = {loss}")
 
-        valid_sim = _validate(poly_metrics.areas)
+        valid_sim = _validate(poly_metrics.areas, n_edge_crossings)
         sim_states.valid.append(valid_sim)
+
+        if not valid_sim and short:
+            break
 
         if loss < best_loss and valid_sim:
             best_loss = loss
@@ -585,22 +607,30 @@ def _iterate_towards_shape(
     return sim_states
 
 
-def run(params):
-    jax_arrays = my_utils.get_jax_arrays(params)
+def run(params, short=False):
+    polygons = init_systems.get_jax_polygons(params)
 
-    tutte_metrics = my_utils.get_tutte_metrics(params)
+    target_boundary = shapes.get_jax_target_boundary(polygons, params)
+
+    tutte_metrics = metrics.get_tutte_metrics(params)
 
     knots = init_systems.Knots()
 
     knot_ctx = _get_knot_ctx(params.knots, knots, tutte_metrics.centroids)
 
-    goal_area_bounds = _calc_goal_area_bounds(tutte_metrics.areas, params)
+    goal_area_bounds = _calc_goal_area_bounds(polygons)
 
     init_logits = _get_init_logits(
         goal_area_bounds, knots, tutte_metrics, params
     )
 
     sim_states = _iterate_towards_shape(
-        init_logits, knot_ctx, goal_area_bounds, jax_arrays, params
+        init_logits,
+        knot_ctx,
+        goal_area_bounds,
+        target_boundary,
+        polygons,
+        params,
+        short,
     )
     return sim_states

@@ -3,13 +3,14 @@ from collections import defaultdict
 from functools import cached_property
 from importlib.resources import files
 import json
-import sys
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial import Voronoi
 import shapely
 from shapely.geometry import Polygon
+
+from .jax_bootstrap import jnp, struct
 
 
 class Coords:
@@ -25,7 +26,8 @@ def sort_counterclockwise(indices, vertices):
         vertices[:, 1] - centroid[1], vertices[:, 0] - centroid[0]
     )
     inds_for_sorting = np.argsort(angles)
-    sorted_poly_inds = list(np.array(indices)[inds_for_sorting])
+    sorted_poly_inds_arr = np.array(indices)[inds_for_sorting]
+    sorted_poly_inds = sorted_poly_inds_arr.tolist()
     return sorted_poly_inds
 
 
@@ -53,8 +55,8 @@ def _extend(indices):
 
 class _Polygons(ABC):
     def __init__(self):
-        self._vertices: NDArray[np.floating]
-        self._polygon_inds: NDArray[np.integer]
+        self._init_vertices: NDArray[np.floating]
+        self._indices: NDArray[np.integer]
         self._free_mask: NDArray[np.bool_]
         self._mesh_area: float
         self._build()
@@ -69,14 +71,18 @@ class _Polygons(ABC):
     def _build(self):
         pass
 
+    @abstractmethod
+    def _calc_mesh_area(self):
+        pass
+
     def _find_valid_mask(self):
-        valid_mask = self._polygon_inds != -1
+        valid_mask = self._indices != -1
         return valid_mask
 
     def _get_boundary_inds(self):
         all_edges = set()
         interior_edges = set()
-        for extended_polygon in self._polygon_inds:
+        for extended_polygon in self._indices:
             unpadded_polygon = extended_polygon[extended_polygon != -1]
             # Removes the last vertex, which was an extension for efficiency
             polygon = unpadded_polygon[:-1]
@@ -112,9 +118,9 @@ class _Polygons(ABC):
         neighbors = []
         max_n_neighbors = 0
 
-        for idx, vertex_inds_ in enumerate(self._polygon_inds):
+        for idx, vertex_inds_ in enumerate(self._indices):
             vertex_inds = vertex_inds_[vertex_inds_ != -1]
-            inds_in_polygons = np.isin(self._polygon_inds, vertex_inds)
+            inds_in_polygons = np.isin(self._indices, vertex_inds)
             poly_neighbors_with_self = np.where(
                 np.any(inds_in_polygons, axis=1)
             )[0]
@@ -132,7 +138,7 @@ class _Polygons(ABC):
 
     def _calc_vertex_neighbors(self):
         vertex_neighbors = defaultdict(set)
-        for polygon in self._polygon_inds:
+        for polygon in self._indices:
             for i in range(len(polygon) - 1):
                 vertex_idx, vertex_neighbor_idx = (
                     int(polygon[i]),
@@ -153,8 +159,8 @@ class _Polygons(ABC):
 
     def _calc_vertex_polygons(self):
         vertex_polygons_lists = list()
-        for vertex_idx in range(self._vertices.shape[0]):
-            vertex_polygons = np.where(vertex_idx == self._polygon_inds)[0]
+        for vertex_idx in range(self._init_vertices.shape[0]):
+            vertex_polygons = np.where(vertex_idx == self._indices)[0]
             vertex_polygons_list = list(set(vertex_polygons))
             vertex_polygons_lists.append(vertex_polygons_list)
 
@@ -164,12 +170,12 @@ class _Polygons(ABC):
         return vertex_polygons
 
     @property
-    def vertices(self):
-        return self._vertices
+    def init_vertices(self):
+        return self._init_vertices
 
     @property
-    def polygon_inds(self):
-        return self._polygon_inds
+    def indices(self):
+        return self._indices
 
     @property
     def free_mask(self):
@@ -200,36 +206,24 @@ class _Polygons(ABC):
         return self._mesh_area
 
 
-class _VoronoiPolygons(_Polygons):
-    def __init__(self, seed):
+class _ClippedVoronoiGenerator:
+    def __init__(self, point_density, seed):
+        self._point_density = point_density
         self._seed = seed
-        super().__init__()
+        self._circle_r = 12.0
+        self.circle_area = np.pi * self._circle_r**2
 
-    def _build(self):
-        self._radius_x = 12.0
-        self._radius_y = 12.0
-        self._polygon_area = 3.0
-        self._n_polygons_in_full_circle = (
-            self._calc_n_polygons_in_full_circle()
-        )
-        self._mesh_area = self._calc_mesh_area()
-
-        self._generating_shape = self._get_generating_shape()
-        self._all_polygon_inds, self._vertices = self._make_init_polygons()
-        self._max_vertices = self._find_max_vertices()
-        self._polygon_inds = self._finalize_polygon_inds()
-        self._free_mask = self._get_free_mask()
-
-    def _get_generating_shape(self):
+    @cached_property
+    def _generating_shape(self):
         cx, cy = Coords.base_origin
-        base_coords = np.linspace(cx - self._radius_x, cx + self._radius_x, 5)
+        base_coords = np.linspace(cx - self._circle_r, cx + self._circle_r, 5)
         base_coords = [(x, cy) for x in base_coords]
 
         num_points = 10
         thetas = np.linspace(0, np.pi, num_points, endpoint=False)
 
-        xs = cx + self._radius_x * np.cos(thetas)
-        ys = cy + self._radius_y * np.sin(thetas)
+        xs = cx + self._circle_r * np.cos(thetas)
+        ys = cy + self._circle_r * np.sin(thetas)
         half_circle_coords = [point for point in zip(xs, ys)]
         coords = base_coords + half_circle_coords
         stacked_coords = np.vstack(coords)
@@ -237,27 +231,19 @@ class _VoronoiPolygons(_Polygons):
         generating_shape = Polygon(stacked_coords)
         return generating_shape
 
-    def _calc_n_polygons_in_full_circle(self):
-        n_polygons = int(
-            np.pi * self._radius_x * self._radius_y / self._polygon_area
-        )
-        return n_polygons
-
-    def _calc_mesh_area(self):
-        area = 0.5 * self._n_polygons_in_full_circle * self._polygon_area
-        return area
-
-    def _generate_random_points(self):
+    @cached_property
+    def _points(self):
         bounds = self._generating_shape.bounds
 
+        n_generating_points = int(self.circle_area * self._point_density)
+
         rng = np.random.default_rng(self._seed)
-        xs = rng.uniform(bounds[0], bounds[2], self._n_polygons_in_full_circle)
-        ys = rng.uniform(bounds[1], bounds[3], self._n_polygons_in_full_circle)
+        xs = rng.uniform(bounds[0], bounds[2], n_generating_points)
+        ys = rng.uniform(bounds[1], bounds[3], n_generating_points)
         points_array = np.vstack((xs, ys)).T
         points = shapely.points(points_array)
         inside_mask = shapely.contains(self._generating_shape, points)
         inside_points = points_array[inside_mask]
-
         return inside_points
 
     def _get_inside_mask(self, points_array):
@@ -265,23 +251,18 @@ class _VoronoiPolygons(_Polygons):
         inside_mask = shapely.contains(self._generating_shape, points)
         return inside_mask
 
-    def _get_inside_points(self, points_array):
-        inside_mask = self._get_inside_mask(points_array)
-        inside_points = points_array[inside_mask]
-        return inside_points
-
-    def _generate_relaxed_random_points(self):
-        points = self._generate_random_points()
+    @cached_property
+    def _relaxed_points(self):
         n_iterations = 20
         for _ in range(n_iterations):
-            vor = Voronoi(points)
+            vor = Voronoi(self._points)
             new_points = []
 
             for i, region_idx in enumerate(vor.point_region):
                 vertex_inds = vor.regions[region_idx]
                 # Infinite or empty region: use original point
                 if (-1 in vertex_inds) or (len(vertex_inds) == 0):
-                    new_points.append(points[i])
+                    new_points.append(self._points[i])
                 else:
                     vertices = vor.vertices[vertex_inds]
                     centroid = vertices.mean(axis=0)
@@ -290,10 +271,9 @@ class _VoronoiPolygons(_Polygons):
                         new_points.append(centroid)
                     # Point outside generating shape: use original point
                     else:
-                        new_points.append(points[i])
-            points = np.array(new_points)
-
-        return points
+                        new_points.append(self._points[i])
+            self._points = np.array(new_points)
+        return self._points
 
     def _clip_polygons(self, all_poly_inds, all_vertices):
         clipped_polygons = []
@@ -309,8 +289,9 @@ class _VoronoiPolygons(_Polygons):
 
         return clipped_polygons
 
-    def _make_clipped_voronoi(self, relaxed_points, radius=None):
-        vor = Voronoi(relaxed_points)
+    @cached_property
+    def polygons(self, radius=None):
+        vor = Voronoi(self._relaxed_points)
         if vor.points.shape[1] != 2:
             raise ValueError("Requires 2D input")
 
@@ -374,13 +355,31 @@ class _VoronoiPolygons(_Polygons):
 
         return clipped_polygons
 
-    @staticmethod
-    def _make_shared_vertex_structure(polygons):
+
+class _VoronoiPolygons(_Polygons):
+    def __init__(self, clipped_voronoi_generator):
+        self._clipped_voronoi_generator = clipped_voronoi_generator
+        super().__init__()
+
+    def _build(self):
+        self._mesh_area = self._calc_mesh_area()
+        self._all_polygon_inds, self._init_vertices = (
+            self._make_init_polygons()
+        )
+        self._max_vertices = self._find_max_vertices()
+        self._indices = self._finalize_polygon_inds()
+        self._free_mask = self._get_free_mask()
+
+    def _calc_mesh_area(self):
+        area = 0.5 * self._clipped_voronoi_generator.circle_area
+        return area
+
+    def _make_shared_vertex_structure(self):
         vertex_to_index = {}
         unique_vertices: list[tuple] = []
         poly_indices = []
 
-        for poly in polygons:
+        for poly in self._clipped_voronoi_generator.polygons:
             # Remove duplicate last point if same as first
             if np.array_equal(poly[0], poly[-1]):
                 poly = poly[:-1]
@@ -396,35 +395,6 @@ class _VoronoiPolygons(_Polygons):
 
         vertices = np.array(unique_vertices)
         return poly_indices, vertices
-
-    def _separate_close_vertices(self, vertices):
-        min_dist = 0.5 * np.sqrt(self._polygon_area)
-        jitter_scale = 0.1 * min_dist
-        max_n = 1000
-        for n in range(max_n):
-            diffs = vertices[:, None, :] - vertices
-            dists = np.linalg.norm(diffs, axis=-1)
-            np.fill_diagonal(dists, np.inf)
-
-            too_close = (dists < min_dist) & (dists > 0.0)
-            n_too_close = too_close.sum()
-            if n_too_close == 0:
-                break
-            if n == max_n - 1:
-                print(f"Jittering did not converge after {max_n} iterations.")
-                sys.exit()
-
-            for i in range(dists.shape[0]):
-                for j in range(i + 1, dists.shape[1]):
-                    if dists[i, j] < min_dist:
-                        norm_diff_vec = diffs[i, j] / np.linalg.norm(
-                            diffs[i, j]
-                        )
-                        jitter = 0.5 * jitter_scale * norm_diff_vec
-                        vertices[i] += jitter
-                        vertices[j] -= jitter
-
-        return vertices
 
     def _sort_all_counterclockwise(self, all_poly_inds, all_vertices):
         all_sorted_poly_inds = []
@@ -442,22 +412,11 @@ class _VoronoiPolygons(_Polygons):
         return extended_polygons
 
     def _make_init_polygons(self):
-        relaxed_points = self._generate_relaxed_random_points()
-        polygons = self._make_clipped_voronoi(relaxed_points)
-        all_polygon_inds, vertices = self._make_shared_vertex_structure(
-            polygons
-        )
+        all_polygon_inds, vertices = self._make_shared_vertex_structure()
         all_polygon_inds = self._sort_all_counterclockwise(
             all_polygon_inds, vertices
         )
         all_polygon_inds = self._extend_polygons(all_polygon_inds)
-
-        # Commented out to keep base vertices exactly at the base line.
-        # If the program remains numerically stable,
-        # this can eventually be deleted entirely.
-
-        # vertices = self._separate_close_vertices(vertices)
-
         return all_polygon_inds, vertices
 
     def _find_max_vertices(self):
@@ -481,9 +440,9 @@ class _VoronoiPolygons(_Polygons):
 
     def _get_free_mask(self):
         are_fixed = np.isclose(
-            self._vertices[:, 1] - Coords.base_origin[1], 0.0
+            self._init_vertices[:, 1] - Coords.base_origin[1], 0.0
         )
-        free_mask = np.ones(self._vertices.shape, dtype=bool)
+        free_mask = np.ones(self._init_vertices.shape, dtype=bool)
         free_mask[are_fixed, 1] = False
         return free_mask
 
@@ -495,7 +454,7 @@ class _FullPolygons(_Polygons):
     def _build(self):
         self._input_cells = self._read_input_cells()
         self._max_vertices = self._find_max_vertices()
-        self._polygon_inds, self._vertices = self._make_init_polygons()
+        self._indices, self._init_vertices = self._make_init_polygons()
         self._free_mask = self._get_free_mask()
         self._mesh_area = self._calc_mesh_area()
 
@@ -597,7 +556,7 @@ class _FullPolygons(_Polygons):
 
     def _get_free_mask(self):
         fixed_inds = self._get_fixed_inds()
-        free_mask = np.ones(self._vertices.shape, dtype=bool)
+        free_mask = np.ones(self._init_vertices.shape, dtype=bool)
         free_mask[fixed_inds] = False
         return free_mask
 
@@ -628,9 +587,9 @@ class _SinglePolygon(_Polygons):
         super().__init__()
 
     def _build(self):
-        self._vertices = self._make_init_polygons()
-        self._n_vertices = self._vertices.shape[0]
-        self._polygon_inds = self._find_polygon_inds()
+        self._init_vertices = self._make_init_polygons()
+        self._n_vertices = self._init_vertices.shape[0]
+        self._indices = self._find_polygon_inds()
         self._free_mask = self._get_free_mask()
         self._mesh_area = self._calc_mesh_area()
 
@@ -650,18 +609,18 @@ class _SinglePolygon(_Polygons):
 
     def _find_polygon_inds(self):
         polygon_inds = np.arange(self._n_vertices)
-        polygon_inds = sort_counterclockwise(polygon_inds, self._vertices)
+        polygon_inds = sort_counterclockwise(polygon_inds, self._init_vertices)
         polygon_inds = _extend(polygon_inds)
         return np.array(polygon_inds).reshape(1, -1)
 
     def _get_free_mask(self):
-        free_mask = np.ones(self._vertices.shape, dtype=bool)
+        free_mask = np.ones(self._init_vertices.shape, dtype=bool)
         free_mask[:3, 1] = False
         return free_mask
 
     def _calc_mesh_area(self):
-        xs = self._vertices[:, 0]
-        ys = self._vertices[:, 1]
+        xs = self._init_vertices[:, 0]
+        ys = self._init_vertices[:, 1]
 
         area = 0.5 * np.abs(
             np.dot(xs, np.roll(ys, -1)) - np.dot(ys, np.roll(xs, -1))
@@ -669,17 +628,77 @@ class _SinglePolygon(_Polygons):
         return area
 
 
-def get_system(system, seed) -> _Polygons:
+def get_system(params) -> _Polygons:
     polygons: _Polygons
-    match system:
-        case "voronoi":
-            polygons = _VoronoiPolygons(seed)
+    match params.system:
+        case "few":
+            clipped_voronoi_generator = _ClippedVoronoiGenerator(
+                point_density=0.33, seed=params.seed
+            )
+            polygons = _VoronoiPolygons(clipped_voronoi_generator)
+        case "many":
+            clipped_voronoi_generator = _ClippedVoronoiGenerator(
+                point_density=0.66, seed=params.seed
+            )
+            polygons = _VoronoiPolygons(clipped_voronoi_generator)
         case "full":
             polygons = _FullPolygons()
         case "single":
             polygons = _SinglePolygon()
         case _:
             raise ValueError("Invalid initial system!")
+    return polygons
+
+
+@struct.dataclass
+class JaxPolygons:
+    init_vertices: jnp.ndarray
+    indices: jnp.ndarray
+    free_mask: jnp.ndarray
+    valid_mask: jnp.ndarray
+    boundary_inds: jnp.ndarray
+    poly_neighbors: jnp.ndarray
+    vertex_neighbors: jnp.ndarray
+    vertex_polygons: jnp.ndarray
+    mesh_area: float
+
+
+def get_jax_polygons(params):
+    polygons = get_system(params)
+    jax_polygons = JaxPolygons(
+        init_vertices=jnp.array(polygons.init_vertices),
+        indices=jnp.array(polygons.indices),
+        free_mask=jnp.array(polygons.free_mask),
+        valid_mask=jnp.array(polygons.valid_mask),
+        boundary_inds=jnp.array(polygons.boundary_inds),
+        poly_neighbors=jnp.array(polygons.poly_neighbors),
+        vertex_neighbors=jnp.array(polygons.vertex_neighbors),
+        vertex_polygons=jnp.array(polygons.vertex_polygons),
+        mesh_area=polygons.mesh_area,
+    )
+    return jax_polygons
+
+
+def make_poly_idx_lists(polygon_indices):
+    poly_idx_lists = []
+
+    for polygon in polygon_indices:
+        poly_inds = polygon[polygon != -1]
+        poly_idx_list = poly_inds[:-2]
+        poly_idx_lists.append(poly_idx_list)
+    return poly_idx_lists
+
+
+def get_shapely_polygons(vertices, poly_indices):
+    poly_idx_lists = make_poly_idx_lists(poly_indices)
+    polygons = []
+    for idx_list in poly_idx_lists:
+        coords = vertices[idx_list]
+        # Ensure closure: Shapely closes automatically,
+        # but doing it explicitly avoids issues
+        if not (coords[0] == coords[-1]).all():
+            coords = np.vstack([coords, coords[0]])
+        polygons.append(Polygon(coords))
     return polygons
 
 

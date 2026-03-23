@@ -37,3 +37,6 @@ jobs:
 
       - name: Run mypy type checks
         run: make type
+
+      - name: Run all tests
+        run: make test-full

@@ -1,6 +1,10 @@
 from pathlib import Path
 import pickle
 
+import numpy as np
+
+from ..core.jax_bootstrap import jax
+
 
 class OutputManager:
     def __init__(self, output_type_dir: str | None, base_dir: str):
@@ -34,3 +38,13 @@ def load_pkl(path):
 def save_pkl(path, data):
     with open(path, "wb") as f:
         pickle.dump(data, f)
+
+
+def save_arrays(path, arrays):
+    arrays_np = jax.device_get(arrays)
+    np.savez(path, arrays=arrays_np)
+
+
+def load_arrays(path):
+    data = np.load(path)
+    return data["arrays"]

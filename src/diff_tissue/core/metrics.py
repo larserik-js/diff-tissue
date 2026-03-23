@@ -1,28 +1,14 @@
 from functools import cached_property
-import timeit
 
 import numpy as np
-from shapely.geometry import Polygon
+from shapely.geometry import LineString
+from shapely.strtree import STRtree
 
-from .jax_bootstrap import jax, jnp, struct
+from .jax_bootstrap import jnp, struct
 from . import init_systems, shapes, tutte
 
 
-def timer(func):
-    def timed(*args, **kwargs):
-        t_init = timeit.default_timer()
-        res = func(*args, **kwargs)
-        t_end = timeit.default_timer()
-
-        t_tot = t_end - t_init
-
-        print(f"Total time: {t_tot:.4f} s")
-        return res
-
-    return timed
-
-
-def get_all_cells(vertices, indices):
+def _get_all_cells(vertices, indices):
     all_cells = vertices[indices]
     return all_cells
 
@@ -35,7 +21,7 @@ def calc_centroids(vertices, indices, valid_mask):
     return centroids
 
 
-def calc_areas(all_cells, valid_mask):
+def _calc_areas(all_cells, valid_mask):
     xs = all_cells[:, 1:-1, 0]
     y_plus_ones = all_cells[:, 2:, 1]
     y_minus_ones = all_cells[:, :-2, 1]
@@ -53,7 +39,7 @@ def calc_areas(all_cells, valid_mask):
     return areas
 
 
-def calc_anisotropies(all_cells, valid_mask):
+def _calc_anisotropies(all_cells, valid_mask):
     xs = all_cells[:, 1:-1, 0]
     ys = all_cells[:, 1:-1, 1]
     valid = valid_mask[:, 1:-1]
@@ -70,7 +56,7 @@ def calc_anisotropies(all_cells, valid_mask):
     return anisotropies
 
 
-def calc_masked_cosines(all_cells, valid_mask):
+def _calc_masked_cosines(all_cells, valid_mask):
     edges = all_cells[:, 1:] - all_cells[:, :-1]
     epsilon = 1e-6
     norms = jnp.linalg.norm(edges + epsilon, axis=2)
@@ -87,7 +73,7 @@ def calc_masked_cosines(all_cells, valid_mask):
     return masked_cosines
 
 
-def calc_optimal_angles(valid_mask):
+def _calc_optimal_angles(valid_mask):
     n_vertices = valid_mask.sum(axis=1) - 2
     interior_angles = (n_vertices - 2) * jnp.pi / n_vertices
     optimal_angles = jnp.pi - interior_angles
@@ -96,20 +82,21 @@ def calc_optimal_angles(valid_mask):
 
 
 @struct.dataclass
-class PolyMetrics:
+class _PolyMetrics:
     _indices: jnp.ndarray
     _valid_mask: jnp.ndarray
     areas: jnp.ndarray
     anisotropies: jnp.ndarray
     masked_cosines: jnp.ndarray
+    optimal_angles: jnp.ndarray
 
 
 def _calc_poly_metrics(vertices, indices, valid_mask):
-    all_cells = get_all_cells(vertices, indices)
+    all_cells = _get_all_cells(vertices, indices)
 
-    areas = calc_areas(all_cells, valid_mask)
-    anisotropies = calc_anisotropies(all_cells, valid_mask)
-    masked_cosines = calc_masked_cosines(all_cells, valid_mask)
+    areas = _calc_areas(all_cells, valid_mask)
+    anisotropies = _calc_anisotropies(all_cells, valid_mask)
+    masked_cosines = _calc_masked_cosines(all_cells, valid_mask)
 
     return areas, anisotropies, masked_cosines
 
@@ -118,13 +105,15 @@ def initialize_poly_metrics(vertices, indices, valid_mask):
     areas, anisotropies, masked_cosines = _calc_poly_metrics(
         vertices, indices, valid_mask
     )
+    optimal_angles = _calc_optimal_angles(valid_mask)
 
-    return PolyMetrics(
+    return _PolyMetrics(
         _indices=indices,
         _valid_mask=valid_mask,
         areas=areas,
         anisotropies=anisotropies,
         masked_cosines=masked_cosines,
+        optimal_angles=optimal_angles,
     )
 
 
@@ -154,8 +143,8 @@ class TutteMetrics:
             init_systems.VertexNumbers(self._polygons),
         )
         vertices_ = tutte.get_mapped_vertices(
-            self._polygons.vertices,
-            self._polygons.polygon_inds,
+            self._polygons.init_vertices,
+            self._polygons.indices,
             self._polygons.boundary_inds,
             target_boundary.vertices,
         )
@@ -163,109 +152,78 @@ class TutteMetrics:
 
     @cached_property
     def _all_cells(self):
-        all_cells = get_all_cells(self.vertices, self._polygons.polygon_inds)
+        all_cells = _get_all_cells(self.vertices, self._polygons.indices)
         return all_cells
 
     @cached_property
     def centroids(self):
         centroids_ = calc_centroids(
             self.vertices,
-            self._polygons.polygon_inds,
+            self._polygons.indices,
             self._polygons.valid_mask,
         )
         return centroids_
 
     @cached_property
     def areas(self):
-        areas_ = calc_areas(self._all_cells, self._polygons.valid_mask)
+        areas_ = _calc_areas(self._all_cells, self._polygons.valid_mask)
         return areas_
 
     @cached_property
     def anisotropies(self):
-        anisotropies_ = calc_anisotropies(
+        anisotropies_ = _calc_anisotropies(
             self._all_cells, self._polygons.valid_mask
         )
         return anisotropies_
 
 
 def get_tutte_metrics(params):
-    polygons = init_systems.get_system(params.system, params.seed)
+    polygons = init_systems.get_system(params)
     tutte_metrics = TutteMetrics(polygons, params.shape)
     return tutte_metrics
 
 
-def _make_array_dict(polygons, target_boundary):
-    arrays = {
-        "indices": polygons.polygon_inds,
-        "valid_mask": polygons.valid_mask,
-        "init_vertices": polygons.vertices,
-        "poly_neighbors": polygons.poly_neighbors,
-        "vertex_neighbors": polygons.vertex_neighbors,
-        "vertex_polygons": polygons.vertex_polygons,
-        "free_mask": polygons.free_mask,
-        "boundary_inds": polygons.boundary_inds,
-        "target_boundary": target_boundary.vertices,
-        "target_boundary_segments": target_boundary.segments,
-    }
-    return arrays
+def _build_edge_vertex_pairs(vertices, indices):
+    edges = []
+    edge_vertex_pairs = []
+    for poly in indices:
+        m = len(poly)
+        for i in range(m):
+            a = poly[i]
+            b = poly[(i + 1) % m]
+            edges.append(LineString([vertices[a], vertices[b]]))
+            edge_vertex_pairs.append((a, b))
+    edge_vertex_pairs_arr = np.array(edge_vertex_pairs)
+    return edges, edge_vertex_pairs_arr
 
 
-def get_arrays(params):
-    polygons = init_systems.get_system(params.system, params.seed)
+def count_edge_crossings(vertices, indices):
+    vertices = np.asarray(vertices)
+    edges, edge_vertex_pairs = _build_edge_vertex_pairs(vertices, indices)
 
-    vertex_numbers = init_systems.VertexNumbers(polygons)
-    target_boundary = shapes.get_target_boundary(
-        params.shape, polygons.mesh_area, vertex_numbers
-    )
+    # Build spatial index
+    tree = STRtree(edges)
 
-    arrays = _make_array_dict(
-        polygons,
-        target_boundary,
-    )
-    return arrays
+    # Query all edge-vs-edge candidates
+    # This returns a (2, N) array where
+    # row 0 = query index, row 1 = match index
+    pairs = tree.query(edges, predicate="crosses")
 
+    if pairs.size == 0:
+        return 0
 
-def _get_device():
-    return jax.devices("cpu")[0]
+    i_indices, j_indices = pairs
 
+    # Only keep i < j to avoid double counting
+    keep = i_indices < j_indices
+    i_indices = i_indices[keep]
+    j_indices = j_indices[keep]
 
-def _send_to_device(jax_array):
-    return jax.device_put(jax_array, device=_get_device())
+    # Filter out edge pairs that share a vertex
+    ev = edge_vertex_pairs
+    shared = [
+        len(set(ev[i]).intersection(ev[j])) > 0
+        for i, j in zip(i_indices, j_indices)
+    ]
 
-
-def to_jax(np_array):
-    return _send_to_device(jnp.array(np_array))
-
-
-def _make_jax_arrays(arrays):
-    jax_arrays = {name: to_jax(array) for name, array in arrays.items()}
-    return jax_arrays
-
-
-def get_jax_arrays(params):
-    arrays = get_arrays(params)
-    jax_arrays = _make_jax_arrays(arrays)
-    return jax_arrays
-
-
-def _make_poly_idx_lists(polygon_indices):
-    poly_idx_lists = []
-
-    for polygon in polygon_indices:
-        poly_inds = polygon[polygon != -1]
-        poly_idx_list = poly_inds[:-2]
-        poly_idx_lists.append(poly_idx_list)
-    return poly_idx_lists
-
-
-def get_shapely_polygons(vertices, poly_indices):
-    poly_idx_lists = _make_poly_idx_lists(poly_indices)
-    polygons = []
-    for idx_list in poly_idx_lists:
-        coords = vertices[idx_list]
-        # Ensure closure: Shapely closes automatically,
-        # but doing it explicitly avoids issues
-        if not (coords[0] == coords[-1]).all():
-            coords = np.vstack([coords, coords[0]])
-        polygons.append(Polygon(coords))
-    return polygons
+    return np.count_nonzero(~np.array(shared))

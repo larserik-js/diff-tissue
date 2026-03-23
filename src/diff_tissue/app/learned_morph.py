@@ -4,12 +4,12 @@ import numpy as np
 
 from ..core.jax_bootstrap import jnp
 from ..core import shape_opt as shape_opt_core
-from ..core import morphing, my_utils
+from ..core import init_systems, morphing
 from . import shape_opt as shape_opt_app
 from . import io_utils, parameters, plotting
 
 
-OUTPUT_TYPE_DIR = "learned_growth"
+OUTPUT_TYPE_DIR = "learned_morph"
 
 
 def _assign_weighted_goals(old_polygons, goals, new_polygons):
@@ -44,7 +44,7 @@ def _assign_weighted_goals(old_polygons, goals, new_polygons):
 def plot(results, params, output):
     param_string = parameters.get_param_string(params)
     figure = plotting.MorphFigure(results.new_params)
-    for t, vertices in enumerate(results.growth_evolution):
+    for t, vertices in enumerate(results.morph_evolution):
         if t % 10 == 0:
             fig_path = output.file_path(param_string, f"step={t:03d}.png")
             figure.save_plot(vertices, fig_path)
@@ -54,7 +54,7 @@ def plot(results, params, output):
 
 @dataclass
 class _Results:
-    growth_evolution: jnp.ndarray
+    morph_evolution: jnp.ndarray
     new_params: parameters.Params
 
 
@@ -62,10 +62,9 @@ def run(params, output):
     input_seed = params.seed  # Store for regenerated system
     params = params.replace(seed=0)  # Always base on same initial system
 
-    jax_arrays = my_utils.get_jax_arrays(params)
-
-    old_polygons = my_utils.get_shapely_polygons(
-        jax_arrays["init_vertices"], jax_arrays["indices"]
+    polygons = init_systems.get_system(params)
+    old_shapely_polygons = init_systems.get_shapely_polygons(
+        polygons.init_vertices, polygons.indices
     )
 
     sim_states = shape_opt_app.get_sim_states(params, output)
@@ -75,32 +74,33 @@ def run(params, output):
 
     # Regenerate new system, base on cli seed
     new_params = params.replace(seed=input_seed)
-    new_jax_arrays = my_utils.get_jax_arrays(new_params)
-    new_polygons = my_utils.get_shapely_polygons(
-        new_jax_arrays["init_vertices"], new_jax_arrays["indices"]
+    new_polygons = init_systems.get_jax_polygons(new_params)
+
+    new_shapely_polygons = init_systems.get_shapely_polygons(
+        new_polygons.init_vertices, new_polygons.indices
     )
 
     resulting_areas = _assign_weighted_goals(
-        old_polygons, goal_areas, new_polygons
+        old_shapely_polygons, goal_areas, new_shapely_polygons
     )
     resulting_anisotropies = _assign_weighted_goals(
-        old_polygons, goal_anisotropies, new_polygons
+        old_shapely_polygons, goal_anisotropies, new_shapely_polygons
     )
 
-    growth_evolution = morphing.iterate(
+    morph_evolution = morphing.iterate(
         resulting_areas,
         resulting_anisotropies,
-        new_params.n_growth_steps,
-        new_jax_arrays,
+        new_params.n_morph_steps,
+        new_polygons,
         new_params,
     )
 
     param_string = parameters.get_param_string(new_params)
-    output_path = output.cache_path(f"{param_string}.pkl")
-    io_utils.save_pkl(output_path, growth_evolution)
+    output_path = output.cache_path(f"{param_string}.npz")
+    io_utils.save_arrays(output_path, morph_evolution)
 
     results = _Results(
-        growth_evolution=growth_evolution,
+        morph_evolution=morph_evolution,
         new_params=new_params,
     )
 

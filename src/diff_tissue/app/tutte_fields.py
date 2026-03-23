@@ -1,24 +1,61 @@
-import pickle
-
 from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 
+from . import io_utils, parameters
 from ..core import tutte_fields as tutte_fields_core
+from ..core import init_systems, shapes
 
 
 OUTPUT_TYPE_DIR = "tutte_fields"
 
 
+def _get_general_target_boundary(shape):
+    general_params = parameters.Params(system="few", seed=0)
+    polygons = init_systems.get_system(general_params)
+    vertex_numbers = init_systems.VertexNumbers(polygons)
+    target_boundary = shapes.get_target_boundary(
+        shape, polygons.mesh_area, vertex_numbers
+    )
+    return target_boundary.vertices
+
+
+def _get_meshes(output_manager, shape):
+    meshes_file = output_manager.cache_path(f"meshes__{shape}.pkl")
+    if meshes_file.exists():
+        meshes = io_utils.load_pkl(meshes_file)
+    else:
+        params = parameters.Params(shape=shape)
+        meshes = tutte_fields_core.build_meshes(params)
+        io_utils.save_pkl(meshes_file, meshes)
+    return meshes
+
+
+def _generate_fields(output_manager, shape):
+    target_boundary = _get_general_target_boundary(shape)
+    points_inside_shape = tutte_fields_core.get_points_inside_shape(
+        target_boundary, nx=100, ny=100
+    )
+
+    meshes = _get_meshes(output_manager, shape)
+
+    area_field, anisotropy_field = tutte_fields_core.get_fields(
+        meshes, points_inside_shape
+    )
+
+    tutte_fields_ = tutte_fields_core.TutteFields(
+        points_inside_shape, area_field, anisotropy_field
+    )
+    return tutte_fields_
+
+
 def get_fields(shape, output):
     tutte_fields_file = output.cache_path(f"fields__{shape}.pkl")
     if tutte_fields_file.exists():
-        with open(tutte_fields_file, "rb") as f:
-            tutte_fields_ = pickle.load(f)
+        tutte_fields_ = io_utils.load_pkl(tutte_fields_file)
     else:
-        tutte_fields_ = tutte_fields_core.generate_fields(output, shape)
-        with open(tutte_fields_file, "wb") as f:
-            pickle.dump(tutte_fields_, f)
+        tutte_fields_ = _generate_fields(output, shape)
+        io_utils.save_pkl(tutte_fields_file, tutte_fields_)
     return tutte_fields_
 
 

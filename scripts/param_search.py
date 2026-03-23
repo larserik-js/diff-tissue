@@ -8,25 +8,22 @@ def objective_f(trial):
     params = parameters.Params()
 
     params = params.replace(
-        n_growth_steps=trial.suggest_int("growth steps", 50, 2000)
+        n_morph_steps=trial.suggest_int("morph steps", 50, 2000)
     )
     params = params.replace(
-        areas_loss_weight=trial.suggest_float(
-            "area loss weight", 1.0, 1e4, log=True
+        areas_pot_weight=trial.suggest_float(
+            "areas_potential_weight", 1.0, 1e4, log=True
         )
     )
     params = params.replace(
-        angles_loss_weight=trial.suggest_float(
-            "angle loss weight", 1.0, 1e4, log=True
+        angles_pot_weight=trial.suggest_float(
+            "angles_pot_weight", 1.0, 1e4, log=True
         )
     )
     params = params.replace(
-        anisotropy_loss_weight=trial.suggest_float(
-            "anisotropy loss weight", 1.0, 1e4, log=True
+        anisotropies_pot_weight=trial.suggest_float(
+            "anisotropies_pot_weight", 1.0, 1e4, log=True
         )
-    )
-    params = params.replace(
-        max_area_scaling=trial.suggest_float("max area scaling", 0.5, 2.0)
     )
     params = params.replace(seed=3)
     params = params.replace(quiet=True)
