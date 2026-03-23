@@ -10,20 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from . import io_utils, parameters
-from ..core import init_systems, metrics, shape_opt
-
-
-def _calc_n_edge_crossings(sim_states, valid_inds):
-    all_final_vertices = sim_states.final_vertices
-    n_edge_crossings = [
-        metrics.count_edge_crossings(final_vertices, valid_inds)
-        for final_vertices in all_final_vertices
-    ]
-    return n_edge_crossings
-
-
-def _calc_edge_crossings_ratio(n_edge_crossings):
-    return float((np.array(n_edge_crossings) > 0).mean())
+from ..core import shape_opt
 
 
 def _simulate(vars):
@@ -37,14 +24,8 @@ def _simulate(vars):
         quiet=True,
     )
     sim_states = shape_opt.run(params, short=True)
-    best_state = shape_opt.get_best_state(sim_states)
 
-    polygon_inds = init_systems.get_system(params).indices
-    valid_inds = init_systems.make_poly_idx_lists(polygon_inds)
-
-    n_edge_crossings = _calc_n_edge_crossings(sim_states, valid_inds)
-
-    return best_state.loss, n_edge_crossings
+    return sim_states
 
 
 def _format_float_to_str(float_):
@@ -69,7 +50,10 @@ def _worker(trial_vars, output_manager):
     if file_path.exists():
         return None
 
-    loss, n_edge_crossings = _simulate(trial_vars)
+    sim_states = _simulate(trial_vars)
+    best_state = shape_opt.get_best_state(sim_states)
+    loss = best_state.loss
+    valid = all(sim_states.valid)
 
     result = {
         "shape": shape,
@@ -77,7 +61,7 @@ def _worker(trial_vars, output_manager):
         "anisotropies_pot_weight": float(aspw),
         "angles_pot_weight": float(anpw),
         "loss": loss,
-        "n_edge_crossings": n_edge_crossings,
+        "valid": valid,
     }
 
     with open(file_path, "w") as f:
@@ -141,7 +125,7 @@ def _get_plotting_data(unique_anpw_val_strs, input_dir):
                     data["areas_pot_weight"],
                     data["anisotropies_pot_weight"],
                     data["loss"],
-                    _calc_edge_crossings_ratio(data["n_edge_crossings"]),
+                    data["valid"],
                 )
             )
 
@@ -182,12 +166,11 @@ def plot(study_name):
                 continue
             i, j = divmod(k, 2)
             ax = axs[i, j]
-            data_array = np.vstack(data_list_of_tuples)
-            arpw_vals = data_array[:, 0]
-            aspw_vals = data_array[:, 1]
-            losses = data_array[:, 2]
-            valid = np.isclose(data_array[:, 3], 0.0)
+            arpw_vals = np.array([tup[0] for tup in data_list_of_tuples])
+            aspw_vals = np.array([tup[1] for tup in data_list_of_tuples])
+            losses = np.array([tup[2] for tup in data_list_of_tuples])
 
+            valid = np.array([tup[3] for tup in data_list_of_tuples])
             valid_losses = losses[valid]
 
             if len(valid_losses) > 0:
