@@ -483,10 +483,12 @@ class BestState:
     final_anisotropies: jnp.ndarray
 
 
-def _get_valid_best_idx(sim_state):
+def _get_valid_best_idx(sim_states):
     masked_loss_vals = jnp.asarray(
         jnp.where(
-            jnp.array(sim_state.valid), jnp.array(sim_state.loss_vals), jnp.inf
+            jnp.array(sim_states.valid),
+            jnp.array(sim_states.loss_vals),
+            jnp.inf,
         )
     )
     best_index = jnp.argmin(masked_loss_vals)
@@ -506,9 +508,11 @@ def get_best_state(sim_states):
     return best
 
 
-def _validate(final_areas):
+def _validate(final_areas, edge_crossings):
     all_areas_positive = bool(~jnp.any(final_areas < 0.0))
-    return all_areas_positive
+    no_edge_crossings = edge_crossings == 0
+    is_valid = all_areas_positive and no_edge_crossings
+    return is_valid
 
 
 def _iterate_towards_shape(
@@ -572,10 +576,10 @@ def _iterate_towards_shape(
         if not params.quiet:
             print(f"{shape_step}: Shape loss = {loss}")
 
-        valid_sim = _validate(poly_metrics.areas)
+        valid_sim = _validate(poly_metrics.areas, n_edge_crossings)
         sim_states.valid.append(valid_sim)
 
-        if short and (n_edge_crossings > 0):
+        if not valid_sim and short:
             break
 
         if loss < best_loss and valid_sim:
