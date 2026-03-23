@@ -11,6 +11,15 @@ def _parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        "--shapes",
+        nargs="+",
+        default=["petal", "trapezoid", "triangle", "nconv"],
+        help="List of shapes.",
+    )
+    parser.add_argument("--arpws", nargs=3, required=True, type=float)
+    parser.add_argument("--aspws", nargs=3, required=True, type=float)
+    parser.add_argument("--anpws", nargs=3, required=True, type=float)
+    parser.add_argument(
         "--n",
         type=str,
         default="base_model",
@@ -35,16 +44,23 @@ class _GridVariables:
     angles_pot_ws: NDArray[np.floating]
 
 
+def _parse_arange(values):
+    """Convert CLI input into np.arange arguments."""
+    if len(values) != 3:
+        raise ValueError("Expected exactly 3 values: start stop step")
+    start, stop, step = map(float, values)
+    return np.arange(start, stop, step)
+
+
 def _main():
     args = _parse_args()
 
-    shapes = ["petal", "trapezoid", "triangle", "nconv"]
-    areas_pot_ws = np.arange(1.0, 54.0, 4)
-    anisotropies_pot_ws = np.arange(1.0, 54.0, 4)
-    angles_pot_ws = np.arange(1.0, 54.0, 4)
+    areas_pot_ws = _parse_arange(args.arpws)
+    anisotropies_pot_ws = _parse_arange(args.aspws)
+    angles_pot_ws = _parse_arange(args.anpws)
 
     grid_variables = _GridVariables(
-        shapes=shapes,
+        shapes=args.shapes,
         areas_pot_ws=areas_pot_ws,
         anisotropies_pot_ws=anisotropies_pot_ws,
         angles_pot_ws=angles_pot_ws,
