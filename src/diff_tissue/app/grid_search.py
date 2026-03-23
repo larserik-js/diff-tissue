@@ -173,20 +173,16 @@ def plot(study_name):
 
     data_by_anpw = _get_plotting_data(unique_anpw_val_strs, input_dir)
 
-    shapes_to_inds = {
-        "petal": (0, 0),
-        "trapezoid": (0, 1),
-        "triangle": (1, 0),
-        "nconv": (1, 1),
-    }
-
     cmap_name = "RdYlGn_r"
 
     for anpw_str, plotting_data in data_by_anpw.items():
-        fig, axs = plt.subplots(2, 2)
+        fig, axs = plt.subplots(2, 2, constrained_layout=True)
 
-        for shape, data_list_of_tuples in plotting_data.items():
-            ax = axs[shapes_to_inds[shape]]
+        for k, (shape, data_list_of_tuples) in enumerate(
+            plotting_data.items()
+        ):
+            i, j = divmod(k, 2)
+            ax = axs[i, j]
             data_array = np.vstack(data_list_of_tuples)
             arpw_vals = data_array[:, 0]
             aspw_vals = data_array[:, 1]
@@ -205,6 +201,15 @@ def plot(study_name):
                 _add_colorbar(ax, valid_losses, cmap_name)
 
             ax.scatter(arpw_vals[~valid], aspw_vals[~valid], marker="x", c="k")
+            ax.set_title(f"{shape}")
+            if i == 0:
+                ax.set_xticklabels([])
+            if i == 1:
+                ax.set_xlabel("Area pot. weights")
+            if j == 0:
+                ax.set_ylabel("Anisotropy pot. weights")
+            if j == 1:
+                ax.set_yticklabels([])
 
         fig_path = output_manager.file_path("figures", f"{anpw_str}.pdf")
         fig.savefig(fig_path)
