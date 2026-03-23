@@ -58,6 +58,7 @@ def _format_float_to_str(float_):
 def _worker(trial_vars, output_manager):
     """Run a single trial and save results to a JSON file."""
     shape, arpw, aspw, anpw = trial_vars
+    print(f"Running with shape={shape}, arpw={arpw}, aspw={aspw}, anpw={anpw}")
 
     file_path = output_manager.file_path(
         f"shape={shape}__"
@@ -159,9 +160,9 @@ def _add_colorbar(ax, cmap_vals, cmap_name):
 
 def plot(study_name):
     output_manager = io_utils.OutputManager(
-        f"grid_search/{study_name}/data", "outputs"
+        f"grid_search/{study_name}", "outputs"
     )
-    input_dir = output_manager.file_path(".")
+    input_dir = output_manager.file_path("data")
 
     all_files = input_dir.glob("*")
     unique_anpw_val_strs = _find_unique_anpw_val_strs(all_files)
