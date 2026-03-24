@@ -22,7 +22,7 @@ class Params:
         pytree_node=False,
         metadata={
             "help": "Shape of target boundary.",
-            "choices": ["petal", "trapezoid", "triangle", "nconv"],
+            "choices": ["petal", "wide", "trapezoid", "triangle", "nconv"],
             "cli_flag": "shape",
         },
     )

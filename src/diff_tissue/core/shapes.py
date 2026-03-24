@@ -165,6 +165,41 @@ class _Petal(_Shape):
         return target_boundary
 
 
+class _IsoTrapezoid:
+    def __init__(self, angle):
+        self._height = 2.0
+        self._lower_r = 1.0
+        self._angle = angle
+
+    @property
+    def upper_r(self):
+        return self._lower_r + self._height * np.tan(
+            np.pi / 2 - np.radians(self._angle)
+        )
+
+
+class _WideTrapezoid(_Shape):
+    def __init__(self, mesh_area, vertex_numbers):
+        super().__init__(mesh_area, vertex_numbers)
+
+    def _build(self):
+        iso_trapezoid_raw = _IsoTrapezoid(angle=60.0)
+        self._height = iso_trapezoid_raw._height
+        self._lower_r = iso_trapezoid_raw._lower_r
+        self._upper_r = iso_trapezoid_raw.upper_r
+
+    def _make_raw_shape(self):
+        non_basal_xs = np.array(
+            [self._lower_r, self._upper_r, -self._upper_r, -self._lower_r]
+        )
+        non_basal_ys = np.array([0.0, self._height, self._height, 0.0])
+
+        target_boundary = self._construct_target_boundary(
+            non_basal_xs, non_basal_ys, self._lower_r
+        )
+        return target_boundary
+
+
 class _Trapezoid(_Shape):
     def __init__(self, mesh_area, vertex_numbers):
         super().__init__(mesh_area, vertex_numbers)
@@ -212,6 +247,8 @@ def get_target_boundary(shape, mesh_area, vertex_numbers):
             shape = _Petal(mesh_area, vertex_numbers)
         case "trapezoid":
             shape = _Trapezoid(mesh_area, vertex_numbers)
+        case "wide":
+            shape = _WideTrapezoid(mesh_area, vertex_numbers)
         case "triangle":
             shape = _Triangle(mesh_area, vertex_numbers)
         case _:
