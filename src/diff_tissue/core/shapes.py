@@ -48,23 +48,34 @@ class _Shape(ABC):
 
     @property
     @abstractmethod
+    def _basal_arrays(self):
+        pass
+
+    @property
+    @abstractmethod
     def _non_basal_arrays(self):
         pass
 
-    def _make_basal_vertices(self, lower_r):
+    @cached_property
+    def _basal_vertices(self):
+        basal_vertices = _fuse_arrays(
+            self._basal_arrays[0], self._basal_arrays[1]
+        )
+        return basal_vertices
+
+    @cached_property
+    def _non_basal_vertices(self):
+        non_basal_vertices = _fuse_arrays(
+            self._non_basal_arrays[0], self._non_basal_arrays[1]
+        )
+        return non_basal_vertices
+
+    def _make_resampled_basal_vertices(self, lower_r):
         basal_xs = np.linspace(-lower_r, lower_r, self._vertex_numbers.basal)[
             1:-1
         ]
         basal_vertices = np.array([(x, 0.0) for x in basal_xs])
         return basal_vertices
-
-    def _construct_target_boundary(self, non_basal_xs, non_basal_ys, lower_r):
-        non_basal_vertices = _fuse_arrays(non_basal_xs, non_basal_ys)
-        basal_vertices = self._make_basal_vertices(lower_r)
-        target_boundary = np.concatenate(
-            [non_basal_vertices, basal_vertices], axis=0
-        )
-        return target_boundary
 
     @staticmethod
     def _calc_shape_area(polygon):
@@ -101,14 +112,22 @@ class _Shape(ABC):
 
     @cached_property
     def vertices(self):
-        non_basal_vertices = _fuse_arrays(
-            self._non_basal_arrays[0], self._non_basal_arrays[1]
+        raw_target_boundary = np.concatenate(
+            [self._non_basal_vertices, self._basal_vertices], axis=0
         )
+
+        target_boundary = self._transform_raw_shape(raw_target_boundary)
+        shape_area = self._calc_shape_area(target_boundary)
+        self._validate_rescaled_area(shape_area)
+        return target_boundary
+
+    @cached_property
+    def resampled_vertices(self):
         resampled_non_basal_vertices = _resample_curve(
-            non_basal_vertices, self._vertex_numbers.non_basal
+            self._non_basal_vertices, self._vertex_numbers.non_basal
         )
-        resampled_basal_vertices = self._make_basal_vertices(
-            non_basal_vertices[0, 0]
+        resampled_basal_vertices = self._make_resampled_basal_vertices(
+            self._basal_vertices[0, 0]
         )
         raw_target_boundary = np.concatenate(
             [resampled_non_basal_vertices, resampled_basal_vertices], axis=0
@@ -132,6 +151,12 @@ class _NonConvexShape(_Shape):
         self._lower_r = 1.5
 
     @cached_property
+    def _basal_arrays(self):
+        basal_xs = np.array([-self._lower_r, self._lower_r])
+        basal_ys = np.zeros(2)
+        return basal_xs, basal_ys
+
+    @cached_property
     def _non_basal_arrays(self):
         non_basal_xs = self._lower_r * np.array([1.0, 1.4, 1.8, 1.9, 1.2, 0.4])
         non_basal_xs = np.concatenate([non_basal_xs, np.flip(-non_basal_xs)])
@@ -146,6 +171,12 @@ class _Petal(_Shape):
         self._lower_r: float
         self._height: float
         self._stretch_strength: float
+
+    @cached_property
+    def _basal_arrays(self):
+        basal_xs = np.array([-self._lower_r, self._lower_r])
+        basal_ys = np.zeros(2)
+        return basal_xs, basal_ys
 
     @cached_property
     def _non_basal_arrays(self):
@@ -198,6 +229,12 @@ class IsoTrapezoid(_Shape):
     @cached_property
     def _height(self):
         return self._side_length * np.sin(self._angle_rad)
+
+    @cached_property
+    def _basal_arrays(self):
+        basal_xs = np.array([-self._lower_r, self._lower_r])
+        basal_ys = np.zeros(2)
+        return basal_xs, basal_ys
 
     @cached_property
     def _non_basal_arrays(self):

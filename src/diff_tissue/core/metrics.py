@@ -146,7 +146,7 @@ class TutteMetrics:
             self._polygons.init_vertices,
             self._polygons.indices,
             self._polygons.boundary_inds,
-            target_boundary.vertices,
+            target_boundary.resampled_vertices,
         )
         return vertices_
 
