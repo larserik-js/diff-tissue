@@ -24,6 +24,7 @@ class Params:
             "help": "Shape of target boundary.",
             "choices": [
                 "petal",
+                "long_petal",
                 "narrow",
                 "square",
                 "wide",
