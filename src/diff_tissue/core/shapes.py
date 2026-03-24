@@ -165,20 +165,33 @@ class _Petal(_Shape):
         return target_boundary
 
 
-class _IsoTrapezoid(_Shape):
+class IsoTrapezoid(_Shape):
     def __init__(self, mesh_area, vertex_numbers, angle):
-        self._angle = angle
+        self._angle = angle  # ccw beetween base and right leg (degrees)
+        self._angle_rad = self._angle_to_rads()
         super().__init__(mesh_area, vertex_numbers)
 
+    @staticmethod
+    def _validate_angle(angle):
+        if not (0 < angle <= 120):
+            raise ValueError("Angle must be between 0 and 120 degrees.")
+        return angle
+
+    def _angle_to_rads(self):
+        valid_angle = self._validate_angle(self._angle)
+        return np.radians(valid_angle)
+
     def _calc_upper_r(self):
-        return self._lower_r + self._height * np.tan(
-            np.pi / 2 - np.radians(self._angle)
-        )
+        return self._lower_r + self._side_length * np.cos(self._angle_rad)
+
+    def _calc_height(self):
+        return self._side_length * np.sin(self._angle_rad)
 
     def _build(self):
-        self._height = 2.0
-        self._lower_r = 1.0
+        self._side_length = 1.0
+        self._lower_r = self._side_length / 2
         self._upper_r = self._calc_upper_r()
+        self._height = self._calc_height()
 
     def _make_raw_shape(self):
         non_basal_xs = np.array(
@@ -240,11 +253,11 @@ def get_target_boundary(shape, mesh_area, vertex_numbers):
         case "trapezoid":
             shape = _Trapezoid(mesh_area, vertex_numbers)
         case "narrow":
-            shape = _IsoTrapezoid(mesh_area, vertex_numbers, angle=120.0)
+            shape = IsoTrapezoid(mesh_area, vertex_numbers, angle=110.0)
         case "square":
-            shape = _IsoTrapezoid(mesh_area, vertex_numbers, angle=90.0)
+            shape = IsoTrapezoid(mesh_area, vertex_numbers, angle=90.0)
         case "wide":
-            shape = _IsoTrapezoid(mesh_area, vertex_numbers, angle=60.0)
+            shape = IsoTrapezoid(mesh_area, vertex_numbers, angle=70.0)
         case "triangle":
             shape = _Triangle(mesh_area, vertex_numbers)
         case _:
