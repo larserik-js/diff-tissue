@@ -143,9 +143,7 @@ class _Petal(_Shape):
 
     @cached_property
     def _raw_shape(self):
-        xs = np.linspace(
-            -self._lower_r, self._lower_r, self._vertex_numbers.non_basal
-        )
+        xs = np.linspace(-self._lower_r, self._lower_r, 100)
         non_basal_ys = self._height * np.sqrt(1 - (xs / self._lower_r) ** 2)
 
         factor = 1 + self._stretch_strength * non_basal_ys / self._height
