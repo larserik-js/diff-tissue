@@ -232,23 +232,6 @@ class _Trapezoid(_Shape):
         return target_boundary
 
 
-class _Triangle(_Shape):
-    def __init__(self, mesh_area, vertex_numbers):
-        super().__init__(mesh_area, vertex_numbers)
-        self._height = 2.5
-        self._lower_r = 1.5
-
-    @cached_property
-    def _raw_shape(self):
-        non_basal_xs = np.array([self._lower_r, 0.0, -self._lower_r])
-        non_basal_ys = np.array([0.0, self._height, 0.0])
-
-        target_boundary = self._construct_target_boundary(
-            non_basal_xs, non_basal_ys, self._lower_r
-        )
-        return target_boundary
-
-
 def get_target_boundary(shape, mesh_area, vertex_numbers):
     match shape:
         case "nconv":
@@ -266,7 +249,7 @@ def get_target_boundary(shape, mesh_area, vertex_numbers):
         case "wide":
             shape = IsoTrapezoid(mesh_area, vertex_numbers, angle=70.0)
         case "triangle":
-            shape = _Triangle(mesh_area, vertex_numbers)
+            shape = IsoTrapezoid(mesh_area, vertex_numbers, angle=120.0)
         case _:
             raise ValueError("Invalid target boundary shape!")
     return shape
