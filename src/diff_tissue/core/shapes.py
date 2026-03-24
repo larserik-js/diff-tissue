@@ -9,14 +9,12 @@ from . import init_systems
 
 class _Shape(ABC):
     def __init__(self, mesh_area, vertex_numbers):
-        self._build()
-
         self._mesh_area = mesh_area
         self._vertex_numbers = vertex_numbers
-        self._raw_shape = self._make_raw_shape()
 
+    @property
     @abstractmethod
-    def _build(self):
+    def _raw_shape(self):
         pass
 
     @staticmethod
@@ -72,10 +70,6 @@ class _Shape(ABC):
         )
         return target_boundary
 
-    @abstractmethod
-    def _make_raw_shape(self):
-        pass
-
     @staticmethod
     def _calc_shape_area(polygon):
         """Calculate the area of a polygon, using the shoelace formula.
@@ -125,12 +119,11 @@ class _Shape(ABC):
 class _NonConvexShape(_Shape):
     def __init__(self, mesh_area, vertex_numbers):
         super().__init__(mesh_area, vertex_numbers)
-
-    def _build(self):
         self._height = 3.0
         self._lower_r = 1.5
 
-    def _make_raw_shape(self):
+    @cached_property
+    def _raw_shape(self):
         non_basal_xs = self._lower_r * np.array([1.0, 1.4, 1.8, 1.9, 1.2, 0.4])
         non_basal_xs = np.concatenate([non_basal_xs, np.flip(-non_basal_xs)])
         non_basal_ys = self._height * np.array([0.0, 0.3, 0.7, 1.1, 1.2, 1.0])
@@ -144,13 +137,12 @@ class _NonConvexShape(_Shape):
 class _Petal(_Shape):
     def __init__(self, mesh_area, vertex_numbers):
         super().__init__(mesh_area, vertex_numbers)
-
-    def _build(self):
         self._lower_r = 20.0
         self._height = 60.0
         self._stretch_strength = 2.0
 
-    def _make_raw_shape(self):
+    @cached_property
+    def _raw_shape(self):
         xs = np.linspace(
             -self._lower_r, self._lower_r, self._vertex_numbers.non_basal
         )
@@ -168,13 +160,12 @@ class _Petal(_Shape):
 class _LongPetal(_Shape):
     def __init__(self, mesh_area, vertex_numbers):
         super().__init__(mesh_area, vertex_numbers)
-
-    def _build(self):
         self._lower_r = 20.0
         self._height = 100.0
         self._stretch_strength = 3.0
 
-    def _make_raw_shape(self):
+    @cached_property
+    def _raw_shape(self):
         xs = np.linspace(
             -self._lower_r, self._lower_r, self._vertex_numbers.non_basal
         )
@@ -191,9 +182,11 @@ class _LongPetal(_Shape):
 
 class IsoTrapezoid(_Shape):
     def __init__(self, mesh_area, vertex_numbers, angle):
+        super().__init__(mesh_area, vertex_numbers)
         self._angle = angle  # ccw beetween base and right leg (degrees)
         self._angle_rad = self._angle_to_rads()
-        super().__init__(mesh_area, vertex_numbers)
+        self._side_length = 1.0
+        self._lower_r = self._side_length / 2
 
     @staticmethod
     def _validate_angle(angle):
@@ -205,19 +198,16 @@ class IsoTrapezoid(_Shape):
         valid_angle = self._validate_angle(self._angle)
         return np.radians(valid_angle)
 
-    def _calc_upper_r(self):
+    @cached_property
+    def _upper_r(self):
         return self._lower_r + self._side_length * np.cos(self._angle_rad)
 
-    def _calc_height(self):
+    @cached_property
+    def _height(self):
         return self._side_length * np.sin(self._angle_rad)
 
-    def _build(self):
-        self._side_length = 1.0
-        self._lower_r = self._side_length / 2
-        self._upper_r = self._calc_upper_r()
-        self._height = self._calc_height()
-
-    def _make_raw_shape(self):
+    @cached_property
+    def _raw_shape(self):
         non_basal_xs = np.array(
             [self._lower_r, self._upper_r, -self._upper_r, -self._lower_r]
         )
@@ -232,13 +222,12 @@ class IsoTrapezoid(_Shape):
 class _Trapezoid(_Shape):
     def __init__(self, mesh_area, vertex_numbers):
         super().__init__(mesh_area, vertex_numbers)
-
-    def _build(self):
         self._height = 3.5
         self._lower_r = 1.5
         self._upper_r = 2.0
 
-    def _make_raw_shape(self):
+    @cached_property
+    def _raw_shape(self):
         non_basal_xs = np.array(
             [self._lower_r, self._upper_r, -self._upper_r, -self._lower_r]
         )
@@ -253,12 +242,11 @@ class _Trapezoid(_Shape):
 class _Triangle(_Shape):
     def __init__(self, mesh_area, vertex_numbers):
         super().__init__(mesh_area, vertex_numbers)
-
-    def _build(self):
         self._height = 2.5
         self._lower_r = 1.5
 
-    def _make_raw_shape(self):
+    @cached_property
+    def _raw_shape(self):
         non_basal_xs = np.array([self._lower_r, 0.0, -self._lower_r])
         non_basal_ys = np.array([0.0, self._height, 0.0])
 
