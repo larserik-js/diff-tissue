@@ -165,7 +165,7 @@ class _Petal(_Shape):
         return target_boundary
 
 
-class _Trapzeoid(_Shape):
+class _Trapezoid(_Shape):
     def __init__(self, mesh_area, vertex_numbers):
         super().__init__(mesh_area, vertex_numbers)
 
@@ -211,7 +211,7 @@ def get_target_boundary(shape, mesh_area, vertex_numbers):
         case "petal":
             shape = _Petal(mesh_area, vertex_numbers)
         case "trapezoid":
-            shape = _Trapzeoid(mesh_area, vertex_numbers)
+            shape = _Trapezoid(mesh_area, vertex_numbers)
         case "triangle":
             shape = _Triangle(mesh_area, vertex_numbers)
         case _:
