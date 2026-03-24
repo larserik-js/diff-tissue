@@ -212,26 +212,6 @@ class IsoTrapezoid(_Shape):
         return target_boundary
 
 
-class _Trapezoid(_Shape):
-    def __init__(self, mesh_area, vertex_numbers):
-        super().__init__(mesh_area, vertex_numbers)
-        self._height = 3.5
-        self._lower_r = 1.5
-        self._upper_r = 2.0
-
-    @cached_property
-    def _raw_shape(self):
-        non_basal_xs = np.array(
-            [self._lower_r, self._upper_r, -self._upper_r, -self._lower_r]
-        )
-        non_basal_ys = np.array([0.0, self._height, self._height, 0.0])
-
-        target_boundary = self._construct_target_boundary(
-            non_basal_xs, non_basal_ys, self._lower_r
-        )
-        return target_boundary
-
-
 def get_target_boundary(shape, mesh_area, vertex_numbers):
     match shape:
         case "nconv":
@@ -241,7 +221,7 @@ def get_target_boundary(shape, mesh_area, vertex_numbers):
         case "long_petal":
             shape = _LongPetal(mesh_area, vertex_numbers)
         case "trapezoid":
-            shape = _Trapezoid(mesh_area, vertex_numbers)
+            shape = IsoTrapezoid(mesh_area, vertex_numbers, angle=81.87)
         case "narrow":
             shape = IsoTrapezoid(mesh_area, vertex_numbers, angle=110.0)
         case "square":
