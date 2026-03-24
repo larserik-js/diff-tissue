@@ -137,9 +137,9 @@ class _NonConvexShape(_Shape):
 class _Petal(_Shape):
     def __init__(self, mesh_area, vertex_numbers):
         super().__init__(mesh_area, vertex_numbers)
-        self._lower_r = 20.0
-        self._height = 60.0
-        self._stretch_strength = 2.0
+        self._lower_r: float
+        self._height: float
+        self._stretch_strength: float
 
     @cached_property
     def _raw_shape(self):
@@ -157,27 +157,20 @@ class _Petal(_Shape):
         return target_boundary
 
 
-class _LongPetal(_Shape):
+class _ShortPetal(_Petal):
+    def __init__(self, mesh_area, vertex_numbers):
+        super().__init__(mesh_area, vertex_numbers)
+        self._lower_r = 20.0
+        self._height = 60.0
+        self._stretch_strength = 2.0
+
+
+class _LongPetal(_Petal):
     def __init__(self, mesh_area, vertex_numbers):
         super().__init__(mesh_area, vertex_numbers)
         self._lower_r = 20.0
         self._height = 100.0
         self._stretch_strength = 3.0
-
-    @cached_property
-    def _raw_shape(self):
-        xs = np.linspace(
-            -self._lower_r, self._lower_r, self._vertex_numbers.non_basal
-        )
-        non_basal_ys = self._height * np.sqrt(1 - (xs / self._lower_r) ** 2)
-
-        factor = 1 + self._stretch_strength * non_basal_ys / self._height
-        non_basal_xs = xs * factor
-
-        target_boundary = self._construct_target_boundary(
-            non_basal_xs, non_basal_ys, self._lower_r
-        )
-        return target_boundary
 
 
 class IsoTrapezoid(_Shape):
@@ -261,7 +254,7 @@ def get_target_boundary(shape, mesh_area, vertex_numbers):
         case "nconv":
             shape = _NonConvexShape(mesh_area, vertex_numbers)
         case "petal":
-            shape = _Petal(mesh_area, vertex_numbers)
+            shape = _ShortPetal(mesh_area, vertex_numbers)
         case "long_petal":
             shape = _LongPetal(mesh_area, vertex_numbers)
         case "trapezoid":
