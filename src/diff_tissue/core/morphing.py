@@ -122,9 +122,9 @@ def _get_potential_weights(params):
         case "many":
             # TODO: Tune these weights.
             potential_weights = _PotentialWeights(
-                areas=10.0,
-                angles=20.0,
-                anisotropies=10.0,
+                areas=params.areas_pot_weight,  # Best: ?
+                angles=params.angles_pot_weight,  # Best: ?
+                anisotropies=params.anisotropies_pot_weight,  # Best: ?
             )
         case _:
             raise NotImplementedError(
