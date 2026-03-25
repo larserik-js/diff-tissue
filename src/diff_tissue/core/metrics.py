@@ -60,6 +60,7 @@ def _calc_masked_cosines(all_cells, valid_mask):
     edges = all_cells[:, 1:] - all_cells[:, :-1]
     epsilon = 1e-6
     norms = jnp.linalg.norm(edges + epsilon, axis=2)
+
     dot_products = jnp.sum(edges[:, :-1] * edges[:, 1:], axis=2)
 
     cosines = dot_products / (epsilon + norms[:, :-1] * norms[:, 1:])
@@ -146,7 +147,7 @@ class TutteMetrics:
             self._polygons.init_vertices,
             self._polygons.indices,
             self._polygons.boundary_inds,
-            target_boundary.resampled_vertices,
+            target_boundary.mesh_matching_vertices,
         )
         return vertices_
 
