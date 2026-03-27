@@ -157,8 +157,8 @@ class IsoTrapezoid(_Shape):
 
     @staticmethod
     def _validate_angle(angle):
-        if not (0 < angle <= 120):
-            raise ValueError("Angle must be between 0 and 120 degrees.")
+        if not (60.0 < angle <= 120.0):
+            raise ValueError("Angle must be > 60 degrees and <= 120 degrees.")
         return angle
 
     def _angle_to_rads(self):
@@ -256,14 +256,6 @@ def get_target_boundary(params, mesh_area, vertex_numbers):
             shape = IsoTrapezoid(
                 mesh_area, vertex_numbers, angle=params.trapezoid_angle
             )
-        case "narrow":
-            shape = IsoTrapezoid(mesh_area, vertex_numbers, angle=110.0)
-        case "square":
-            shape = IsoTrapezoid(mesh_area, vertex_numbers, angle=90.0)
-        case "wide":
-            shape = IsoTrapezoid(mesh_area, vertex_numbers, angle=70.0)
-        case "triangle":
-            shape = IsoTrapezoid(mesh_area, vertex_numbers, angle=120.0)
         case "petal":
             shape = _ShortPetal(mesh_area, vertex_numbers)
         case "long_petal":

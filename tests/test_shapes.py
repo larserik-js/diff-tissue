@@ -32,12 +32,11 @@ def test_duplicate_counter():
     _assert_n_pairs_of_duplicates(points, 1)
 
 
-def _assert_no_duplicates_in_target_boundary(shape):
-    general_params = parameters.Params(shape=shape)
-    polygons = init_systems.get_system(general_params)
+def _assert_no_duplicates_in_target_boundary(params):
+    polygons = init_systems.get_system(params)
     vertex_numbers = init_systems.VertexNumbers(polygons)
     target_boundary = shapes.get_target_boundary(
-        general_params, polygons.mesh_area, vertex_numbers
+        params, polygons.mesh_area, vertex_numbers
     )
 
     n_pairs = _count_pairs_of_duplicates(target_boundary.vertices)
@@ -45,15 +44,12 @@ def _assert_no_duplicates_in_target_boundary(shape):
 
 
 def test_target_boundaries_have_no_duplicate_points():
-    test_shapes = [
-        "nconv",
-        "petal",
-        "long_petal",
-        "trapezoid",
-        "narrow",
-        "square",
-        "wide",
-        "triangle",
-    ]
-    for shape in test_shapes:
-        _assert_no_duplicates_in_target_boundary(shape)
+    misc_shapes = ["petal", "long_petal", "nconv"]
+    for shape in misc_shapes:
+        params = parameters.Params(shape=shape)
+        _assert_no_duplicates_in_target_boundary(params)
+
+    trapezoid_angles = [61.0, 75.0, 90.0, 120.0]
+    for angle in trapezoid_angles:
+        params = parameters.Params(trapezoid_angle=angle)
+        _assert_no_duplicates_in_target_boundary(params)
