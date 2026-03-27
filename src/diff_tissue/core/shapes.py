@@ -109,7 +109,14 @@ class _Shape(ABC):
         return transformed_vertices
 
     @cached_property
-    def vertices(self):
+    def smooth_vertices(self):
+        finalized_vertices = self._finalize_vertices(
+            self._non_basal_vertices, self._basal_vertices
+        )
+        return finalized_vertices
+
+    @cached_property
+    def reduced_vertices(self):
         relatively_few_points = 20
         non_basal_vertices = _resample_curve(
             self._non_basal_vertices, relatively_few_points
@@ -121,14 +128,7 @@ class _Shape(ABC):
         return finalized_vertices
 
     @cached_property
-    def smooth_vertices(self):
-        finalized_vertices = self._finalize_vertices(
-            self._non_basal_vertices, self._basal_vertices
-        )
-        return finalized_vertices
-
-    @cached_property
-    def mesh_matching_vertices(self):
+    def vertices(self):
         non_basal_vertices = _resample_curve(
             self._non_basal_vertices,
             self._vertex_numbers.non_basal_with_corners,
