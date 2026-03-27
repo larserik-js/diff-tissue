@@ -249,7 +249,8 @@ class IsoTrapezoid(_Shape):
         return non_basal_xs_arr, non_basal_ys_arr
 
 
-def get_target_boundary(shape, mesh_area, vertex_numbers):
+def get_target_boundary(params, mesh_area, vertex_numbers):
+    shape = params.shape
     match shape:
         case "nconv":
             shape = _NonConvexShape(mesh_area, vertex_numbers)
@@ -280,7 +281,7 @@ class JaxTargetBoundary:
 
 def get_jax_target_boundary(polygons, params):
     target_boundary = get_target_boundary(
-        params.shape, polygons.mesh_area, init_systems.VertexNumbers(polygons)
+        params, polygons.mesh_area, init_systems.VertexNumbers(polygons)
     )
     jax_target_boundary = JaxTargetBoundary(
         vertices=jnp.array(target_boundary.vertices),

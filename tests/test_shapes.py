@@ -37,7 +37,7 @@ def _assert_no_duplicates_in_target_boundary(shape):
     polygons = init_systems.get_system(general_params)
     vertex_numbers = init_systems.VertexNumbers(polygons)
     target_boundary = shapes.get_target_boundary(
-        shape, polygons.mesh_area, vertex_numbers
+        general_params, polygons.mesh_area, vertex_numbers
     )
 
     n_pairs = _count_pairs_of_duplicates(target_boundary.vertices)

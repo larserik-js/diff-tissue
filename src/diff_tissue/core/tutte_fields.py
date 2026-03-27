@@ -52,7 +52,7 @@ def build_meshes(params, n_meshes=100):
         params = params.replace(seed=i)
         polygons = init_systems.get_system(params)
         target_boundary = shapes.get_target_boundary(
-            params.shape,
+            params,
             polygons.mesh_area,
             init_systems.VertexNumbers(polygons),
         )
