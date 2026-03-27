@@ -121,6 +121,13 @@ class _Shape(ABC):
         return finalized_vertices
 
     @cached_property
+    def smooth_vertices(self):
+        finalized_vertices = self._finalize_vertices(
+            self._non_basal_vertices, self._basal_vertices
+        )
+        return finalized_vertices
+
+    @cached_property
     def mesh_matching_vertices(self):
         non_basal_vertices = _resample_curve(
             self._non_basal_vertices,
@@ -216,11 +223,30 @@ class IsoTrapezoid(_Shape):
 
     @cached_property
     def _non_basal_arrays(self):
-        non_basal_xs = np.array(
-            [self._lower_r, self._upper_r, -self._upper_r, -self._lower_r]
+        n_side_points = 1000
+        non_basal_xs = [
+            np.linspace(self._lower_r, self._upper_r, n_side_points)
+        ]
+        non_basal_ys = [np.linspace(0.0, self._height, n_side_points)]
+
+        # Except triangle case
+        if not np.isclose(self._angle, 120.0):
+            non_basal_xs.append(
+                np.linspace(self._upper_r, -self._upper_r, n_side_points)
+            )
+            non_basal_ys.append(self._height * np.ones(n_side_points))
+
+        non_basal_xs.append(
+            np.linspace(
+                -self._upper_r, -self._lower_r, n_side_points, endpoint=True
+            )
         )
-        non_basal_ys = np.array([0.0, self._height, self._height, 0.0])
-        return non_basal_xs, non_basal_ys
+        non_basal_ys.append(
+            np.linspace(self._height, 0.0, n_side_points, endpoint=True)
+        )
+        non_basal_xs_arr = np.concatenate(non_basal_xs)
+        non_basal_ys_arr = np.concatenate(non_basal_ys)
+        return non_basal_xs_arr, non_basal_ys_arr
 
 
 def get_target_boundary(shape, mesh_area, vertex_numbers):
