@@ -18,18 +18,18 @@ class Params:
         },
     )
     shape: str = struct.field(
-        default="petal",
+        default="trapezoid",
         pytree_node=False,
         metadata={
             "help": "Shape of target boundary.",
             "choices": [
-                "petal",
-                "long_petal",
+                "trapezoid",
                 "narrow",
                 "square",
                 "wide",
-                "trapezoid",
                 "triangle",
+                "petal",
+                "long_petal",
                 "nconv",
             ],
             "cli_flag": "shape",
@@ -52,6 +52,17 @@ class Params:
         metadata={
             "help": "If set, no information on shape optimization is printed.",
             "cli_flag": "quiet",
+        },
+    )
+    trapezoid_angle: float = struct.field(
+        default=75.0,
+        pytree_node=True,
+        metadata={
+            "help": (
+                "Angle between the base and the right leg of the "
+                "isosceles trapezoid."
+            ),
+            "cli_flag": "tran",
         },
     )
     n_shape_steps: int = struct.field(
