@@ -51,11 +51,10 @@ def build_meshes(params, n_meshes=100):
 
         params = params.replace(seed=i)
         polygons = init_systems.get_system(params)
-        tutte_vertices = metrics.TutteMetrics(polygons, params.shape).vertices
-        shapely_polygons = init_systems.get_shapely_polygons(
-            tutte_vertices, polygons.indices
-        )
         tutte_metrics = metrics.TutteMetrics(polygons, params.shape)
+        shapely_polygons = init_systems.get_shapely_polygons(
+            tutte_metrics.vertices, polygons.indices
+        )
 
         mesh = _Mesh(
             shapely_polygons,
