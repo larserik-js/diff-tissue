@@ -132,22 +132,17 @@ def update_poly_metrics(poly_metrics, vertices):
 
 
 class TutteMetrics:
-    def __init__(self, polygons, shape):
+    def __init__(self, polygons, target_boundary):
         self._polygons = polygons
-        self._shape = shape
+        self._target_boundary = target_boundary
 
     @cached_property
     def vertices(self):
-        target_boundary = shapes.get_target_boundary(
-            self._shape,
-            self._polygons.mesh_area,
-            init_systems.VertexNumbers(self._polygons),
-        )
         vertices_ = tutte.get_mapped_vertices(
             self._polygons.init_vertices,
             self._polygons.indices,
             self._polygons.boundary_inds,
-            target_boundary.vertices,
+            self._target_boundary.vertices,
         )
         return vertices_
 
@@ -180,7 +175,10 @@ class TutteMetrics:
 
 def get_tutte_metrics(params):
     polygons = init_systems.get_system(params)
-    tutte_metrics = TutteMetrics(polygons, params.shape)
+    target_boundary = shapes.get_target_boundary(
+        params.shape, polygons.mesh_area, init_systems.VertexNumbers(polygons)
+    )
+    tutte_metrics = TutteMetrics(polygons, target_boundary)
     return tutte_metrics
 
 

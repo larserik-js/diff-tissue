@@ -4,7 +4,7 @@ import numpy as np
 import shapely
 from shapely.strtree import STRtree
 
-from . import init_systems, metrics
+from . import init_systems, metrics, shapes
 
 
 def _make_samples(nx, ny, target_boundary):
@@ -51,7 +51,12 @@ def build_meshes(params, n_meshes=100):
 
         params = params.replace(seed=i)
         polygons = init_systems.get_system(params)
-        tutte_metrics = metrics.TutteMetrics(polygons, params.shape)
+        target_boundary = shapes.get_target_boundary(
+            params.shape,
+            polygons.mesh_area,
+            init_systems.VertexNumbers(polygons),
+        )
+        tutte_metrics = metrics.TutteMetrics(polygons, target_boundary)
         shapely_polygons = init_systems.get_shapely_polygons(
             tutte_metrics.vertices, polygons.indices
         )
