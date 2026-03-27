@@ -14,14 +14,23 @@ from ..core import shape_opt
 
 
 def _simulate(vars):
-    shape, areas_pot_w, anisotropies_pot_w, angles_pot_w = vars
+    (
+        shape,
+        trapezoid_angle,
+        areas_pot_w,
+        anisotropies_pot_w,
+        angles_pot_w,
+        seed,
+    ) = vars
 
     params = parameters.Params(
         shape=shape,
+        trapezoid_angle=trapezoid_angle,
         areas_pot_weight=areas_pot_w,
         anisotropies_pot_weight=anisotropies_pot_w,
         angles_pot_weight=angles_pot_w,
         quiet=True,
+        seed=seed,
     )
     sim_states = shape_opt.run(params, short=True)
 
@@ -38,14 +47,23 @@ def _format_float_to_str(float_):
 
 def _worker(trial_vars, output_manager):
     """Run a single trial and save results to a JSON file."""
-    shape, arpw, aspw, anpw = trial_vars
-    print(f"Running with shape={shape}, arpw={arpw}, aspw={aspw}, anpw={anpw}")
+    shape, tran, arpw, aspw, anpw, seed = trial_vars
+    print(
+        f"Running with shape={shape}, "
+        f"tran={tran}, "
+        f"arpw={arpw}, "
+        f"aspw={aspw}, "
+        f"anpw={anpw}, "
+        f"seed={seed}",
+    )
 
     file_path = output_manager.file_path(
         f"shape={shape}__"
+        f"tran={_format_float_to_str(tran)}__"
         f"arpw={_format_float_to_str(arpw)}__"
         f"aspw={_format_float_to_str(aspw)}__"
-        f"anpw={_format_float_to_str(anpw)}.json"
+        f"anpw={_format_float_to_str(anpw)}__"
+        f"seed={seed}.json"
     )
     if file_path.exists():
         return None
@@ -57,9 +75,11 @@ def _worker(trial_vars, output_manager):
 
     result = {
         "shape": shape,
+        "trapezoid_angle": float(tran),
         "areas_pot_weight": float(arpw),
         "anisotropies_pot_weight": float(aspw),
         "angles_pot_weight": float(anpw),
+        "seed": seed,
         "loss": loss,
         "valid": valid,
     }
