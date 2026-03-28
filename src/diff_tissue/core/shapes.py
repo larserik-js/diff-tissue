@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from functools import cached_property
 
 import numpy as np
+from scipy.interpolate import CubicSpline
 
 from .jax_bootstrap import jnp, struct
 from . import init_systems
@@ -240,13 +241,39 @@ class _NonConvexShape(_Shape):
         self._height = 3.0
         self._lower_r = 1.5
 
-    @cached_property
-    def _non_basal_arrays(self):
+    def _make_smooth_curve(self, xs, ys):
+        xs = np.asarray(xs)
+        ys = np.asarray(ys)
+
+        # Chord-length parameterization
+        dx = np.diff(xs)
+        dy = np.diff(ys)
+        dist = np.sqrt(dx**2 + dy**2)
+
+        t = np.concatenate([[0], np.cumsum(dist)])
+        t /= t[-1]  # normalize to [0,1]
+
+        # Periodic cubic splines
+        sx = CubicSpline(t, xs, bc_type="natural")
+        sy = CubicSpline(t, ys, bc_type="natural")
+
+        return sx, sy
+
+    def _points_for_spline(self):
         non_basal_xs = self._lower_r * np.array([1.0, 1.4, 1.8, 1.9, 1.2, 0.4])
         non_basal_xs = np.concatenate([non_basal_xs, np.flip(-non_basal_xs)])
         non_basal_ys = self._height * np.array([0.0, 0.3, 0.7, 1.1, 1.2, 1.0])
         non_basal_ys = np.concatenate([non_basal_ys, np.flip(non_basal_ys)])
         return non_basal_xs, non_basal_ys
+
+    @cached_property
+    def _non_basal_arrays(self):
+        raw_xs, raw_ys = self._points_for_spline()
+        sx, sy = self._make_smooth_curve(raw_xs, raw_ys)
+        t_smooth = np.linspace(0, 1, 1000)
+        smooth_xs = sx(t_smooth)
+        smooth_ys = sy(t_smooth)
+        return smooth_xs, smooth_ys
 
 
 def get_target_boundary(params, polygons):
