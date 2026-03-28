@@ -79,7 +79,7 @@ def _worker(trial_vars, output_manager):
         "areas_pot_weight": float(arpw),
         "anisotropies_pot_weight": float(aspw),
         "angles_pot_weight": float(anpw),
-        "seed": seed,
+        "seed": int(seed),
         "loss": loss,
         "valid": valid,
     }
