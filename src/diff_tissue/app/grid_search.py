@@ -140,8 +140,17 @@ def _get_plotting_data(unique_anpw_val_strs, input_dir):
             with json_path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
             shape = data["shape"]
-            plotting_data[shape].append(
+
+            if shape == "trapezoid":
+                if data["trapezoid_angle"] > 90:
+                    plotting_shape = "trapezoid_obtuse"
+                else:
+                    plotting_shape = "trapezoid_acute"
+            elif shape == "petal":
+                plotting_shape = "petal"
+            plotting_data[plotting_shape].append(
                 (
+                    data["trapezoid_angle"],
                     data["areas_pot_weight"],
                     data["anisotropies_pot_weight"],
                     data["loss"],
@@ -175,22 +184,22 @@ def plot(study_name):
 
     cmap_name = "RdYlGn_r"
 
-    ordered_shapes = ["petal", "trapezoid", "triangle", "nconv"]
+    ordered_shapes = ["trapezoid_acute", "trapezoid_obtuse", "petal"]
+    n_plots = len(ordered_shapes)
 
     for anpw_str, plotting_data in data_by_anpw.items():
-        fig, axs = plt.subplots(2, 2, constrained_layout=True)
+        fig, axs = plt.subplots(n_plots, constrained_layout=True)
 
-        for k, shape in enumerate(ordered_shapes):
+        for i, shape in enumerate(ordered_shapes):
             data_list_of_tuples = plotting_data.get(shape)
             if data_list_of_tuples is None:
                 continue
-            i, j = divmod(k, 2)
-            ax = axs[i, j]
-            arpw_vals = np.array([tup[0] for tup in data_list_of_tuples])
-            aspw_vals = np.array([tup[1] for tup in data_list_of_tuples])
-            losses = np.array([tup[2] for tup in data_list_of_tuples])
+            ax = axs[i]
+            arpw_vals = np.array([tup[1] for tup in data_list_of_tuples])
+            aspw_vals = np.array([tup[2] for tup in data_list_of_tuples])
+            losses = np.array([tup[3] for tup in data_list_of_tuples])
 
-            valid = np.array([tup[3] for tup in data_list_of_tuples])
+            valid = np.array([tup[4] for tup in data_list_of_tuples])
             valid_losses = losses[valid]
 
             if len(valid_losses) > 0:
@@ -204,14 +213,11 @@ def plot(study_name):
 
             ax.scatter(arpw_vals[~valid], aspw_vals[~valid], marker="x", c="k")
             ax.set_title(f"{shape}")
-            if i == 0:
+            if i != n_plots - 1:
                 ax.set_xticklabels([])
-            if i == 1:
+            if i == n_plots - 1:
                 ax.set_xlabel("Area pot. weights")
-            if j == 0:
-                ax.set_ylabel("Anisotropy pot. weights")
-            if j == 1:
-                ax.set_yticklabels([])
+            ax.set_ylabel("Anisotropy\n pot. weights")
 
         fig_path = output_manager.file_path("figures", f"{anpw_str}.pdf")
         fig.savefig(fig_path)
