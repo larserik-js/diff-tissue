@@ -175,9 +175,7 @@ class TutteMetrics:
 
 def get_tutte_metrics(params):
     polygons = init_systems.get_system(params)
-    target_boundary = shapes.get_target_boundary(
-        params, polygons.mesh_area, init_systems.VertexNumbers(polygons)
-    )
+    target_boundary = shapes.get_target_boundary(params, polygons)
     tutte_metrics = TutteMetrics(polygons, target_boundary)
     return tutte_metrics
 

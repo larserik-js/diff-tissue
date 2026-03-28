@@ -42,9 +42,9 @@ def _resample_curve(points, n_points, spacing=None):
 
 
 class _Shape(ABC):
-    def __init__(self, mesh_area, vertex_numbers):
-        self._mesh_area = mesh_area
-        self._vertex_numbers = vertex_numbers
+    def __init__(self, polygons):
+        self._mesh_area = polygons.mesh_area
+        self._vertex_numbers = init_systems.VertexNumbers(polygons)
         self._lower_r: float
 
     @property
@@ -148,8 +148,8 @@ class _Shape(ABC):
 
 
 class IsoTrapezoid(_Shape):
-    def __init__(self, mesh_area, vertex_numbers, angle):
-        super().__init__(mesh_area, vertex_numbers)
+    def __init__(self, polygons, angle):
+        super().__init__(polygons)
         self._angle = angle  # ccw beetween base and right leg (degrees)
         self._angle_rad = self._angle_to_rads()
         self._side_length = 1.0
@@ -202,8 +202,8 @@ class IsoTrapezoid(_Shape):
 
 
 class _Petal(_Shape):
-    def __init__(self, mesh_area, vertex_numbers):
-        super().__init__(mesh_area, vertex_numbers)
+    def __init__(self, polygons):
+        super().__init__(polygons)
         self._lower_r: float
         self._height: float
         self._stretch_strength: float
@@ -219,24 +219,24 @@ class _Petal(_Shape):
 
 
 class _ShortPetal(_Petal):
-    def __init__(self, mesh_area, vertex_numbers):
-        super().__init__(mesh_area, vertex_numbers)
+    def __init__(self, polygons):
+        super().__init__(polygons)
         self._lower_r = 20.0
         self._height = 60.0
         self._stretch_strength = 2.0
 
 
 class _LongPetal(_Petal):
-    def __init__(self, mesh_area, vertex_numbers):
-        super().__init__(mesh_area, vertex_numbers)
+    def __init__(self, polygons):
+        super().__init__(polygons)
         self._lower_r = 20.0
         self._height = 100.0
         self._stretch_strength = 3.0
 
 
 class _NonConvexShape(_Shape):
-    def __init__(self, mesh_area, vertex_numbers):
-        super().__init__(mesh_area, vertex_numbers)
+    def __init__(self, polygons):
+        super().__init__(polygons)
         self._height = 3.0
         self._lower_r = 1.5
 
@@ -249,19 +249,17 @@ class _NonConvexShape(_Shape):
         return non_basal_xs, non_basal_ys
 
 
-def get_target_boundary(params, mesh_area, vertex_numbers):
+def get_target_boundary(params, polygons):
     shape = params.shape
     match shape:
         case "trapezoid":
-            shape = IsoTrapezoid(
-                mesh_area, vertex_numbers, angle=params.trapezoid_angle
-            )
+            shape = IsoTrapezoid(polygons, angle=params.trapezoid_angle)
         case "petal":
-            shape = _ShortPetal(mesh_area, vertex_numbers)
+            shape = _ShortPetal(polygons)
         case "long_petal":
-            shape = _LongPetal(mesh_area, vertex_numbers)
+            shape = _LongPetal(polygons)
         case "nconv":
-            shape = _NonConvexShape(mesh_area, vertex_numbers)
+            shape = _NonConvexShape(polygons)
         case _:
             raise ValueError("Invalid target boundary shape!")
     return shape
@@ -274,9 +272,7 @@ class JaxTargetBoundary:
 
 
 def get_jax_target_boundary(polygons, params):
-    target_boundary = get_target_boundary(
-        params, polygons.mesh_area, init_systems.VertexNumbers(polygons)
-    )
+    target_boundary = get_target_boundary(params, polygons)
     jax_target_boundary = JaxTargetBoundary(
         vertices=jnp.array(target_boundary.vertices),
         segments=jnp.array(target_boundary.segments),

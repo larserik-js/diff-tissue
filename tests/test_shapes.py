@@ -34,11 +34,7 @@ def test_duplicate_counter():
 
 def _assert_no_duplicates_in_target_boundary(params):
     polygons = init_systems.get_system(params)
-    vertex_numbers = init_systems.VertexNumbers(polygons)
-    target_boundary = shapes.get_target_boundary(
-        params, polygons.mesh_area, vertex_numbers
-    )
-
+    target_boundary = shapes.get_target_boundary(params, polygons)
     n_pairs = _count_pairs_of_duplicates(target_boundary.vertices)
     assert n_pairs == 0
 
