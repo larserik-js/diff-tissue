@@ -19,7 +19,9 @@ def _parse_args():
 def _main():
     args = _parse_args()
 
-    grid_search.plot(args.study_name, config.load_cfg()["outputs_base_dir"])
+    grid_search.plot(
+        args.study_name, config.load_cfg("config.yml").outputs_base_dir
+    )
 
 
 if __name__ == "__main__":

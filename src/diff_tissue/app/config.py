@@ -1,5 +1,14 @@
+from dataclasses import dataclass
+
 from . import io_utils
 
 
-def load_cfg():
-    return io_utils.load_yaml("config.yml")
+@dataclass
+class _Config:
+    outputs_base_dir: str
+
+
+def load_cfg(path):
+    data = io_utils.load_yaml(path)
+    config = _Config(**data)
+    return config

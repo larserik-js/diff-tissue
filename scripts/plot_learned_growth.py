@@ -5,7 +5,7 @@ def _main():
     params = parameters.get_params_from_cli()
 
     experiments.run_learned_morph(
-        params, outputs_base_dir=config.load_cfg()["outputs_base_dir"]
+        params, outputs_base_dir=config.load_cfg("config.yml").outputs_base_dir
     )
 
 

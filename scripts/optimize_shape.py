@@ -6,7 +6,7 @@ def _main():
 
     output = io_utils.OutputManager(
         shape_opt.OUTPUT_TYPE_DIR,
-        base_dir=config.load_cfg()["outputs_base_dir"],
+        base_dir=config.load_cfg("config.yml").outputs_base_dir,
     )
 
     _ = shape_opt.get_sim_states(params, output)

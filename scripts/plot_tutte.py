@@ -5,7 +5,8 @@ def _main():
     params = parameters.get_params_from_cli()
 
     output = io_utils.OutputManager(
-        tutte.OUTPUT_TYPE_DIR, base_dir=config.load_cfg()["outputs_base_dir"]
+        tutte.OUTPUT_TYPE_DIR,
+        base_dir=config.load_cfg("config.yml").outputs_base_dir,
     )
 
     tutte.plot(params, output)

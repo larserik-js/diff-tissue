@@ -37,7 +37,7 @@ def objective_f(trial):
 
 def _main():
     output_manager = io_utils.OutputManager(
-        None, base_dir=config.load_cfg()["outputs_base_dir"]
+        None, base_dir=config.load_cfg("config.yml").outputs_base_dir
     )
     db_path = output_manager.file_path("optuna.db")
 

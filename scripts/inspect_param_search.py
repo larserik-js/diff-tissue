@@ -20,7 +20,8 @@ def _main():
     args = _parse_args()
 
     searches.inspect_param_search(
-        args.study_name, outputs_base_dir=config.load_cfg()["outputs_base_dir"]
+        args.study_name,
+        outputs_base_dir=config.load_cfg("config.yml").outputs_base_dir,
     )
 
 

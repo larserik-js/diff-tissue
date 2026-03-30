@@ -87,7 +87,7 @@ def _main():
         grid_variables,
         args.study_name,
         args.n_workers,
-        output_dir=config.load_cfg()["outputs_base_dir"],
+        output_dir=config.load_cfg("config.yml").outputs_base_dir,
     )
 
 
