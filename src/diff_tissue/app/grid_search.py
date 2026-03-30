@@ -9,7 +9,7 @@ from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from . import io_utils, parameters
+from . import config, parameters
 from ..core import shape_opt
 
 
@@ -96,7 +96,7 @@ def run(grid_variables, study_name, n_workers, output_dir):
     ]
     all_trials = list(product(*grid_values))
 
-    output_manager = io_utils.OutputManager(
+    output_manager = config.OutputManager(
         f"grid_search/{study_name}/data", output_dir
     )
 
@@ -177,7 +177,7 @@ def _add_colorbar(ax, cmap_vals, cmap_name):
 
 
 def plot(study_name, outputs_base_dir):
-    output_manager = io_utils.OutputManager(
+    output_manager = config.OutputManager(
         f"grid_search/{study_name}", outputs_base_dir
     )
     input_dir = output_manager.file_path("data")

@@ -1,10 +1,10 @@
-from diff_tissue.app import config, io_utils, parameters, shape_opt
+from diff_tissue.app import config, parameters, shape_opt
 
 
 def _main():
     params = parameters.get_params_from_cli()
 
-    output = io_utils.OutputManager(
+    output = config.OutputManager(
         shape_opt.OUTPUT_TYPE_DIR,
         base_dir=config.load_cfg("config.yml").outputs_base_dir,
     )

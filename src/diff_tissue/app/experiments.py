@@ -1,13 +1,13 @@
 from ..core import init_systems
 from ..core import shape_opt as shape_opt_core
-from . import io_utils, learned_morph, morphing, parameters, tutte_fields
+from . import config, learned_morph, morphing, parameters, tutte_fields
 from . import shape_opt as shape_opt_app
 
 
 def run_morphing(params, outputs_base_dir):
     polygons = init_systems.get_jax_polygons(params)
 
-    output = io_utils.OutputManager(
+    output = config.OutputManager(
         morphing.OUTPUT_TYPE_DIR, base_dir=outputs_base_dir
     )
 
@@ -22,7 +22,7 @@ def run_morphing(params, outputs_base_dir):
 
 
 def run_shape_opt(params, outputs_base_dir):
-    output = io_utils.OutputManager(
+    output = config.OutputManager(
         shape_opt_app.OUTPUT_TYPE_DIR, base_dir=outputs_base_dir
     )
     sim_states = shape_opt_app.get_sim_states(params, output)
@@ -47,7 +47,7 @@ def run_shape_opt(params, outputs_base_dir):
 
 
 def run_learned_morph(params, outputs_base_dir):
-    output = io_utils.OutputManager(
+    output = config.OutputManager(
         learned_morph.OUTPUT_TYPE_DIR, base_dir=outputs_base_dir
     )
 
@@ -57,7 +57,7 @@ def run_learned_morph(params, outputs_base_dir):
 
 
 def plot_tutte_fields(outputs_base_dir):
-    output = io_utils.OutputManager(
+    output = config.OutputManager(
         f"{tutte_fields.OUTPUT_TYPE_DIR}", base_dir=outputs_base_dir
     )
 

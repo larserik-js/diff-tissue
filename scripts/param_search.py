@@ -1,7 +1,7 @@
 import optuna
 
 from diff_tissue.core import shape_opt
-from diff_tissue.app import config, io_utils, parameters
+from diff_tissue.app import config, parameters
 
 
 def objective_f(trial):
@@ -36,7 +36,7 @@ def objective_f(trial):
 
 
 def _main():
-    output_manager = io_utils.OutputManager(
+    output_manager = config.OutputManager(
         None, base_dir=config.load_cfg("config.yml").outputs_base_dir
     )
     db_path = output_manager.file_path("optuna.db")

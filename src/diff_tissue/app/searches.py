@@ -1,6 +1,6 @@
 import optuna
 
-from diff_tissue.app import io_utils
+from diff_tissue.app import config
 
 
 def _show_studies(storage):
@@ -51,7 +51,7 @@ def _run(db_path, study_name):
 
 
 def inspect_param_search(study_name, outputs_base_dir):
-    output_manager = io_utils.OutputManager(None, base_dir=outputs_base_dir)
+    output_manager = config.OutputManager(None, base_dir=outputs_base_dir)
     db_path = output_manager.file_path("optuna.db")
 
     _run(db_path, study_name)

@@ -1,10 +1,10 @@
-from diff_tissue.app import config, io_utils, parameters, tutte
+from diff_tissue.app import config, parameters, tutte
 
 
 def _main():
     params = parameters.get_params_from_cli()
 
-    output = io_utils.OutputManager(
+    output = config.OutputManager(
         tutte.OUTPUT_TYPE_DIR,
         base_dir=config.load_cfg("config.yml").outputs_base_dir,
     )
