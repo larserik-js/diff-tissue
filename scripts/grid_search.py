@@ -83,11 +83,15 @@ def _main():
         seeds=seeds,
     )
 
+    paths = config.ProjectPaths(
+        data_base_dir=config.load_cfg("config.yml").data_base_dir,
+        outputs_base_dir=config.load_cfg("config.yml").outputs_base_dir,
+    )
     grid_search.run(
         grid_variables,
         args.study_name,
         args.n_workers,
-        output_dir=config.load_cfg("config.yml").outputs_base_dir,
+        paths=paths,
     )
 
 

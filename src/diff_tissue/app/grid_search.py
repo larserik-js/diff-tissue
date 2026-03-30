@@ -9,7 +9,7 @@ from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from . import config, parameters
+from . import parameters
 from ..core import shape_opt
 
 
@@ -45,7 +45,7 @@ def _format_float_to_str(float_):
     return float_str.replace(".", "p")
 
 
-def _worker(trial_vars, output_manager):
+def _worker(trial_vars, output_dir):
     """Run a single trial and save results to a JSON file."""
     shape, tran, arpw, aspw, anpw, seed = trial_vars
     print(
@@ -57,7 +57,7 @@ def _worker(trial_vars, output_manager):
         f"seed={seed}",
     )
 
-    file_path = output_manager.file_path(
+    file_path = output_dir / (
         f"shape={shape}__"
         f"tran={_format_float_to_str(tran)}__"
         f"arpw={_format_float_to_str(arpw)}__"
@@ -90,17 +90,15 @@ def _worker(trial_vars, output_manager):
     return result
 
 
-def run(grid_variables, study_name, n_workers, output_dir):
+def run(grid_variables, study_name, n_workers, paths):
     grid_values = [
         getattr(grid_variables, f.name) for f in fields(grid_variables)
     ]
     all_trials = list(product(*grid_values))
 
-    output_manager = config.OutputManager(
-        f"grid_search/{study_name}/data", output_dir
-    )
+    output_dir = paths.grid_search_data_dir(study_name)
 
-    inputs = [(trial, output_manager) for trial in all_trials]
+    inputs = [(trial, output_dir) for trial in all_trials]
 
     results = []
     with mp.Pool(processes=n_workers) as pool:
@@ -176,11 +174,8 @@ def _add_colorbar(ax, cmap_vals, cmap_name):
     ax.figure.colorbar(sm, ax=ax, shrink=1.0)
 
 
-def plot(study_name, outputs_base_dir):
-    output_manager = config.OutputManager(
-        f"grid_search/{study_name}", outputs_base_dir
-    )
-    input_dir = output_manager.file_path("data")
+def plot(study_name, paths):
+    input_dir = paths.grid_search_data_dir(study_name)
 
     all_files = input_dir.glob("*")
     unique_anpw_val_strs = _find_unique_anpw_val_strs(all_files)
@@ -191,6 +186,8 @@ def plot(study_name, outputs_base_dir):
 
     ordered_shapes = ["trapezoid_acute", "trapezoid_obtuse", "petal"]
     n_plots = len(ordered_shapes)
+
+    output_dir = paths.grid_search_figs_dir(study_name)
 
     for anpw_str, plotting_data in data_by_anpw.items():
         fig, axs = plt.subplots(n_plots, constrained_layout=True)
@@ -224,6 +221,6 @@ def plot(study_name, outputs_base_dir):
                 ax.set_xlabel("Area pot. weights")
             ax.set_ylabel("Anisotropy\n pot. weights")
 
-        fig_path = output_manager.file_path("figures", f"{anpw_str}.pdf")
+        fig_path = output_dir / f"anpw={anpw_str}.pdf"
         fig.savefig(fig_path)
         plt.close(fig)

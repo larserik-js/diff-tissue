@@ -6,6 +6,7 @@ from . import io_utils
 
 @dataclass
 class _Config:
+    data_base_dir: str
     outputs_base_dir: str
 
 
@@ -36,3 +37,43 @@ class OutputManager:
 
     def cache_path(self, *parts: str) -> Path:
         return self._prepare(self._root / "cache" / Path(*parts))
+
+
+class ProjectPaths:
+    def __init__(self, data_base_dir, outputs_base_dir):
+        self._data_base_dir = Path(data_base_dir)
+        self._outputs_base_dir = Path(outputs_base_dir)
+
+    def _prepare(self, path: Path) -> Path:
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @property
+    def data_base_dir(self):
+        return self._prepare(self._data_base_dir)
+
+    @property
+    def raw_data_dir(self):
+        return self._prepare(self._data_base_dir / "raw")
+
+    @property
+    def interim_data_dir(self):
+        return self._prepare(self._data_base_dir / "interim")
+
+    @property
+    def processed_data_dir(self):
+        return self._prepare(self._data_base_dir / "processed")
+
+    @property
+    def outputs_base_dir(self):
+        return self._prepare(self._outputs_base_dir)
+
+    def grid_search_data_dir(self, study_name):
+        return self._prepare(
+            self.processed_data_dir / "grid_search" / study_name
+        )
+
+    def grid_search_figs_dir(self, study_name):
+        return self._prepare(
+            self.outputs_base_dir / "grid_search" / study_name
+        )
