@@ -2,6 +2,7 @@ from pathlib import Path
 import pickle
 
 import numpy as np
+import yaml
 
 from ..core.jax_bootstrap import jax
 
@@ -48,3 +49,9 @@ def save_arrays(path, arrays):
 def load_arrays(path):
     data = np.load(path)
     return data["arrays"]
+
+
+def load_yaml(path):
+    with open(path, "r") as f:
+        cfg = yaml.load(f, Loader=yaml.SafeLoader)
+    return cfg

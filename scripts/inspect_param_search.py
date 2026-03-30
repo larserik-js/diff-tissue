@@ -1,8 +1,6 @@
 import argparse
 
-import yaml
-
-from diff_tissue.app import searches
+from diff_tissue.app import config, searches
 
 
 def _parse_args():
@@ -18,17 +16,11 @@ def _parse_args():
     return parser.parse_args()
 
 
-def _load_cfg():
-    with open("config.yml", "r") as f:
-        cfg = yaml.load(f, Loader=yaml.SafeLoader)
-    return cfg
-
-
 def _main():
     args = _parse_args()
 
     searches.inspect_param_search(
-        args.study_name, outputs_base_dir=_load_cfg()["outputs_base_dir"]
+        args.study_name, outputs_base_dir=config.load_cfg()["outputs_base_dir"]
     )
 
 

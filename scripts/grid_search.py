@@ -4,9 +4,8 @@ import os
 
 import numpy as np
 from numpy.typing import NDArray
-import yaml
 
-from diff_tissue.app import grid_search
+from diff_tissue.app import config, grid_search
 
 
 def _parse_args():
@@ -66,12 +65,6 @@ def _parse_int_arange(values):
     return np.arange(start, stop, step, dtype=int)
 
 
-def _load_cfg():
-    with open("config.yml", "r") as f:
-        cfg = yaml.load(f, Loader=yaml.SafeLoader)
-    return cfg
-
-
 def _main():
     args = _parse_args()
 
@@ -94,7 +87,7 @@ def _main():
         grid_variables,
         args.study_name,
         args.n_workers,
-        output_dir=_load_cfg()["outputs_base_dir"],
+        output_dir=config.load_cfg()["outputs_base_dir"],
     )
 
 

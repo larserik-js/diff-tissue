@@ -1,8 +1,6 @@
 import argparse
 
-import yaml
-
-from diff_tissue.app import grid_search
+from diff_tissue.app import config, grid_search
 
 
 def _parse_args():
@@ -18,16 +16,10 @@ def _parse_args():
     return parser.parse_args()
 
 
-def _load_cfg():
-    with open("config.yml", "r") as f:
-        cfg = yaml.load(f, Loader=yaml.SafeLoader)
-    return cfg
-
-
 def _main():
     args = _parse_args()
 
-    grid_search.plot(args.study_name, _load_cfg()["outputs_base_dir"])
+    grid_search.plot(args.study_name, config.load_cfg()["outputs_base_dir"])
 
 
 if __name__ == "__main__":

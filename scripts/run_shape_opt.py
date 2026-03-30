@@ -1,19 +1,11 @@
-import yaml
-
-from diff_tissue.app import experiments, parameters
-
-
-def _load_cfg():
-    with open("config.yml", "r") as f:
-        cfg = yaml.load(f, Loader=yaml.SafeLoader)
-    return cfg
+from diff_tissue.app import config, experiments, parameters
 
 
 def _main():
     params = parameters.get_params_from_cli()
 
     experiments.run_shape_opt(
-        params, outputs_base_dir=_load_cfg()["outputs_base_dir"]
+        params, outputs_base_dir=config.load_cfg()["outputs_base_dir"]
     )
 
 
