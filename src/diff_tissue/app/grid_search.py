@@ -90,14 +90,14 @@ def _worker(trial_vars, output_manager):
     return result
 
 
-def run(grid_variables, study_name, n_workers):
+def run(grid_variables, study_name, n_workers, output_dir):
     grid_values = [
         getattr(grid_variables, f.name) for f in fields(grid_variables)
     ]
     all_trials = list(product(*grid_values))
 
     output_manager = io_utils.OutputManager(
-        f"grid_search/{study_name}/data", "outputs"
+        f"grid_search/{study_name}/data", output_dir
     )
 
     inputs = [(trial, output_manager) for trial in all_trials]
@@ -137,8 +137,13 @@ def _get_plotting_data(unique_anpw_val_strs, input_dir):
 
         plotting_data = defaultdict(list)
         for json_path in files:
-            with json_path.open("r", encoding="utf-8") as f:
-                data = json.load(f)
+            try:
+                with json_path.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except json.JSONDecodeError:
+                print(f"Error decoding JSON from {json_path}")
+                continue
+
             shape = data["shape"]
 
             if shape == "trapezoid":
@@ -171,9 +176,9 @@ def _add_colorbar(ax, cmap_vals, cmap_name):
     ax.figure.colorbar(sm, ax=ax, shrink=1.0)
 
 
-def plot(study_name):
+def plot(study_name, outputs_base_dir):
     output_manager = io_utils.OutputManager(
-        f"grid_search/{study_name}", "outputs"
+        f"grid_search/{study_name}", outputs_base_dir
     )
     input_dir = output_manager.file_path("data")
 
@@ -221,3 +226,4 @@ def plot(study_name):
 
         fig_path = output_manager.file_path("figures", f"{anpw_str}.pdf")
         fig.savefig(fig_path)
+        plt.close(fig)

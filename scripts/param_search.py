@@ -1,4 +1,5 @@
 import optuna
+import yaml
 
 from diff_tissue.core import shape_opt
 from diff_tissue.app import io_utils, parameters
@@ -35,8 +36,16 @@ def objective_f(trial):
     return loss
 
 
+def _load_cfg():
+    with open("config.yml", "r") as f:
+        cfg = yaml.load(f, Loader=yaml.SafeLoader)
+    return cfg
+
+
 def _main():
-    output_manager = io_utils.OutputManager(None, base_dir="outputs")
+    output_manager = io_utils.OutputManager(
+        None, base_dir=_load_cfg()["outputs_base_dir"]
+    )
     db_path = output_manager.file_path("optuna.db")
 
     db_url = f"sqlite:///{db_path}"

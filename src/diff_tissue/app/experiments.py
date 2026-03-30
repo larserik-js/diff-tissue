@@ -4,14 +4,11 @@ from . import io_utils, learned_morph, morphing, parameters, tutte_fields
 from . import shape_opt as shape_opt_app
 
 
-OUTPUT_DIR = "outputs"
-
-
-def run_morphing(params, base_dir=OUTPUT_DIR):
+def run_morphing(params, outputs_base_dir):
     polygons = init_systems.get_jax_polygons(params)
 
     output = io_utils.OutputManager(
-        morphing.OUTPUT_TYPE_DIR, base_dir=base_dir
+        morphing.OUTPUT_TYPE_DIR, base_dir=outputs_base_dir
     )
 
     param_string = parameters.get_param_string(params)
@@ -24,9 +21,9 @@ def run_morphing(params, base_dir=OUTPUT_DIR):
     morphing.save_figs(morph_evolution, output, param_string, params)
 
 
-def run_shape_opt(params, base_dir=OUTPUT_DIR):
+def run_shape_opt(params, outputs_base_dir):
     output = io_utils.OutputManager(
-        shape_opt_app.OUTPUT_TYPE_DIR, base_dir=base_dir
+        shape_opt_app.OUTPUT_TYPE_DIR, base_dir=outputs_base_dir
     )
     sim_states = shape_opt_app.get_sim_states(params, output)
 
@@ -49,9 +46,9 @@ def run_shape_opt(params, base_dir=OUTPUT_DIR):
     )
 
 
-def run_learned_morph(params):
+def run_learned_morph(params, outputs_base_dir):
     output = io_utils.OutputManager(
-        learned_morph.OUTPUT_TYPE_DIR, base_dir=OUTPUT_DIR
+        learned_morph.OUTPUT_TYPE_DIR, base_dir=outputs_base_dir
     )
 
     results = learned_morph.run(params, output)
@@ -59,9 +56,9 @@ def run_learned_morph(params):
     learned_morph.plot(results, params, output)
 
 
-def plot_tutte_fields():
+def plot_tutte_fields(outputs_base_dir):
     output = io_utils.OutputManager(
-        f"{tutte_fields.OUTPUT_TYPE_DIR}", base_dir="outputs"
+        f"{tutte_fields.OUTPUT_TYPE_DIR}", base_dir=outputs_base_dir
     )
 
     shape = "petal"

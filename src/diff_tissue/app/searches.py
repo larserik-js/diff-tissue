@@ -50,8 +50,8 @@ def _run(db_path, study_name):
     _show_n_completed(study)
 
 
-def inspect_param_search(study_name):
-    output_manager = io_utils.OutputManager(None, base_dir="outputs")
+def inspect_param_search(study_name, outputs_base_dir):
+    output_manager = io_utils.OutputManager(None, base_dir=outputs_base_dir)
     db_path = output_manager.file_path("optuna.db")
 
     _run(db_path, study_name)
