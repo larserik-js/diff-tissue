@@ -114,7 +114,7 @@ def run(grid_variables, study_name, n_workers, paths):
 
 
 def _find_unique_anpw_val_strs(all_files):
-    pattern = re.compile(r"anpw=(.*?).json")
+    pattern = re.compile(r"anpw=(.*?)__")
     all_anpw_val_strs = []
 
     for file in all_files:
@@ -151,6 +151,10 @@ def _get_plotting_data(unique_anpw_val_strs, input_dir):
                     plotting_shape = "trapezoid_acute"
             elif shape == "petal":
                 plotting_shape = "petal"
+            elif shape == "nconv":
+                plotting_shape = "nconv"
+            else:
+                raise ValueError(f"Unexpected shape: {shape}")
             plotting_data[plotting_shape].append(
                 (
                     data["trapezoid_angle"],
@@ -166,12 +170,40 @@ def _get_plotting_data(unique_anpw_val_strs, input_dir):
     return data_by_anpw
 
 
-def _add_colorbar(ax, cmap_vals, cmap_name):
-    normalize = colors.Normalize(vmin=0.0, vmax=cmap_vals.max())
+def _calc_global_loss_bounds(data_by_anpw):
+    all_losses = []
+    for plotting_data in data_by_anpw.values():
+        for shape_data in plotting_data.values():
+            for tup in shape_data:
+                if tup[4]:  # Only consider valid runs for loss bounds
+                    all_losses.append(tup[3])
+    return (0.0, max(all_losses))
+
+
+def _add_colorbar(ax, normalize_fn, cmap_name):
     cmap = plt.get_cmap(cmap_name)
-    sm = plt.cm.ScalarMappable(norm=normalize, cmap=cmap)
-    sm.set_array(cmap_vals)
+    sm = plt.cm.ScalarMappable(norm=normalize_fn, cmap=cmap)
     ax.figure.colorbar(sm, ax=ax, shrink=1.0)
+
+
+def _find_ax_limits(data_by_anpw):
+    all_arpw_vals = []
+    all_aspw_vals = []
+
+    for plotting_data in data_by_anpw.values():
+        for shape_data in plotting_data.values():
+            for tup in shape_data:
+                all_arpw_vals.append(tup[1])
+                all_aspw_vals.append(tup[2])
+
+    arpw_min, arpw_max = min(all_arpw_vals), max(all_arpw_vals)
+    aspw_min, aspw_max = min(all_aspw_vals), max(all_aspw_vals)
+    offset = 2.0
+
+    return (arpw_min - offset, arpw_max + offset), (
+        aspw_min - offset,
+        aspw_max + offset,
+    )
 
 
 def plot(study_name, paths):
@@ -184,10 +216,16 @@ def plot(study_name, paths):
 
     cmap_name = "RdYlGn_r"
 
-    ordered_shapes = ["trapezoid_acute", "trapezoid_obtuse", "petal"]
+    ordered_shapes = ["trapezoid_acute", "trapezoid_obtuse", "petal", "nconv"]
     n_plots = len(ordered_shapes)
 
     output_dir = paths.grid_search_figs_dir(study_name)
+
+    global_loss_bounds = _calc_global_loss_bounds(data_by_anpw)
+    normalize_loss = colors.Normalize(
+        vmin=global_loss_bounds[0], vmax=global_loss_bounds[1]
+    )
+    ax_lims = _find_ax_limits(data_by_anpw)
 
     for anpw_str, plotting_data in data_by_anpw.items():
         fig, axs = plt.subplots(n_plots, constrained_layout=True)
@@ -210,10 +248,17 @@ def plot(study_name, paths):
                     aspw_vals[valid],
                     c=valid_losses,
                     cmap=cmap_name,
+                    s=5.0,
+                    marker="s",
                 )
-                _add_colorbar(ax, valid_losses, cmap_name)
+                _add_colorbar(ax, normalize_loss, cmap_name)
 
-            ax.scatter(arpw_vals[~valid], aspw_vals[~valid], marker="x", c="k")
+            ax.scatter(
+                arpw_vals[~valid], aspw_vals[~valid], s=3.0, marker="x", c="k"
+            )
+            ax.set_xlim(ax_lims[0])
+            ax.set_ylim(ax_lims[1])
+
             ax.set_title(f"{shape}")
             if i != n_plots - 1:
                 ax.set_xticklabels([])
