@@ -36,12 +36,13 @@ def objective_f(trial):
 
 
 def _main():
-    output_manager = config.OutputManager(
-        None, base_dir=config.load_cfg("config.yml").outputs_base_dir
+    cfg = config.load_cfg("config.yml")
+    paths = config.ProjectPaths(
+        data_base_dir=cfg.data_base_dir,
+        outputs_base_dir=cfg.outputs_base_dir,
     )
-    db_path = output_manager.file_path("optuna.db")
 
-    db_url = f"sqlite:///{db_path}"
+    db_url = f"sqlite:///{paths.param_search_db}"
     study = optuna.create_study(
         study_name="my_study",
         direction="minimize",

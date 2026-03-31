@@ -17,24 +17,23 @@ def _get_general_target_boundary(shape):
     return target_boundary.vertices
 
 
-def _get_meshes(output_manager, shape):
-    meshes_file = output_manager.cache_path(f"meshes__{shape}.pkl")
-    if meshes_file.exists():
-        meshes = io_utils.load_pkl(meshes_file)
+def _get_meshes(shape, data_path):
+    if data_path.exists():
+        meshes = io_utils.load_pkl(data_path)
     else:
         params = parameters.Params(shape=shape)
         meshes = tutte_fields_core.build_meshes(params)
-        io_utils.save_pkl(meshes_file, meshes)
+        io_utils.save_pkl(data_path, meshes)
     return meshes
 
 
-def _generate_fields(output_manager, shape):
+def _generate_fields(shape, meshes_data_path):
     target_boundary = _get_general_target_boundary(shape)
     points_inside_shape = tutte_fields_core.get_points_inside_shape(
         target_boundary, nx=100, ny=100
     )
 
-    meshes = _get_meshes(output_manager, shape)
+    meshes = _get_meshes(shape, meshes_data_path)
 
     area_field, anisotropy_field = tutte_fields_core.get_fields(
         meshes, points_inside_shape
@@ -46,13 +45,18 @@ def _generate_fields(output_manager, shape):
     return tutte_fields_
 
 
-def get_fields(shape, output):
-    tutte_fields_file = output.cache_path(f"fields__{shape}.pkl")
-    if tutte_fields_file.exists():
-        tutte_fields_ = io_utils.load_pkl(tutte_fields_file)
+def get_fields(shape, paths):
+    data_dir = paths.make_subdir(paths.processed_data_dir, OUTPUT_TYPE_DIR)
+    data_path = data_dir / f"fields__{shape}.pkl"
+    if data_path.exists():
+        tutte_fields_ = io_utils.load_pkl(data_path)
     else:
-        tutte_fields_ = _generate_fields(output, shape)
-        io_utils.save_pkl(tutte_fields_file, tutte_fields_)
+        meshes_data_dir = paths.make_subdir(
+            paths.interim_data_dir, OUTPUT_TYPE_DIR
+        )
+        meshes_data_path = meshes_data_dir / f"meshes__{shape}.pkl"
+        tutte_fields_ = _generate_fields(shape, meshes_data_path)
+        io_utils.save_pkl(data_path, tutte_fields_)
     return tutte_fields_
 
 
@@ -93,6 +97,6 @@ def plot(tutte_fields):
     return fig
 
 
-def save_plot(fig, shape, output):
-    output_file = output.file_path(f"tutte_fields__{shape}.pdf")
+def save_plot(fig, shape, output_dir):
+    output_file = output_dir / f"tutte_fields__{shape}.pdf"
     fig.savefig(output_file)

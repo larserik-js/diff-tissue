@@ -7,14 +7,14 @@ from . import io_utils, plotting
 OUTPUT_TYPE_DIR = "morphing"
 
 
-def save_figs(morph_evolution, output, param_string, params):
+def save_figs(morph_evolution, params, output_dir):
     figure = plotting.MorphFigure(params)
 
     for t, vertices in enumerate(morph_evolution):
         if t % 10 == 0:
-            fig_path = output.file_path(param_string, f"step={t:03d}.png")
+            fig_path = output_dir / f"step={t:03d}.png"
             figure.save_plot(vertices, fig_path)
-    fig_path = output.file_path(param_string, f"step={t:03d}.png")
+    fig_path = output_dir / f"step={t:03d}.png"
     figure.save_plot(vertices, fig_path)
 
 
@@ -43,10 +43,10 @@ def _morph(polygons, params):
     return morph_evolution
 
 
-def get_morph_evolution(cache_path, polygons, params):
-    if cache_path.exists():
-        morph_evolution = io_utils.load_arrays(cache_path)
+def get_morph_evolution(polygons, params, data_path):
+    if data_path.exists():
+        morph_evolution = io_utils.load_arrays(data_path)
     else:
         morph_evolution = _morph(polygons, params)
-        io_utils.save_arrays(cache_path, morph_evolution)
+        io_utils.save_arrays(data_path, morph_evolution)
     return morph_evolution

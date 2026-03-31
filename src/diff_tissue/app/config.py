@@ -16,64 +16,49 @@ def load_cfg(path):
     return config
 
 
-class OutputManager:
-    def __init__(self, output_type_dir: str | None, base_dir: str):
-        self._output_type_dir = output_type_dir
-        self._base_dir = base_dir
-
-    @property
-    def _root(self):
-        if self._output_type_dir is None:
-            return Path(self._base_dir)
-        else:
-            return Path(self._base_dir) / self._output_type_dir
-
-    def _prepare(self, path: Path) -> Path:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        return path
-
-    def file_path(self, *parts: str) -> Path:
-        return self._prepare(self._root / Path(*parts))
-
-    def cache_path(self, *parts: str) -> Path:
-        return self._prepare(self._root / "cache" / Path(*parts))
-
-
 class ProjectPaths:
     def __init__(self, data_base_dir, outputs_base_dir):
-        self._data_base_dir = Path(data_base_dir)
-        self._outputs_base_dir = Path(outputs_base_dir)
-
-    def _prepare(self, path: Path) -> Path:
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    @property
-    def data_base_dir(self):
-        return self._prepare(self._data_base_dir)
+        self.data_base_dir = Path(data_base_dir)
+        self.outputs_base_dir = Path(outputs_base_dir)
 
     @property
     def raw_data_dir(self):
-        return self._prepare(self._data_base_dir / "raw")
+        return self.data_base_dir / "raw"
 
     @property
     def interim_data_dir(self):
-        return self._prepare(self._data_base_dir / "interim")
+        return self.data_base_dir / "interim"
 
     @property
     def processed_data_dir(self):
-        return self._prepare(self._data_base_dir / "processed")
+        return self.data_base_dir / "processed"
+
+    def make_subdir(self, *parts):
+        subdir = Path(*parts)
+        subdir.mkdir(parents=True, exist_ok=True)
+        return subdir
 
     @property
-    def outputs_base_dir(self):
-        return self._prepare(self._outputs_base_dir)
+    def sim_states_dir(self):
+        sim_states_dir = self.make_subdir(
+            self.processed_data_dir / "sim_states"
+        )
+        return sim_states_dir
+
+    @property
+    def param_search_db(self):
+        data_dir = self.make_subdir(self.interim_data_dir)
+        db_path = data_dir / "optuna.db"
+        return db_path
 
     def grid_search_data_dir(self, study_name):
-        return self._prepare(
+        grid_search_data_dir = self.make_subdir(
             self.processed_data_dir / "grid_search" / study_name
         )
+        return grid_search_data_dir
 
     def grid_search_figs_dir(self, study_name):
-        return self._prepare(
+        grid_search_figs_dir = self.make_subdir(
             self.outputs_base_dir / "grid_search" / study_name
         )
+        return grid_search_figs_dir
