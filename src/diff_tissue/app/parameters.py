@@ -27,6 +27,7 @@ class Params:
                 "petal",
                 "long_petal",
                 "nconv",
+                "complex_nconv",
             ],
             "cli_flag": "shape",
         },
