@@ -145,23 +145,32 @@ def _get_plotting_data(unique_anpw_val_strs, input_dir):
             shape = data["shape"]
 
             if shape == "trapezoid":
-                if data["trapezoid_angle"] > 90:
-                    plotting_shape = "trapezoid_obtuse"
+                if np.isclose(data["trapezoid_angle"], 100.0):
+                    continue
+                elif np.isclose(data["trapezoid_angle"], 80.0):
+                    plotting_shape = "wide_trapezoid"
+                elif np.isclose(data["trapezoid_angle"], 90.0):
+                    plotting_shape = "square"
                 else:
-                    plotting_shape = "trapezoid_acute"
+                    raise ValueError(
+                        f"Unexpected trapezoid angle: {data['trapezoid_angle']}"
+                    )
             elif shape == "petal":
                 plotting_shape = "petal"
             elif shape == "nconv":
                 plotting_shape = "nconv"
             else:
                 raise ValueError(f"Unexpected shape: {shape}")
+
+            strict_valid = data["valid"] and data["loss"] < 1.0
+
             plotting_data[plotting_shape].append(
                 (
                     data["trapezoid_angle"],
                     data["areas_pot_weight"],
                     data["anisotropies_pot_weight"],
                     data["loss"],
-                    data["valid"],
+                    strict_valid,
                 )
             )
 
@@ -216,7 +225,12 @@ def plot(study_name, paths):
 
     cmap_name = "RdYlGn_r"
 
-    ordered_shapes = ["trapezoid_acute", "trapezoid_obtuse", "petal", "nconv"]
+    ordered_shapes = [
+        "wide_trapezoid",
+        "square",
+        "petal",
+        "nconv",
+    ]
     n_plots = len(ordered_shapes)
 
     output_dir = paths.grid_search_figs_dir(study_name)
@@ -227,14 +241,18 @@ def plot(study_name, paths):
     )
     ax_lims = _find_ax_limits(data_by_anpw)
 
-    for anpw_str, plotting_data in data_by_anpw.items():
-        fig, axs = plt.subplots(n_plots, constrained_layout=True)
+    n_rows = int(np.ceil(n_plots / 2))
+    n_cols = 2 if n_plots > 1 else 1
 
-        for i, shape in enumerate(ordered_shapes):
+    for anpw_str, plotting_data in data_by_anpw.items():
+        fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True)
+
+        for k, shape in enumerate(ordered_shapes):
             data_list_of_tuples = plotting_data.get(shape)
             if data_list_of_tuples is None:
                 continue
-            ax = axs[i]
+            i, j = divmod(k, n_cols)
+            ax = axs[i, j]
             arpw_vals = np.array([tup[1] for tup in data_list_of_tuples])
             aspw_vals = np.array([tup[2] for tup in data_list_of_tuples])
             losses = np.array([tup[3] for tup in data_list_of_tuples])
@@ -248,7 +266,7 @@ def plot(study_name, paths):
                     aspw_vals[valid],
                     c=valid_losses,
                     cmap=cmap_name,
-                    s=5.0,
+                    s=10.0,
                     marker="s",
                 )
                 _add_colorbar(ax, normalize_loss, cmap_name)
@@ -260,11 +278,14 @@ def plot(study_name, paths):
             ax.set_ylim(ax_lims[1])
 
             ax.set_title(f"{shape}")
-            if i != n_plots - 1:
+            if i != n_rows - 1:
                 ax.set_xticklabels([])
-            if i == n_plots - 1:
+            if i == n_rows - 1:
                 ax.set_xlabel("Area pot. weights")
-            ax.set_ylabel("Anisotropy\n pot. weights")
+            if j == 0:
+                ax.set_ylabel("Anisotropy\n pot. weights")
+            else:
+                ax.set_yticklabels([])
 
         fig_path = output_dir / f"anpw={anpw_str}.pdf"
         fig.savefig(fig_path)
