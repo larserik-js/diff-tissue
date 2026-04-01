@@ -142,9 +142,8 @@ class _Figure(ABC):
 
     @cached_property
     def _closed_target_boundary(self):
-        vertex_numbers = init_systems.VertexNumbers(self._polygons)
         target_boundary = shapes.get_target_boundary(
-            self._params.shape, self._polygons.mesh_area, vertex_numbers
+            self._params, self._polygons
         ).vertices
         return self._close(target_boundary)
 

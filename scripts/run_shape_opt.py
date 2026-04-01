@@ -1,10 +1,13 @@
-from diff_tissue.app import experiments, parameters
+from diff_tissue.app import config, experiments, parameters
 
 
 def _main():
     params = parameters.get_params_from_cli()
 
-    experiments.run_shape_opt(params)
+    cfg = config.load_cfg("config.yml")
+    paths = config.ProjectPaths(cfg.data_base_dir, cfg.outputs_base_dir)
+
+    experiments.run_shape_opt(params, paths)
 
 
 if __name__ == "__main__":

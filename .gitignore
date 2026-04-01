@@ -6,4 +6,5 @@ wheels/
 *.egg-info
 .DS_Store
 
+data/
 outputs/

@@ -41,14 +41,13 @@ def _assign_weighted_goals(old_polygons, goals, new_polygons):
     return new_goals
 
 
-def plot(results, params, output):
-    param_string = parameters.get_param_string(params)
+def plot(results, output_dir):
     figure = plotting.MorphFigure(results.new_params)
     for t, vertices in enumerate(results.morph_evolution):
         if t % 10 == 0:
-            fig_path = output.file_path(param_string, f"step={t:03d}.png")
+            fig_path = output_dir / f"step={t:03d}.png"
             figure.save_plot(vertices, fig_path)
-    fig_path = output.file_path(param_string, f"step={t:03d}.png")
+    fig_path = output_dir / f"step={t:03d}.png"
     figure.save_plot(vertices, fig_path)
 
 
@@ -58,7 +57,7 @@ class _Results:
     new_params: parameters.Params
 
 
-def run(params, output):
+def run(params, paths):
     input_seed = params.seed  # Store for regenerated system
     params = params.replace(seed=0)  # Always base on same initial system
 
@@ -67,7 +66,7 @@ def run(params, output):
         polygons.init_vertices, polygons.indices
     )
 
-    sim_states = shape_opt_app.get_sim_states(params, output)
+    sim_states = shape_opt_app.get_sim_states(params, paths)
     best_state = shape_opt_core.get_best_state(sim_states)
     goal_areas = best_state.goal_areas
     goal_anisotropies = best_state.goal_anisotropies
@@ -96,7 +95,8 @@ def run(params, output):
     )
 
     param_string = parameters.get_param_string(new_params)
-    output_path = output.cache_path(f"{param_string}.npz")
+    data_dir = paths.make_subdir(paths.processed_data_dir, OUTPUT_TYPE_DIR)
+    output_path = data_dir / f"{param_string}.npz"
     io_utils.save_arrays(output_path, morph_evolution)
 
     results = _Results(

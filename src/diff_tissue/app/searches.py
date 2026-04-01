@@ -1,7 +1,5 @@
 import optuna
 
-from diff_tissue.app import io_utils
-
 
 def _show_studies(storage):
     study_summaries = optuna.get_all_study_summaries(storage)
@@ -37,7 +35,7 @@ def _show_n_completed(study):
     print(f"Trials completed: {n_completed}")
 
 
-def _run(db_path, study_name):
+def inspect_param_search(db_path, study_name):
     db_url = f"sqlite:///{db_path}"
     storage = optuna.storages.RDBStorage(db_url)
 
@@ -48,10 +46,3 @@ def _run(db_path, study_name):
     _show_first_trials(study)
     _show_best_trial(study)
     _show_n_completed(study)
-
-
-def inspect_param_search(study_name):
-    output_manager = io_utils.OutputManager(None, base_dir="outputs")
-    db_path = output_manager.file_path("optuna.db")
-
-    _run(db_path, study_name)

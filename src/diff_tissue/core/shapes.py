@@ -2,79 +2,69 @@ from abc import ABC, abstractmethod
 from functools import cached_property
 
 import numpy as np
+from scipy.interpolate import CubicSpline
 
 from .jax_bootstrap import jnp, struct
 from . import init_systems
 
 
+def _fuse_arrays(xs, ys):
+    vertices = np.array([(x, y) for x, y in zip(xs, ys)])
+    return vertices
+
+
+def _resample_curve(points, n_points, spacing=None):
+    points = np.asarray(points)
+    diffs = np.diff(points, axis=0)
+    seg_lengths = np.hypot(diffs[:, 0], diffs[:, 1])
+    cumulative_lengths = np.insert(np.cumsum(seg_lengths), 0, 0.0)
+    total_length = cumulative_lengths[-1]
+
+    if spacing is not None:
+        n_points = int(np.floor(total_length / spacing)) + 1
+    elif n_points is None:
+        raise ValueError("You must provide either num_points or spacing.")
+
+    target_lengths = np.linspace(0, total_length, n_points)
+
+    resampled = []
+    for t in target_lengths:
+        idx = np.searchsorted(cumulative_lengths, t) - 1
+        idx = min(max(idx, 0), len(points) - 2)
+        t0, t1 = cumulative_lengths[idx], cumulative_lengths[idx + 1]
+        p0, p1 = points[idx], points[idx + 1]
+        # Handle zero-length segments
+        if t1 == t0:
+            resampled.append(p0)
+        else:
+            alpha = (t - t0) / (t1 - t0)
+            resampled.append((1 - alpha) * p0 + alpha * p1)
+    return np.array(resampled)
+
+
 class _Shape(ABC):
-    def __init__(self, mesh_area, vertex_numbers):
-        self._build()
+    def __init__(self, polygons):
+        self._mesh_area = polygons.mesh_area
+        self._vertex_numbers = init_systems.VertexNumbers(polygons)
+        self._lower_r: float
 
-        self._mesh_area = mesh_area
-        self._vertex_numbers = vertex_numbers
-        self._raw_shape = self._make_raw_shape()
-
+    @property
     @abstractmethod
-    def _build(self):
+    def _non_basal_arrays(self):
         pass
 
-    @staticmethod
-    def _resample_curve(points, n_points, spacing=None):
-        points = np.asarray(points)
-        diffs = np.diff(points, axis=0)
-        seg_lengths = np.hypot(diffs[:, 0], diffs[:, 1])
-        cumulative_lengths = np.insert(np.cumsum(seg_lengths), 0, 0.0)
-        total_length = cumulative_lengths[-1]
-
-        if spacing is not None:
-            n_points = int(np.floor(total_length / spacing)) + 1
-        elif n_points is None:
-            raise ValueError("You must provide either num_points or spacing.")
-
-        target_lengths = np.linspace(0, total_length, n_points)
-
-        resampled = []
-        for t in target_lengths:
-            idx = np.searchsorted(cumulative_lengths, t) - 1
-            idx = min(max(idx, 0), len(points) - 2)
-            t0, t1 = cumulative_lengths[idx], cumulative_lengths[idx + 1]
-            p0, p1 = points[idx], points[idx + 1]
-            # Handle zero-length segments
-            if t1 == t0:
-                resampled.append(p0)
-            else:
-                alpha = (t - t0) / (t1 - t0)
-                resampled.append((1 - alpha) * p0 + alpha * p1)
-        return np.array(resampled)
-
-    def _make_non_basal_vertices(self, xs, ys):
-        vertices = np.array([(x, y) for x, y in zip(xs, ys)])
-        vertices = self._resample_curve(
-            vertices, self._vertex_numbers.non_basal
+    @cached_property
+    def _non_basal_vertices(self):
+        non_basal_vertices = _fuse_arrays(
+            self._non_basal_arrays[0], self._non_basal_arrays[1]
         )
-        return vertices
+        return non_basal_vertices
 
-    def _make_basal_vertices(self, lower_r):
-        basal_xs = np.linspace(-lower_r, lower_r, self._vertex_numbers.basal)[
-            1:-1
-        ]
-        basal_vertices = np.array([(x, 0.0) for x in basal_xs])
+    @cached_property
+    def _basal_vertices(self):
+        basal_xs = np.linspace(-self._lower_r, self._lower_r, 100)
+        basal_vertices = _fuse_arrays(basal_xs, np.zeros_like(basal_xs))
         return basal_vertices
-
-    def _construct_target_boundary(self, non_basal_xs, non_basal_ys, lower_r):
-        non_basal_vertices = self._make_non_basal_vertices(
-            non_basal_xs, non_basal_ys
-        )
-        basal_vertices = self._make_basal_vertices(lower_r)
-        target_boundary = np.concatenate(
-            [non_basal_vertices, basal_vertices], axis=0
-        )
-        return target_boundary
-
-    @abstractmethod
-    def _make_raw_shape(self):
-        pass
 
     @staticmethod
     def _calc_shape_area(polygon):
@@ -98,10 +88,10 @@ class _Shape(ABC):
         scale = np.sqrt(mesh_area / raw_shape_area)
         return scale
 
-    def _transform_raw_shape(self):
-        raw_shape_area = self._calc_shape_area(self._raw_shape)
+    def _transform(self, raw_shape):
+        raw_shape_area = self._calc_shape_area(raw_shape)
         scale = self._calc_scale(self._mesh_area, raw_shape_area)
-        target_boundary = scale * self._raw_shape
+        target_boundary = scale * raw_shape
         target_boundary += init_systems.Coords.base_origin
         return target_boundary
 
@@ -109,12 +99,48 @@ class _Shape(ABC):
         if not np.isclose(self._mesh_area - shape_area, 0.0):
             raise ValueError("System and mesh areas do not match!")
 
+    def _finalize_vertices(self, non_basal_vertices, basal_vertices):
+        basal_vertices_without_corners = basal_vertices[1:-1]
+        vertices_ = np.concatenate(
+            [non_basal_vertices, basal_vertices_without_corners], axis=0
+        )
+        transformed_vertices = self._transform(vertices_)
+        shape_area = self._calc_shape_area(transformed_vertices)
+        self._validate_rescaled_area(shape_area)
+        return transformed_vertices
+
+    @cached_property
+    def smooth_vertices(self):
+        finalized_vertices = self._finalize_vertices(
+            self._non_basal_vertices, self._basal_vertices
+        )
+        return finalized_vertices
+
+    @cached_property
+    def reduced_vertices(self):
+        relatively_few_points = 20
+        non_basal_vertices = _resample_curve(
+            self._non_basal_vertices, relatively_few_points
+        )
+        basal_vertices = _resample_curve(self._basal_vertices, 2)
+        finalized_vertices = self._finalize_vertices(
+            non_basal_vertices, basal_vertices
+        )
+        return finalized_vertices
+
     @cached_property
     def vertices(self):
-        target_boundary = self._transform_raw_shape()
-        shape_area = self._calc_shape_area(target_boundary)
-        self._validate_rescaled_area(shape_area)
-        return target_boundary
+        non_basal_vertices = _resample_curve(
+            self._non_basal_vertices,
+            self._vertex_numbers.non_basal_with_corners,
+        )
+        basal_vertices = _resample_curve(
+            self._basal_vertices, self._vertex_numbers.basal
+        )
+        finalized_vertices = self._finalize_vertices(
+            non_basal_vertices, basal_vertices
+        )
+        return finalized_vertices
 
     @cached_property
     def segments(self):
@@ -122,98 +148,145 @@ class _Shape(ABC):
         return segments_
 
 
-class _NonConvexShape(_Shape):
-    def __init__(self, mesh_area, vertex_numbers):
-        super().__init__(mesh_area, vertex_numbers)
+class IsoTrapezoid(_Shape):
+    def __init__(self, polygons, angle):
+        super().__init__(polygons)
+        self._angle = angle  # ccw beetween base and right leg (degrees)
+        self._angle_rad = self._angle_to_rads()
+        self._side_length = 1.0
+        self._lower_r = self._side_length / 2
 
-    def _build(self):
-        self._height = 3.0
-        self._lower_r = 1.5
+    @staticmethod
+    def _validate_angle(angle):
+        if not (60.0 < angle <= 120.0):
+            raise ValueError("Angle must be > 60 degrees and <= 120 degrees.")
+        return angle
 
-    def _make_raw_shape(self):
-        non_basal_xs = self._lower_r * np.array([1.0, 1.4, 1.8, 1.9, 1.2, 0.4])
-        non_basal_xs = np.concatenate([non_basal_xs, np.flip(-non_basal_xs)])
-        non_basal_ys = self._height * np.array([0.0, 0.3, 0.7, 1.1, 1.2, 1.0])
-        non_basal_ys = np.concatenate([non_basal_ys, np.flip(non_basal_ys)])
-        target_boundary = self._construct_target_boundary(
-            non_basal_xs, non_basal_ys, self._lower_r
+    def _angle_to_rads(self):
+        valid_angle = self._validate_angle(self._angle)
+        return np.radians(valid_angle)
+
+    @cached_property
+    def _upper_r(self):
+        return self._lower_r + self._side_length * np.cos(self._angle_rad)
+
+    @cached_property
+    def _height(self):
+        return self._side_length * np.sin(self._angle_rad)
+
+    @cached_property
+    def _non_basal_arrays(self):
+        n_side_points = 1000
+        non_basal_xs = [
+            np.linspace(self._lower_r, self._upper_r, n_side_points)
+        ]
+        non_basal_ys = [np.linspace(0.0, self._height, n_side_points)]
+
+        # Except triangle case
+        if not np.isclose(self._angle, 120.0):
+            non_basal_xs.append(
+                np.linspace(self._upper_r, -self._upper_r, n_side_points)
+            )
+            non_basal_ys.append(self._height * np.ones(n_side_points))
+
+        non_basal_xs.append(
+            np.linspace(
+                -self._upper_r, -self._lower_r, n_side_points, endpoint=True
+            )
         )
-        return target_boundary
+        non_basal_ys.append(
+            np.linspace(self._height, 0.0, n_side_points, endpoint=True)
+        )
+        non_basal_xs_arr = np.concatenate(non_basal_xs)
+        non_basal_ys_arr = np.concatenate(non_basal_ys)
+        return non_basal_xs_arr, non_basal_ys_arr
 
 
 class _Petal(_Shape):
-    def __init__(self, mesh_area, vertex_numbers):
-        super().__init__(mesh_area, vertex_numbers)
+    def __init__(self, polygons):
+        super().__init__(polygons)
+        self._lower_r: float
+        self._height: float
+        self._stretch_strength: float
 
-    def _build(self):
-        self._lower_r = 20.0
-        self._height = 60.0
-        self._stretch_strength = 2.0
-
-    def _make_raw_shape(self):
-        xs = np.linspace(
-            -self._lower_r, self._lower_r, self._vertex_numbers.non_basal
-        )
+    @cached_property
+    def _non_basal_arrays(self):
+        xs = np.linspace(self._lower_r, -self._lower_r, 100)
         non_basal_ys = self._height * np.sqrt(1 - (xs / self._lower_r) ** 2)
 
         factor = 1 + self._stretch_strength * non_basal_ys / self._height
         non_basal_xs = xs * factor
-
-        target_boundary = self._construct_target_boundary(
-            non_basal_xs, non_basal_ys, self._lower_r
-        )
-        return target_boundary
+        return non_basal_xs, non_basal_ys
 
 
-class _Trapzeoid(_Shape):
-    def __init__(self, mesh_area, vertex_numbers):
-        super().__init__(mesh_area, vertex_numbers)
-
-    def _build(self):
-        self._height = 3.5
-        self._lower_r = 1.5
-        self._upper_r = 2.0
-
-    def _make_raw_shape(self):
-        non_basal_xs = np.array(
-            [self._lower_r, self._upper_r, -self._upper_r, -self._lower_r]
-        )
-        non_basal_ys = np.array([0.0, self._height, self._height, 0.0])
-
-        target_boundary = self._construct_target_boundary(
-            non_basal_xs, non_basal_ys, self._lower_r
-        )
-        return target_boundary
+class _ShortPetal(_Petal):
+    def __init__(self, polygons):
+        super().__init__(polygons)
+        self._lower_r = 20.0
+        self._height = 60.0
+        self._stretch_strength = 2.0
 
 
-class _Triangle(_Shape):
-    def __init__(self, mesh_area, vertex_numbers):
-        super().__init__(mesh_area, vertex_numbers)
+class _LongPetal(_Petal):
+    def __init__(self, polygons):
+        super().__init__(polygons)
+        self._lower_r = 20.0
+        self._height = 100.0
+        self._stretch_strength = 3.0
 
-    def _build(self):
-        self._height = 2.5
+
+class _NonConvexShape(_Shape):
+    def __init__(self, polygons):
+        super().__init__(polygons)
+        self._height = 3.0
         self._lower_r = 1.5
 
-    def _make_raw_shape(self):
-        non_basal_xs = np.array([self._lower_r, 0.0, -self._lower_r])
-        non_basal_ys = np.array([0.0, self._height, 0.0])
+    def _make_smooth_curve(self, xs, ys):
+        xs = np.asarray(xs)
+        ys = np.asarray(ys)
 
-        target_boundary = self._construct_target_boundary(
-            non_basal_xs, non_basal_ys, self._lower_r
-        )
-        return target_boundary
+        # Chord-length parameterization
+        dx = np.diff(xs)
+        dy = np.diff(ys)
+        dist = np.sqrt(dx**2 + dy**2)
+
+        t = np.concatenate([[0], np.cumsum(dist)])
+        t /= t[-1]  # normalize to [0,1]
+
+        # Periodic cubic splines
+        sx = CubicSpline(t, xs, bc_type="natural")
+        sy = CubicSpline(t, ys, bc_type="natural")
+
+        return sx, sy
+
+    def _points_for_spline(self):
+        non_basal_xs = self._lower_r * np.array([1.0, 1.4, 1.8, 1.9, 1.2, 0.4])
+        non_basal_xs = np.concatenate([non_basal_xs, np.flip(-non_basal_xs)])
+        non_basal_ys = self._height * np.array([0.0, 0.3, 0.7, 1.1, 1.2, 1.0])
+        non_basal_ys = np.concatenate([non_basal_ys, np.flip(non_basal_ys)])
+        return non_basal_xs, non_basal_ys
+
+    @cached_property
+    def _non_basal_arrays(self):
+        raw_xs, raw_ys = self._points_for_spline()
+        sx, sy = self._make_smooth_curve(raw_xs, raw_ys)
+        t_smooth = np.linspace(0, 1, 1000)
+        smooth_xs = sx(t_smooth)
+        smooth_ys = sy(t_smooth)
+        return smooth_xs, smooth_ys
 
 
-def get_target_boundary(shape, mesh_area, vertex_numbers):
+def get_target_boundary(params, polygons):
+    shape = params.shape
     match shape:
-        case "nconv":
-            shape = _NonConvexShape(mesh_area, vertex_numbers)
-        case "petal":
-            shape = _Petal(mesh_area, vertex_numbers)
         case "trapezoid":
-            shape = _Trapzeoid(mesh_area, vertex_numbers)
-        case "triangle":
-            shape = _Triangle(mesh_area, vertex_numbers)
+            shape = IsoTrapezoid(polygons, angle=params.trapezoid_angle)
+        case "petal":
+            shape = _ShortPetal(polygons)
+        case "long_petal":
+            shape = _LongPetal(polygons)
+        case "nconv":
+            shape = _NonConvexShape(polygons)
         case _:
             raise ValueError("Invalid target boundary shape!")
     return shape
@@ -226,9 +299,7 @@ class JaxTargetBoundary:
 
 
 def get_jax_target_boundary(polygons, params):
-    target_boundary = get_target_boundary(
-        params.shape, polygons.mesh_area, init_systems.VertexNumbers(polygons)
-    )
+    target_boundary = get_target_boundary(params, polygons)
     jax_target_boundary = JaxTargetBoundary(
         vertices=jnp.array(target_boundary.vertices),
         segments=jnp.array(target_boundary.segments),

@@ -62,12 +62,12 @@ def _plot_mapping(
     fig.savefig(output_path)
 
 
-def plot(params, output):
+def plot(params, output_dir):
     polygons = init_systems.get_system(params)
     tutte_metrics = metrics.get_tutte_metrics(params)
 
     param_string = parameters.get_param_string(params)
-    output_path = output.file_path(f"{param_string}.pdf")
+    output_path = output_dir / f"{param_string}.pdf"
 
     _plot_mapping(
         polygons.init_vertices,

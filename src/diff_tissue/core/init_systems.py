@@ -719,9 +719,9 @@ class VertexNumbers:
         return n_boundary_vertices
 
     @cached_property
-    def non_basal(self):
-        n_non_basal_vertices = self.boundary - self.basal + 2
-        return n_non_basal_vertices
+    def non_basal_with_corners(self):
+        n_non_basal_vertices_with_corners = self.boundary - self.basal + 2
+        return n_non_basal_vertices_with_corners
 
 
 class Knots:

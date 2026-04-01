@@ -1,7 +1,7 @@
 import optuna
 
 from diff_tissue.core import shape_opt
-from diff_tissue.app import io_utils, parameters
+from diff_tissue.app import config, parameters
 
 
 def objective_f(trial):
@@ -36,10 +36,13 @@ def objective_f(trial):
 
 
 def _main():
-    output_manager = io_utils.OutputManager(None, base_dir="outputs")
-    db_path = output_manager.file_path("optuna.db")
+    cfg = config.load_cfg("config.yml")
+    paths = config.ProjectPaths(
+        data_base_dir=cfg.data_base_dir,
+        outputs_base_dir=cfg.outputs_base_dir,
+    )
 
-    db_url = f"sqlite:///{db_path}"
+    db_url = f"sqlite:///{paths.param_search_db}"
     study = optuna.create_study(
         study_name="my_study",
         direction="minimize",
