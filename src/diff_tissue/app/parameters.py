@@ -90,6 +90,14 @@ class Params:
             "cli_flag": "aspw",
         },
     )
+    init_lr: float = struct.field(
+        default=0.02,
+        pytree_node=True,
+        metadata={
+            "help": "Initial learning rate for shape optimization.",
+            "cli_flag": "init_lr",
+        },
+    )
     shape_loss_weight: float = struct.field(
         default=1.0,
         pytree_node=True,

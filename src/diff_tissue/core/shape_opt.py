@@ -442,9 +442,9 @@ def _get_init_logits(goal_area_bounds, knots, tutte_metrics, params):
 
 
 class _MyOptimizer:
-    def __init__(self, init_logits):
+    def __init__(self, init_logits, init_lr):
         self._lr_schedule = optax.cosine_decay_schedule(
-            init_value=0.02, decay_steps=500, alpha=1e-5
+            init_value=init_lr, decay_steps=500, alpha=1e-5
         )
         self._optimizer = optax.chain(
             optax.clip_by_global_norm(1.0),
@@ -531,7 +531,7 @@ def _iterate_towards_shape(
 
     min_dist_mask = _make_min_dist_mask(polygons, target_boundary)
 
-    optimizer = _MyOptimizer(logits)
+    optimizer = _MyOptimizer(logits, params.init_lr)
 
     poly_metrics = metrics.initialize_poly_metrics(
         vertices=vertices,
