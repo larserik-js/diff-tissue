@@ -91,7 +91,7 @@ class Params:
         },
     )
     init_lr: float = struct.field(
-        default=0.02,
+        default=0.01,
         pytree_node=True,
         metadata={
             "help": "Initial learning rate for shape optimization.",
