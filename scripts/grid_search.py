@@ -17,6 +17,7 @@ def _parse_args():
         default=["petal", "trapezoid", "nconv"],
         help="List of shapes.",
     )
+    parser.add_argument("--knots", default=False, action="store_true")
     parser.add_argument("--trans", nargs=3, required=True, type=float)
     parser.add_argument("--arpws", nargs=3, required=True, type=float)
     parser.add_argument("--aspws", nargs=3, required=True, type=float)
@@ -42,6 +43,7 @@ def _parse_args():
 @dataclass
 class _GridVariables:
     shapes: list[str]
+    knots: list[bool]
     trapezoid_angles: NDArray[np.floating]
     areas_pot_ws: NDArray[np.floating]
     anisotropies_pot_ws: NDArray[np.floating]
@@ -68,6 +70,7 @@ def _parse_int_arange(values):
 def _main():
     args = _parse_args()
 
+    knots = [args.knots]
     trapezoid_angles = _parse_arange(args.trans)
     areas_pot_ws = _parse_arange(args.arpws)
     anisotropies_pot_ws = _parse_arange(args.aspws)
@@ -76,6 +79,7 @@ def _main():
 
     grid_variables = _GridVariables(
         shapes=args.shapes,
+        knots=knots,
         trapezoid_angles=trapezoid_angles,
         areas_pot_ws=areas_pot_ws,
         anisotropies_pot_ws=anisotropies_pot_ws,

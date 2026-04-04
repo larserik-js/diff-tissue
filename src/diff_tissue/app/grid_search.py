@@ -16,6 +16,7 @@ from ..core import shape_opt
 def _simulate(vars):
     (
         shape,
+        knots,
         trapezoid_angle,
         areas_pot_w,
         anisotropies_pot_w,
@@ -25,6 +26,7 @@ def _simulate(vars):
 
     params = parameters.Params(
         shape=shape,
+        knots=knots,
         trapezoid_angle=trapezoid_angle,
         areas_pot_weight=areas_pot_w,
         anisotropies_pot_weight=anisotropies_pot_w,
@@ -47,9 +49,10 @@ def _format_float_to_str(float_):
 
 def _worker(trial_vars, output_dir):
     """Run a single trial and save results to a JSON file."""
-    shape, tran, arpw, aspw, anpw, seed = trial_vars
+    shape, knots, tran, arpw, aspw, anpw, seed = trial_vars
     print(
         f"Running with shape={shape}, "
+        f"knots={knots}, "
         f"tran={tran}, "
         f"arpw={arpw}, "
         f"aspw={aspw}, "
@@ -59,6 +62,7 @@ def _worker(trial_vars, output_dir):
 
     file_path = output_dir / (
         f"shape={shape}__"
+        f"knots={knots}__"
         f"tran={_format_float_to_str(tran)}__"
         f"arpw={_format_float_to_str(arpw)}__"
         f"aspw={_format_float_to_str(aspw)}__"
@@ -75,6 +79,7 @@ def _worker(trial_vars, output_dir):
 
     result = {
         "shape": shape,
+        "knots": knots,
         "trapezoid_angle": float(tran),
         "areas_pot_weight": float(arpw),
         "anisotropies_pot_weight": float(aspw),
@@ -162,7 +167,7 @@ def _get_plotting_data(unique_anpw_val_strs, input_dir):
             else:
                 raise ValueError(f"Unexpected shape: {shape}")
 
-            strict_valid = data["valid"] and data["loss"] < 1.0
+            strict_valid = data["valid"]
 
             plotting_data[plotting_shape].append(
                 (
@@ -272,7 +277,7 @@ def plot(study_name, paths):
                 _add_colorbar(ax, normalize_loss, cmap_name)
 
             ax.scatter(
-                arpw_vals[~valid], aspw_vals[~valid], s=3.0, marker="x", c="k"
+                arpw_vals[~valid], aspw_vals[~valid], s=1.0, marker="x", c="k"
             )
             ax.set_xlim(ax_lims[0])
             ax.set_ylim(ax_lims[1])
