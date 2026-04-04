@@ -27,6 +27,13 @@ def load_arrays(path):
     return data["arrays"]
 
 
+def save_pdf(path, fig, dpi=None):
+    if dpi is not None:
+        fig.savefig(path, dpi=dpi)
+    else:
+        fig.savefig(path)
+
+
 def load_yaml(path):
     with open(path, "r") as f:
         cfg = yaml.load(f, Loader=yaml.SafeLoader)

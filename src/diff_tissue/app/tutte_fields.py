@@ -99,4 +99,4 @@ def plot(tutte_fields):
 
 def save_plot(fig, shape, output_dir):
     output_file = output_dir / f"tutte_fields__{shape}.pdf"
-    fig.savefig(output_file)
+    io_utils.save_pdf(output_file, fig)

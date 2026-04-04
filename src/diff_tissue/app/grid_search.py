@@ -9,7 +9,7 @@ from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from . import parameters
+from . import io_utils, parameters
 from ..core import shape_opt
 
 
@@ -293,5 +293,5 @@ def plot(study_name, paths):
                 ax.set_yticklabels([])
 
         fig_path = output_dir / f"anpw={anpw_str}.pdf"
-        fig.savefig(fig_path)
+        io_utils.save_pdf(fig_path, fig)
         plt.close(fig)

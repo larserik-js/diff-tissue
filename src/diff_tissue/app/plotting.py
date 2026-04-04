@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 from matplotlib import figure as matplotlib_figure
 import numpy as np
 
+from . import io_utils
 from ..core import init_systems, metrics, shapes
 
 
@@ -148,7 +149,7 @@ class _Figure(ABC):
         return self._close(target_boundary)
 
     def _save(self, fig_path):
-        self._fig.savefig(fig_path, dpi=100)
+        io_utils.save_pdf(fig_path, self._fig, dpi=100)
 
 
 class MorphFigure(_Figure):
