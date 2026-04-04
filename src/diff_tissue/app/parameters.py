@@ -62,11 +62,6 @@ class Params:
             "cli_flag": "tran",
         },
     )
-    n_shape_steps: int = struct.field(
-        default=500,
-        pytree_node=True,
-        metadata={"help": "Number of shape steps.", "cli_flag": "ssteps"},
-    )
     n_morph_steps: int = struct.field(
         default=500,
         pytree_node=True,
