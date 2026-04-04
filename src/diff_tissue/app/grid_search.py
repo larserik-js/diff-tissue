@@ -89,8 +89,7 @@ def _worker(trial_vars, output_dir):
         "valid": valid,
     }
 
-    with open(file_path, "w") as f:
-        json.dump(result, f)
+    io_utils.save_json(file_path, result)
 
     return result
 
@@ -141,8 +140,7 @@ def _get_plotting_data(unique_anpw_val_strs, input_dir):
         plotting_data = defaultdict(list)
         for json_path in files:
             try:
-                with json_path.open("r", encoding="utf-8") as f:
-                    data = json.load(f)
+                data = io_utils.load_json(json_path)
             except json.JSONDecodeError:
                 print(f"Error decoding JSON from {json_path}")
                 continue

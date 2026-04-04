@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from functools import cached_property
 from importlib.resources import files
-import json
 
 import numpy as np
 from numpy.typing import NDArray
@@ -11,6 +10,7 @@ import shapely
 from shapely.geometry import Polygon
 
 from .jax_bootstrap import jnp, struct
+from ..app import io_utils
 
 
 class Coords:
@@ -462,9 +462,7 @@ class _FullPolygons(_Polygons):
         input_path = files("diff_tissue.resources").joinpath(
             "input_cells.json"
         )
-        with input_path.open() as data:
-            input_cells = json.load(data)
-
+        input_cells = io_utils.load_json(input_path)
         return input_cells
 
     def _find_max_vertices(self):

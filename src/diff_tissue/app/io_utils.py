@@ -1,3 +1,4 @@
+import json
 import pickle
 
 import numpy as np
@@ -38,3 +39,14 @@ def load_yaml(path):
     with open(path, "r") as f:
         cfg = yaml.load(f, Loader=yaml.SafeLoader)
     return cfg
+
+
+def load_json(path):
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return data
+
+
+def save_json(path, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
