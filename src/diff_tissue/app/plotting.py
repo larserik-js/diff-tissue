@@ -6,7 +6,6 @@ from matplotlib import pyplot as plt
 from matplotlib import figure as matplotlib_figure
 import numpy as np
 
-from . import io_utils
 from ..core import init_systems, metrics, shapes
 
 
@@ -127,7 +126,7 @@ class _Figure(ABC):
         self._params = params
         self._polygons = init_systems.get_system(params)
         self._all_knots = init_systems.Knots().all_knots
-        self._fig: matplotlib_figure.Figure
+        self.fig: matplotlib_figure.Figure
         self._init_figure()
 
     @abstractmethod
@@ -148,14 +147,11 @@ class _Figure(ABC):
         ).vertices
         return self._close(target_boundary)
 
-    def _save(self, fig_path):
-        io_utils.save_pdf(fig_path, self._fig, dpi=100)
-
 
 class MorphFigure(_Figure):
     def __init__(self, params):
         super().__init__(params)
-        ax = self._fig.add_subplot(111)
+        ax = self.fig.add_subplot(111)
         self._morph_artists = _Artists(
             ax,
             self._polygons,
@@ -165,11 +161,10 @@ class MorphFigure(_Figure):
         )
 
     def _init_figure(self):
-        self._fig = plt.figure(figsize=(10, 10))
+        self.fig = plt.figure(figsize=(10, 10))
 
-    def save_plot(self, vertices, fig_path, enumerate=False):
+    def update(self, vertices, enumerate=False):
         self._morph_artists.plot(vertices, enumerate)
-        self._save(fig_path)
 
 
 class MorphGrowthFigure(_Figure):
@@ -177,14 +172,14 @@ class MorphGrowthFigure(_Figure):
         super().__init__(params)
         self._total_steps = params.n_morph_steps
         self._gs = gridspec.GridSpec(
-            nrows=2, ncols=1, figure=self._fig, height_ratios=[0.8, 1.0]
+            nrows=2, ncols=1, figure=self.fig, height_ratios=[0.8, 1.0]
         )
         self._scaled_target_boundary = (
             _GROWTH_SCALE * self._closed_target_boundary
         )
         self._scaled_knots = _GROWTH_SCALE * self._all_knots
 
-        ax0 = self._fig.add_subplot(self._gs[0])
+        ax0 = self.fig.add_subplot(self._gs[0])
         self._morph_artists = _Artists(
             ax0,
             self._polygons,
@@ -192,7 +187,7 @@ class MorphGrowthFigure(_Figure):
             self._all_knots,
             params,
         )
-        ax1 = self._fig.add_subplot(self._gs[1:])
+        ax1 = self.fig.add_subplot(self._gs[1:])
         self._growth_artists = _Artists(
             ax1,
             self._polygons,
@@ -202,7 +197,7 @@ class MorphGrowthFigure(_Figure):
         )
 
     def _init_figure(self):
-        self._fig = plt.figure(figsize=(8, 10))
+        self.fig = plt.figure(figsize=(8, 10))
 
     def _scale_vertices(self, vertices, step):
         t_frac = step / self._total_steps
@@ -218,6 +213,5 @@ class MorphGrowthFigure(_Figure):
         scaled_vertices = self._scale_vertices(vertices, step)
         self._growth_artists.plot(scaled_vertices, enumerate)
 
-    def save_plot(self, vertices, step, fig_path, enumerate=False):
+    def update(self, vertices, step, enumerate=False):
         self._plot(vertices, step, enumerate)
-        self._save(fig_path)

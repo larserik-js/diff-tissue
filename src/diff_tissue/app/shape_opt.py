@@ -11,11 +11,10 @@ def plot_final_tissues(final_tissues, params, output_dir):
     figure = plotting.MorphFigure(params)
 
     for t, vertices in enumerate(final_tissues):
-        if t % 10 == 0:
+        if t % 10 == 0 or t == len(final_tissues) - 1:
+            figure.update(vertices, enumerate=True)
             fig_path = output_dir / f"step={t:03d}.png"
-            figure.save_plot(vertices, fig_path, enumerate=True)
-    fig_path = output_dir / f"step={t:03d}.png"
-    figure.save_plot(vertices, fig_path, enumerate=True)
+            io_utils.save_pdf(fig_path, figure.fig, dpi=100)
 
 
 def get_sim_states(params, paths):
@@ -53,8 +52,7 @@ def plot_best_morph(morph_evolution, params, output_dir):
     figure = plotting.MorphGrowthFigure(params)
 
     for t, vertices in enumerate(morph_evolution):
-        if t % 10 == 0:
+        if t % 10 == 0 or t == len(morph_evolution) - 1:
+            figure.update(vertices, t)
             fig_path = output_dir / f"step={t:03d}.png"
-            figure.save_plot(vertices, t, fig_path)
-    fig_path = output_dir / f"step={t:03d}.png"
-    figure.save_plot(vertices, t, fig_path)
+            io_utils.save_pdf(fig_path, figure.fig, dpi=100)

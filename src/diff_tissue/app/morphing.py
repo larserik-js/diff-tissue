@@ -11,11 +11,10 @@ def save_figs(morph_evolution, params, output_dir):
     figure = plotting.MorphFigure(params)
 
     for t, vertices in enumerate(morph_evolution):
-        if t % 10 == 0:
+        if t % 10 == 0 or t == len(morph_evolution) - 1:
+            figure.update(vertices)
             fig_path = output_dir / f"step={t:03d}.png"
-            figure.save_plot(vertices, fig_path)
-    fig_path = output_dir / f"step={t:03d}.png"
-    figure.save_plot(vertices, fig_path)
+            io_utils.save_pdf(fig_path, figure.fig, dpi=100)
 
 
 jiterate = jax.jit(morphing_core.iterate, static_argnames=["n_steps"])
