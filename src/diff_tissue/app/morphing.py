@@ -1,4 +1,4 @@
-from ..core.jax_bootstrap import jax, jnp
+from ..core.jax_bootstrap import jnp
 from ..core import metrics
 from ..core import morphing as morphing_core
 from . import io_utils, plotting
@@ -17,9 +17,6 @@ def save_figs(morph_evolution, params, output_dir):
             io_utils.save_pdf(fig_path, figure.fig, dpi=100)
 
 
-jiterate = jax.jit(morphing_core.iterate, static_argnames=["n_steps"])
-
-
 def _morph(polygons, params):
     poly_metrics = metrics.initialize_poly_metrics(
         vertices=polygons.init_vertices,
@@ -31,7 +28,7 @@ def _morph(polygons, params):
     goal_areas = 2.0 * init_areas
     goal_anisotropies = 5.0 * jnp.ones_like(init_areas)
 
-    morph_evolution = jiterate(
+    morph_evolution = morphing_core.iterate(
         goal_areas,
         goal_anisotropies,
         params.n_morph_steps,

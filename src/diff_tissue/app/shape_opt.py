@@ -1,5 +1,6 @@
+from ..core import morphing as morphing_core
 from ..core import shape_opt as shape_opt_core
-from . import io_utils, morphing, parameters, plotting
+from . import io_utils, parameters, plotting
 
 
 OUTPUT_TYPE_DIR = "shape_opt"
@@ -36,7 +37,7 @@ def get_best_morph_evolution(
     if data_path.exists():
         best_morph_evolution = io_utils.load_pkl(data_path)
     else:
-        best_morph_evolution = morphing.jiterate(
+        best_morph_evolution = morphing_core.iterate(
             best_goal_areas,
             best_goal_anisotropies,
             params.n_morph_steps,
