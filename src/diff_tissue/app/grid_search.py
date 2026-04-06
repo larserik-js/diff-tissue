@@ -1,4 +1,3 @@
-from collections import defaultdict
 from dataclasses import fields
 from itertools import product
 import json
@@ -166,55 +165,56 @@ def run(grid_variables, study_name, n_workers, paths):
     print("Conversion completed.")
 
 
-def _get_plotting_data(unique_anpw_val_strs, input_dir):
-    data_by_anpw = dict()
+def _shape_to_plotting_shape(trapezoid_angle, shape):
+    if shape == "trapezoid":
+        if np.isclose(trapezoid_angle, 80.0):
+            plotting_shape = "wide_trapezoid"
+        elif np.isclose(trapezoid_angle, 90.0):
+            plotting_shape = "square"
+        elif np.isclose(trapezoid_angle, 100.0):
+            plotting_shape = "narrow_trapezoid"
+        else:
+            raise ValueError(f"Unexpected trapezoid angle: {trapezoid_angle}")
+    else:
+        plotting_shape = shape
+    return plotting_shape
 
-    for anpw_str in unique_anpw_val_strs:
-        target_str = f"anpw={anpw_str}"
-        files = [p for p in input_dir.iterdir() if target_str in p.name]
 
-        plotting_data = defaultdict(list)
-        for json_path in files:
-            try:
-                data = io_utils.load_json(json_path)
-            except json.JSONDecodeError:
-                print(f"Error decoding JSON from {json_path}")
-                continue
+def _transform_df(df):
+    df = df.with_columns(
+        pl.struct(["trapezoid_angle", "shape"])
+        .map_elements(
+            lambda x: _shape_to_plotting_shape(
+                x["trapezoid_angle"], x["shape"]
+            ),
+            return_dtype=pl.Utf8,
+        )
+        .alias("plotting_shape")
+    )
+    df = df.drop("shape")
+    df = df.with_columns(
+        pl.col("angles_pot_weight")
+        .map_elements(_format_float_to_str)
+        .alias("angles_pot_weight")
+    )
+    return df
 
-            shape = data["shape"]
 
-            if shape == "trapezoid":
-                if np.isclose(data["trapezoid_angle"], 100.0):
-                    continue
-                elif np.isclose(data["trapezoid_angle"], 80.0):
-                    plotting_shape = "wide_trapezoid"
-                elif np.isclose(data["trapezoid_angle"], 90.0):
-                    plotting_shape = "square"
-                else:
-                    raise ValueError(
-                        "Unexpected trapezoid angle: "
-                        f"{data['trapezoid_angle']}"
-                    )
-            elif shape == "petal":
-                plotting_shape = "petal"
-            elif shape == "nconv":
-                plotting_shape = "nconv"
-            else:
-                raise ValueError(f"Unexpected shape: {shape}")
+def _get_plotting_data(df):
+    group_cols = ["angles_pot_weight", "plotting_shape"]
+    value_cols = value_cols = [c for c in df.columns if c not in group_cols]
+    result = df.group_by(group_cols).agg(
+        pl.struct(value_cols).alias("row_dicts")
+    )
 
-            strict_valid = data["valid"]
+    data_by_anpw: dict[str, dict] = dict()
 
-            plotting_data[plotting_shape].append(
-                (
-                    data["trapezoid_angle"],
-                    data["areas_pot_weight"],
-                    data["anisotropies_pot_weight"],
-                    data["loss"],
-                    strict_valid,
-                )
-            )
+    for row in result.iter_rows(named=True):
+        angle = row["angles_pot_weight"]
+        shape = row["plotting_shape"]
+        dict_list = [dict(d) for d in row["row_dicts"]]
 
-        data_by_anpw[anpw_str] = plotting_data
+        data_by_anpw.setdefault(angle, {})[shape] = dict_list
 
     return data_by_anpw
 
@@ -223,9 +223,9 @@ def _calc_global_loss_bounds(data_by_anpw):
     all_losses = []
     for plotting_data in data_by_anpw.values():
         for shape_data in plotting_data.values():
-            for tup in shape_data:
-                if tup[4]:  # Only consider valid runs for loss bounds
-                    all_losses.append(tup[3])
+            for dict_ in shape_data:
+                if dict_["valid"]:  # Only consider valid runs for loss bounds
+                    all_losses.append(dict_["loss"])
     return (0.0, max(all_losses))
 
 
@@ -241,9 +241,9 @@ def _find_ax_limits(data_by_anpw):
 
     for plotting_data in data_by_anpw.values():
         for shape_data in plotting_data.values():
-            for tup in shape_data:
-                all_arpw_vals.append(tup[1])
-                all_aspw_vals.append(tup[2])
+            for dict_ in shape_data:
+                all_arpw_vals.append(dict_["areas_pot_weight"])
+                all_aspw_vals.append(dict_["anisotropies_pot_weight"])
 
     arpw_min, arpw_max = min(all_arpw_vals), max(all_arpw_vals)
     aspw_min, aspw_max = min(all_aspw_vals), max(all_aspw_vals)
@@ -259,13 +259,9 @@ def plot(study_name, paths):
     grid_search_paths = GridSearchPaths(paths, study_name)
 
     df = pl.read_parquet(grid_search_paths.tabular_results_path)
-    unique_anpw_vals = df.get_column("angles_pot_weight").unique().to_list()
-    unique_anpw_val_strs = [
-        _format_float_to_str(val) for val in unique_anpw_vals
-    ]
+    df = _transform_df(df)
 
-    input_dir = grid_search_paths.individual_results_dir
-    data_by_anpw = _get_plotting_data(unique_anpw_val_strs, input_dir)
+    data_by_anpw = _get_plotting_data(df)
 
     cmap_name = "RdYlGn_r"
 
@@ -290,16 +286,23 @@ def plot(study_name, paths):
         fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True)
 
         for k, shape in enumerate(ordered_shapes):
-            data_list_of_tuples = plotting_data.get(shape)
-            if data_list_of_tuples is None:
+            data_list_of_dicts = plotting_data.get(shape)
+            if data_list_of_dicts is None:
                 continue
             i, j = divmod(k, n_cols)
             ax = axs[i, j]
-            arpw_vals = np.array([tup[1] for tup in data_list_of_tuples])
-            aspw_vals = np.array([tup[2] for tup in data_list_of_tuples])
-            losses = np.array([tup[3] for tup in data_list_of_tuples])
+            arpw_vals = np.array(
+                [dict_["areas_pot_weight"] for dict_ in data_list_of_dicts]
+            )
+            aspw_vals = np.array(
+                [
+                    dict_["anisotropies_pot_weight"]
+                    for dict_ in data_list_of_dicts
+                ]
+            )
+            losses = np.array([dict_["loss"] for dict_ in data_list_of_dicts])
 
-            valid = np.array([tup[4] for tup in data_list_of_tuples])
+            valid = np.array([dict_["valid"] for dict_ in data_list_of_dicts])
             valid_losses = losses[valid]
 
             if len(valid_losses) > 0:
