@@ -9,8 +9,35 @@ from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from . import io_utils, parameters
+from . import config, io_utils, parameters
 from ..core import shape_opt
+
+
+class GridSearchPaths(config.ProjectPaths):
+    def __init__(self, base_paths, study_name):
+        super().__init__(
+            data_base_dir=base_paths.data_base_dir,
+            outputs_base_dir=base_paths.outputs_base_dir,
+        )
+        self.study_name = study_name
+
+    @property
+    def individual_results_dir(self):
+        return self.make_subdir(
+            self.interim_data_dir / "grid_search" / self.study_name
+        )
+
+    @property
+    def tabular_results_dir(self):
+        return self.make_subdir(
+            self.processed_data_dir / "grid_search" / self.study_name
+        )
+
+    @property
+    def figures_dir(self):
+        return self.make_subdir(
+            self.outputs_base_dir / "grid_search" / self.study_name
+        )
 
 
 def _simulate(vars):
@@ -100,9 +127,12 @@ def run(grid_variables, study_name, n_workers, paths):
     ]
     all_trials = list(product(*grid_values))
 
-    output_dir = paths.grid_search_data_dir(study_name)
+    grid_search_paths = GridSearchPaths(paths, study_name)
 
-    inputs = [(trial, output_dir) for trial in all_trials]
+    inputs = [
+        (trial, grid_search_paths.individual_results_dir)
+        for trial in all_trials
+    ]
 
     results = []
     with mp.Pool(processes=n_workers) as pool:
@@ -152,7 +182,8 @@ def _get_plotting_data(unique_anpw_val_strs, input_dir):
                     plotting_shape = "square"
                 else:
                     raise ValueError(
-                        f"Unexpected trapezoid angle: {data['trapezoid_angle']}"
+                        "Unexpected trapezoid angle: "
+                        f"{data['trapezoid_angle']}"
                     )
             elif shape == "petal":
                 plotting_shape = "petal"
@@ -215,7 +246,8 @@ def _find_ax_limits(data_by_anpw):
 
 
 def plot(study_name, paths):
-    input_dir = paths.grid_search_data_dir(study_name)
+    grid_search_paths = GridSearchPaths(paths, study_name)
+    input_dir = grid_search_paths.individual_results_dir
 
     all_files = input_dir.glob("*")
     unique_anpw_val_strs = _find_unique_anpw_val_strs(all_files)
@@ -231,8 +263,6 @@ def plot(study_name, paths):
         "nconv",
     ]
     n_plots = len(ordered_shapes)
-
-    output_dir = paths.grid_search_figs_dir(study_name)
 
     global_loss_bounds = _calc_global_loss_bounds(data_by_anpw)
     normalize_loss = colors.Normalize(
@@ -286,6 +316,6 @@ def plot(study_name, paths):
             else:
                 ax.set_yticklabels([])
 
-        fig_path = output_dir / f"anpw={anpw_str}.pdf"
+        fig_path = grid_search_paths.figures_dir / f"anpw={anpw_str}.pdf"
         io_utils.save_pdf(fig_path, fig)
         plt.close(fig)

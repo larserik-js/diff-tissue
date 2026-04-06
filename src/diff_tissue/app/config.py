@@ -50,15 +50,3 @@ class ProjectPaths:
         data_dir = self.make_subdir(self.interim_data_dir)
         db_path = data_dir / "optuna.db"
         return db_path
-
-    def grid_search_data_dir(self, study_name):
-        grid_search_data_dir = self.make_subdir(
-            self.processed_data_dir / "grid_search" / study_name
-        )
-        return grid_search_data_dir
-
-    def grid_search_figs_dir(self, study_name):
-        grid_search_figs_dir = self.make_subdir(
-            self.outputs_base_dir / "grid_search" / study_name
-        )
-        return grid_search_figs_dir
