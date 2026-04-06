@@ -3,11 +3,11 @@ from dataclasses import fields
 from itertools import product
 import json
 import multiprocessing as mp
-import re
 
 from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
+import polars as pl
 
 from . import config, io_utils, parameters
 from ..core import shape_opt
@@ -32,6 +32,10 @@ class GridSearchPaths(config.ProjectPaths):
         return self.make_subdir(
             self.processed_data_dir / "grid_search" / self.study_name
         )
+
+    @property
+    def tabular_results_path(self):
+        return self.tabular_results_dir / "results.parquet"
 
     @property
     def figures_dir(self):
@@ -121,6 +125,17 @@ def _worker(trial_vars, output_dir):
     return result
 
 
+def _individual_results_to_df(input_dir, output_path):
+    rows = []
+
+    for file in input_dir.glob("*.json"):
+        with open(file) as f:
+            rows.append(json.load(f))
+
+    df = pl.DataFrame(rows)
+    df.write_parquet(output_path)
+
+
 def run(grid_variables, study_name, n_workers, paths):
     grid_values = [
         getattr(grid_variables, f.name) for f in fields(grid_variables)
@@ -141,19 +156,14 @@ def run(grid_variables, study_name, n_workers, paths):
             results.append(result)
 
     print("All trials completed.")
+    print("")
 
-
-def _find_unique_anpw_val_strs(all_files):
-    pattern = re.compile(r"anpw=(.*?)__")
-    all_anpw_val_strs = []
-
-    for file in all_files:
-        if file.is_file():
-            match = pattern.search(file.name)
-            if match:
-                anpw_str = match.group(1)
-                all_anpw_val_strs.append(anpw_str)
-    return list(set(all_anpw_val_strs))
+    print("Converting individual JSON results to Parquet...")
+    _individual_results_to_df(
+        grid_search_paths.individual_results_dir,
+        grid_search_paths.tabular_results_path,
+    )
+    print("Conversion completed.")
 
 
 def _get_plotting_data(unique_anpw_val_strs, input_dir):
@@ -247,11 +257,14 @@ def _find_ax_limits(data_by_anpw):
 
 def plot(study_name, paths):
     grid_search_paths = GridSearchPaths(paths, study_name)
+
+    df = pl.read_parquet(grid_search_paths.tabular_results_path)
+    unique_anpw_vals = df.get_column("angles_pot_weight").unique().to_list()
+    unique_anpw_val_strs = [
+        _format_float_to_str(val) for val in unique_anpw_vals
+    ]
+
     input_dir = grid_search_paths.individual_results_dir
-
-    all_files = input_dir.glob("*")
-    unique_anpw_val_strs = _find_unique_anpw_val_strs(all_files)
-
     data_by_anpw = _get_plotting_data(unique_anpw_val_strs, input_dir)
 
     cmap_name = "RdYlGn_r"
