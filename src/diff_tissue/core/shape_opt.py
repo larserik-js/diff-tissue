@@ -597,7 +597,7 @@ def _iterate_towards_shape(
         else:
             steps_since_best_loss += 1
 
-        if steps_since_best_loss >= 50 and best_loss != jnp.inf:
+        if steps_since_best_loss >= 50:
             if not params.quiet:
                 print("(Stopped - iteration diverged.)")
                 print("")
