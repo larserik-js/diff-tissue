@@ -70,8 +70,26 @@ def _test_mixed_valid_sim_states():
     assert valid_best_idx == 0
 
 
+def _test_all_inf_losses_sim_state():
+    mock_list_of_arrays = [jnp.ones(5)]
+
+    sim_states = shape_opt._SimStates(
+        loss_vals=[jnp.inf, jnp.inf],
+        valid=[False, False],
+        final_vertices=mock_list_of_arrays,
+        goal_areas=mock_list_of_arrays,
+        goal_anisotropies=mock_list_of_arrays,
+        final_areas=mock_list_of_arrays,
+        final_anisotropies=mock_list_of_arrays,
+        n_edge_crossings=[5, 5],
+    )
+    valid_best_idx = shape_opt._get_valid_best_idx(sim_states)
+    assert valid_best_idx == 0
+
+
 def test__get_valid_best_index():
     _test_single_valid_sim_state()
     _test_single_invalid_sim_state()
     _test_two_invalid_sim_states()
     _test_mixed_valid_sim_states()
+    _test_all_inf_losses_sim_state()
