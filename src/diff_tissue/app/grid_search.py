@@ -106,13 +106,9 @@ def run(grid_variables, study_name, n_workers, paths):
 
     results = []
     with mp.Pool(processes=n_workers) as pool:
+        print(f"Running {len(all_trials)} trials with {n_workers} workers...")
         for result in pool.starmap(_worker, inputs):
             results.append(result)
-            completed = len(results)
-            print(
-                f"Completed {completed}/{len(all_trials)} trials\n",
-                flush=True,
-            )
 
     print("All trials completed.")
 
