@@ -157,13 +157,6 @@ def run(grid_variables, study_name, n_workers, paths):
     print("All trials completed.")
     print("")
 
-    print("Converting individual JSON results to Parquet...")
-    _individual_results_to_df(
-        grid_search_paths.individual_results_dir,
-        grid_search_paths.tabular_results_path,
-    )
-    print("Conversion completed.")
-
 
 def _shape_to_plotting_shape(trapezoid_angle, shape):
     if shape == "trapezoid":
@@ -255,10 +248,24 @@ def _find_ax_limits(data_by_anpw):
     )
 
 
+def _get_df(grid_search_paths):
+    df_file = grid_search_paths.tabular_results_path
+    if not df_file.exists():
+        print("Converting individual JSON results to Parquet...")
+        _individual_results_to_df(
+            grid_search_paths.individual_results_dir,
+            grid_search_paths.tabular_results_path,
+        )
+        print("Conversion completed.")
+    df = pl.read_parquet(df_file)
+    return df
+
+
 def plot(study_name, paths):
     grid_search_paths = GridSearchPaths(paths, study_name)
 
-    df = pl.read_parquet(grid_search_paths.tabular_results_path)
+    df = _get_df(grid_search_paths)
+
     df = _transform_df(df)
 
     data_by_anpw = _get_plotting_data(df)
