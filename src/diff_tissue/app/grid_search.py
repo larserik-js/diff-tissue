@@ -69,14 +69,6 @@ def _simulate(vars):
     return sim_states
 
 
-def _format_float_to_str(float_):
-    rounded_float = round(float_, 8)
-    float_str = str(rounded_float)
-    if float_str[0] == "-":
-        float_str = f"m{float_str[1:]}"
-    return float_str.replace(".", "p")
-
-
 def _worker(trial_vars, output_dir):
     """Run a single trial and save results to a JSON file."""
     shape, knots, tran, arpw, aspw, anpw, seed = trial_vars
@@ -93,10 +85,10 @@ def _worker(trial_vars, output_dir):
     file_path = output_dir / (
         f"shape={shape}__"
         f"knots={knots}__"
-        f"tran={_format_float_to_str(tran)}__"
-        f"arpw={_format_float_to_str(arpw)}__"
-        f"aspw={_format_float_to_str(aspw)}__"
-        f"anpw={_format_float_to_str(anpw)}__"
+        f"tran={parameters.format_float_to_str(tran)}__"
+        f"arpw={parameters.format_float_to_str(arpw)}__"
+        f"aspw={parameters.format_float_to_str(aspw)}__"
+        f"anpw={parameters.format_float_to_str(anpw)}__"
         f"seed={seed}.json"
     )
     if file_path.exists():
@@ -187,7 +179,7 @@ def _transform_df(df):
     df = df.drop("shape")
     df = df.with_columns(
         pl.col("angles_pot_weight")
-        .map_elements(_format_float_to_str)
+        .map_elements(parameters.format_float_to_str)
         .alias("angles_pot_weight")
     )
     return df

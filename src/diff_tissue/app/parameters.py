@@ -157,30 +157,25 @@ def get_params_from_cli():
     return Params(**args)
 
 
-class _ParamStringFormatter:
-    _formats = {
-        "bool": "",
-        "int": "d",
-        "float": ".7f",
-        "float64": ".7f",
-        "str": "",
-    }
+def format_float_to_str(float_):
+    rounded_float = round(float_, 8)
+    float_str = str(rounded_float)
+    if float_str[0] == "-":
+        float_str = f"m{float_str[1:]}"
+    return float_str.replace(".", "p")
 
+
+class _ParamStringFormatter:
     def __init__(self, params: Params):
         self._params = params
 
-    @staticmethod
-    def _get_val_type(val):
-        type_ = type(val)
-        type_str = type_.__name__
-        return type_str
-
     def _format_param_val_str(self, name, val):
-        val_type = self._get_val_type(val)
-        format_ = self._formats[val_type]
-        param_name_val = name + "=" + format(val, format_)
+        val_type = type(val).__name__
         if val_type == "float" or val_type == "float64":
-            param_name_val = param_name_val.rstrip("0").rstrip(".")
+            val_str = format_float_to_str(val)
+        else:
+            val_str = str(val)
+        param_name_val = f"{name}={val_str}"
         return param_name_val
 
     def _join_param_val_pairs(self):
