@@ -43,70 +43,43 @@ class GridSearchPaths(config.ProjectPaths):
         )
 
 
-def _simulate(vars):
-    (
-        shape,
-        knots,
-        trapezoid_angle,
-        areas_pot_w,
-        anisotropies_pot_w,
-        angles_pot_w,
-        seed,
-    ) = vars
-
-    params = parameters.Params(
-        shape=shape,
-        knots=knots,
-        trapezoid_angle=trapezoid_angle,
-        areas_pot_weight=areas_pot_w,
-        anisotropies_pot_weight=anisotropies_pot_w,
-        angles_pot_weight=angles_pot_w,
-        quiet=True,
-        seed=seed,
-    )
-    sim_states = shape_opt.run(params, short=True)
-
-    return sim_states
-
-
-def _worker(trial_vars, output_dir):
+def _worker(params, output_dir):
     """Run a single trial and save results to a JSON file."""
-    shape, knots, tran, arpw, aspw, anpw, seed = trial_vars
     print(
-        f"Running with shape={shape}, "
-        f"knots={knots}, "
-        f"tran={tran}, "
-        f"arpw={arpw}, "
-        f"aspw={aspw}, "
-        f"anpw={anpw}, "
-        f"seed={seed}",
+        f"Running with shape={params.shape}, "
+        f"knots={params.knots}, "
+        f"tran={params.trapezoid_angle}, "
+        f"arpw={params.areas_pot_weight}, "
+        f"aspw={params.anisotropies_pot_weight}, "
+        f"anpw={params.angles_pot_weight}, "
+        f"seed={params.seed}",
     )
 
     file_path = output_dir / (
-        f"shape={shape}__"
-        f"knots={knots}__"
-        f"tran={parameters.format_float_to_str(tran)}__"
-        f"arpw={parameters.format_float_to_str(arpw)}__"
-        f"aspw={parameters.format_float_to_str(aspw)}__"
-        f"anpw={parameters.format_float_to_str(anpw)}__"
-        f"seed={seed}.json"
+        f"shape={params.shape}__"
+        f"knots={params.knots}__"
+        f"tran={parameters.format_float_to_str(params.trapezoid_angle)}__"
+        f"arpw={parameters.format_float_to_str(params.areas_pot_weight)}__"
+        f"aspw={parameters.format_float_to_str(params.anisotropies_pot_weight)}__"
+        f"anpw={parameters.format_float_to_str(params.angles_pot_weight)}__"
+        f"seed={params.seed}.json"
     )
     if file_path.exists():
         return None
 
-    sim_states = _simulate(trial_vars)
+    sim_states = shape_opt.run(params, short=True)
     best_state = shape_opt.get_best_state(sim_states)
     loss = best_state.loss
     valid = all(sim_states.valid)
 
     result = {
-        "shape": shape,
-        "knots": knots,
-        "trapezoid_angle": float(tran),
-        "areas_pot_weight": float(arpw),
-        "anisotropies_pot_weight": float(aspw),
-        "angles_pot_weight": float(anpw),
-        "seed": int(seed),
+        "shape": params.shape,
+        "knots": params.knots,
+        "trapezoid_angle": params.trapezoid_angle,
+        "areas_pot_weight": params.areas_pot_weight,
+        "anisotropies_pot_weight": params.anisotropies_pot_weight,
+        "angles_pot_weight": params.angles_pot_weight,
+        "seed": params.seed,
         "loss": loss,
         "valid": valid,
     }
@@ -127,22 +100,41 @@ def _individual_results_to_df(input_dir, output_path):
     df.write_parquet(output_path)
 
 
-def run(grid_variables, study_name, n_workers, paths):
-    grid_values = [
-        getattr(grid_variables, f.name) for f in fields(grid_variables)
-    ]
-    all_trials = list(product(*grid_values))
+def _grid_vars_to_param_combs(grid_vars):
+    grid_values = [getattr(grid_vars, f.name) for f in fields(grid_vars)]
+    all_value_combs = list(product(*grid_values))
 
+    all_param_combs = [
+        parameters.Params(
+            shape=shape,
+            knots=knots,
+            quiet=True,
+            trapezoid_angle=float(tran),
+            areas_pot_weight=float(arpw),
+            anisotropies_pot_weight=float(aspw),
+            angles_pot_weight=float(anpw),
+            seed=int(seed),
+        )
+        for shape, knots, tran, arpw, aspw, anpw, seed in all_value_combs
+    ]
+    return all_param_combs
+
+
+def run(grid_variables, study_name, n_workers, paths):
     grid_search_paths = GridSearchPaths(paths, study_name)
+    all_param_combs = _grid_vars_to_param_combs(grid_variables)
 
     inputs = [
-        (trial, grid_search_paths.individual_results_dir)
-        for trial in all_trials
+        (param_comb, grid_search_paths.individual_results_dir)
+        for param_comb in all_param_combs
     ]
 
     results = []
     with mp.Pool(processes=n_workers) as pool:
-        print(f"Running {len(all_trials)} trials with {n_workers} workers...")
+        print(
+            f"Running {len(all_param_combs)} trials with "
+            f"{n_workers} workers..."
+        )
         for result in pool.starmap(_worker, inputs):
             results.append(result)
 
