@@ -30,12 +30,12 @@ def _calc_inverse_anisotropies(anisotropies):
 
 
 def _calc_smoothing_stds(logits):
-    smoothing_stds = _calc_sigmoid(0.0, 10.0, logits)
+    smoothing_stds = _calc_sigmoid(0.0, 5.0, logits)
     return smoothing_stds
 
 
 def _calc_inverse_smoothing_stds(smoothing_stds):
-    logits = _calc_inverse_sigmoid(0.0, 10.0, smoothing_stds)
+    logits = _calc_inverse_sigmoid(0.0, 5.0, smoothing_stds)
     return logits
 
 
@@ -363,11 +363,11 @@ def _find_closest_polygon_by_knots(knots, tutte_centroids):
     return closest_inds
 
 
-def _calc_std_logits(knots):
+def _calc_init_std_logits(knots):
     knots_x_diff = knots.center_knots[0, 0] - knots.left_knots[-1, 0]
     knots_y_diff = knots.left_knots[-1, 1] - knots.left_knots[-2, 1]
 
-    init_smoothing_stds = jnp.array([knots_x_diff, knots_y_diff])
+    init_smoothing_stds = jnp.array([knots_x_diff, knots_y_diff]) / 2
     std_logits = _calc_inverse_smoothing_stds(init_smoothing_stds)
     return std_logits
 
@@ -415,7 +415,7 @@ def _get_knot_init_logits(
 
     ar_logits = jnp.concatenate(left_and_center_ar_logits)
     an_logits = jnp.concatenate(left_and_center_an_logits)
-    std_logits = _calc_std_logits(knots)
+    std_logits = _calc_init_std_logits(knots)
 
     init_logits = _Logits(
         ar_logits=ar_logits, an_logits=an_logits, std_logits=std_logits
