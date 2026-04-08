@@ -55,15 +55,7 @@ def _worker(params, output_dir):
         f"seed={params.seed}",
     )
 
-    file_path = output_dir / (
-        f"shape={params.shape}__"
-        f"knots={params.knots}__"
-        f"tran={parameters.format_float_to_str(params.trapezoid_angle)}__"
-        f"arpw={parameters.format_float_to_str(params.areas_pot_weight)}__"
-        f"aspw={parameters.format_float_to_str(params.anisotropies_pot_weight)}__"
-        f"anpw={parameters.format_float_to_str(params.angles_pot_weight)}__"
-        f"seed={params.seed}.json"
-    )
+    file_path = output_dir / f"{parameters.get_param_string(params)}.json"
     if file_path.exists():
         return None
 
