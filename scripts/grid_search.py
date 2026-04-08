@@ -18,11 +18,11 @@ def _parse_args():
         help="List of shapes.",
     )
     parser.add_argument("--knots", default=False, action="store_true")
-    parser.add_argument("--trans", nargs=3, required=True, type=float)
-    parser.add_argument("--arpws", nargs=3, required=True, type=float)
-    parser.add_argument("--aspws", nargs=3, required=True, type=float)
-    parser.add_argument("--anpws", nargs=3, required=True, type=float)
-    parser.add_argument("--seeds", nargs=3, required=True, type=int)
+    parser.add_argument("--trans", nargs=3, required=True)
+    parser.add_argument("--arpws", nargs=3, required=True)
+    parser.add_argument("--aspws", nargs=3, required=True)
+    parser.add_argument("--anpws", nargs=3, required=True)
+    parser.add_argument("--seeds", nargs=3, required=True)
     parser.add_argument(
         "--n",
         type=str,
@@ -51,31 +51,23 @@ class _GridVariables:
     seeds: NDArray[np.integer]
 
 
-def _parse_arange(values):
+def _parse_arange(values, dtype):
     """Convert CLI input into np.arange arguments."""
     if len(values) != 3:
         raise ValueError("Expected exactly 3 values: start stop step")
-    start, stop, step = map(float, values)
+    start, stop, step = map(dtype, values)
     return np.arange(start, stop, step)
-
-
-def _parse_int_arange(values):
-    """Convert CLI input into np.arange arguments of type int."""
-    if len(values) != 3:
-        raise ValueError("Expected exactly 3 values: start stop step")
-    start, stop, step = map(float, values)
-    return np.arange(start, stop, step, dtype=int)
 
 
 def _main():
     args = _parse_args()
 
     knots = [args.knots]
-    trapezoid_angles = _parse_arange(args.trans)
-    areas_pot_ws = _parse_arange(args.arpws)
-    anisotropies_pot_ws = _parse_arange(args.aspws)
-    angles_pot_ws = _parse_arange(args.anpws)
-    seeds = _parse_int_arange(args.seeds)
+    trapezoid_angles = _parse_arange(args.trans, dtype=float)
+    areas_pot_ws = _parse_arange(args.arpws, dtype=float)
+    anisotropies_pot_ws = _parse_arange(args.aspws, dtype=float)
+    angles_pot_ws = _parse_arange(args.anpws, dtype=float)
+    seeds = _parse_arange(args.seeds, dtype=int)
 
     grid_variables = _GridVariables(
         shapes=args.shapes,
