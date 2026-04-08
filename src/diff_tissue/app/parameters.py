@@ -168,6 +168,12 @@ def format_float_to_str(float_):
     return float_str.replace(".", "p")
 
 
+def format_str_to_float(str_):
+    if str_[0] == "m":
+        str_ = f"-{str_[1:]}"
+    return float(str_.replace("p", "."))
+
+
 class _ParamStringFormatter:
     def __init__(self, params: Params):
         self._params = params
