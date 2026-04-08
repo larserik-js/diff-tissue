@@ -14,15 +14,15 @@ def _parse_args():
     parser.add_argument(
         "--shapes",
         nargs="+",
-        default=["petal", "trapezoid", "nconv"],
+        default=["trapezoid"],
         help="List of shapes.",
     )
     parser.add_argument("--knots", default=False, action="store_true")
-    parser.add_argument("--trans", nargs=3, required=True)
-    parser.add_argument("--arpws", nargs=3, required=True)
-    parser.add_argument("--aspws", nargs=3, required=True)
-    parser.add_argument("--anpws", nargs=3, required=True)
-    parser.add_argument("--seeds", nargs=3, required=True)
+    parser.add_argument("--trans", nargs=3, default=[80.0, 90.0, 10.0])
+    parser.add_argument("--arpws", nargs=3, default=[100.0, 150.0, 50.0])
+    parser.add_argument("--aspws", nargs=3, default=[100.0, 150.0, 50.0])
+    parser.add_argument("--anpws", nargs=3, default=[100.0, 150.0, 50.0])
+    parser.add_argument("--seeds", nargs=3, default=[0, 1, 1])
     parser.add_argument(
         "--n",
         type=str,
