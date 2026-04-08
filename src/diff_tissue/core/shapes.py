@@ -324,6 +324,12 @@ def get_target_boundary(params, polygons):
     match shape:
         case "trapezoid":
             shape = IsoTrapezoid(polygons, angle=params.trapezoid_angle)
+        case "narrow_trapezoid":
+            shape = IsoTrapezoid(polygons, angle=100.0)
+        case "wide_trapezoid":
+            shape = IsoTrapezoid(polygons, angle=80.0)
+        case "square":
+            shape = IsoTrapezoid(polygons, angle=90.0)
         case "petal":
             shape = _ShortPetal(polygons)
         case "long_petal":

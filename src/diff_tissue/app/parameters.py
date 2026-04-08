@@ -24,6 +24,9 @@ class Params:
             "help": "Shape of target boundary.",
             "choices": [
                 "trapezoid",
+                "narrow_trapezoid",
+                "wide_trapezoid",
+                "square",
                 "petal",
                 "long_petal",
                 "nconv",
