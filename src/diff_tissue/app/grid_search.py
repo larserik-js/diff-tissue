@@ -46,7 +46,9 @@ class GridSearchPaths(config.ProjectPaths):
 def _worker(params, output_dir):
     """Run a single trial and save results to a JSON file."""
     print(
-        f"Running with shape={params.shape}, "
+        f"Running with "
+        f"system={params.system}, "
+        f"shape={params.shape}, "
         f"knots={params.knots}, "
         f"tran={params.trapezoid_angle}, "
         f"arpw={params.areas_pot_weight}, "
