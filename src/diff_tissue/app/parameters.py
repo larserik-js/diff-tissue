@@ -106,7 +106,7 @@ class Params:
         pytree_node=False,
         metadata={
             "help": ("Polygon identity configuration."),
-            "choices": [0, 1],
+            "choices": [0, 1, 2],
             "cli_flag": "id",
         },
     )
