@@ -1,180 +1,163 @@
-from collections import defaultdict
 from dataclasses import fields
 from itertools import product
 import json
 import multiprocessing as mp
-import re
 
 from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
+import polars as pl
 
-from . import parameters
+from . import config, io_utils, parameters
 from ..core import shape_opt
 
 
-def _simulate(vars):
-    (
-        shape,
-        trapezoid_angle,
-        areas_pot_w,
-        anisotropies_pot_w,
-        angles_pot_w,
-        seed,
-    ) = vars
+class GridSearchPaths(config.ProjectPaths):
+    def __init__(self, base_paths, study_name):
+        super().__init__(
+            data_base_dir=base_paths.data_base_dir,
+            outputs_base_dir=base_paths.outputs_base_dir,
+        )
+        self.study_name = study_name
 
-    params = parameters.Params(
-        shape=shape,
-        trapezoid_angle=trapezoid_angle,
-        areas_pot_weight=areas_pot_w,
-        anisotropies_pot_weight=anisotropies_pot_w,
-        angles_pot_weight=angles_pot_w,
-        quiet=True,
-        seed=seed,
-    )
-    sim_states = shape_opt.run(params, short=True)
+    @property
+    def individual_results_dir(self):
+        return self.make_subdir(
+            self.interim_data_dir / "grid_search" / self.study_name
+        )
 
-    return sim_states
+    @property
+    def tabular_results_dir(self):
+        return self.make_subdir(
+            self.processed_data_dir / "grid_search" / self.study_name
+        )
+
+    @property
+    def tabular_results_path(self):
+        return self.tabular_results_dir / "results.parquet"
+
+    @property
+    def figures_dir(self):
+        return self.make_subdir(
+            self.outputs_base_dir / "grid_search" / self.study_name
+        )
 
 
-def _format_float_to_str(float_):
-    rounded_float = round(float_, 8)
-    float_str = str(rounded_float)
-    if float_str[0] == "-":
-        float_str = f"m{float_str[1:]}"
-    return float_str.replace(".", "p")
-
-
-def _worker(trial_vars, output_dir):
+def _worker(params, output_dir):
     """Run a single trial and save results to a JSON file."""
-    shape, tran, arpw, aspw, anpw, seed = trial_vars
     print(
-        f"Running with shape={shape}, "
-        f"tran={tran}, "
-        f"arpw={arpw}, "
-        f"aspw={aspw}, "
-        f"anpw={anpw}, "
-        f"seed={seed}",
+        f"Running with shape={params.shape}, "
+        f"knots={params.knots}, "
+        f"tran={params.trapezoid_angle}, "
+        f"arpw={params.areas_pot_weight}, "
+        f"aspw={params.anisotropies_pot_weight}, "
+        f"anpw={params.angles_pot_weight}, "
+        f"seed={params.seed}",
     )
 
-    file_path = output_dir / (
-        f"shape={shape}__"
-        f"tran={_format_float_to_str(tran)}__"
-        f"arpw={_format_float_to_str(arpw)}__"
-        f"aspw={_format_float_to_str(aspw)}__"
-        f"anpw={_format_float_to_str(anpw)}__"
-        f"seed={seed}.json"
-    )
+    file_path = output_dir / f"{parameters.get_param_string(params)}.json"
     if file_path.exists():
         return None
 
-    sim_states = _simulate(trial_vars)
+    sim_states = shape_opt.run(params, short=True)
     best_state = shape_opt.get_best_state(sim_states)
     loss = best_state.loss
     valid = all(sim_states.valid)
 
     result = {
-        "shape": shape,
-        "trapezoid_angle": float(tran),
-        "areas_pot_weight": float(arpw),
-        "anisotropies_pot_weight": float(aspw),
-        "angles_pot_weight": float(anpw),
-        "seed": int(seed),
+        "shape": params.shape,
+        "knots": params.knots,
+        "trapezoid_angle": params.trapezoid_angle,
+        "areas_pot_weight": params.areas_pot_weight,
+        "anisotropies_pot_weight": params.anisotropies_pot_weight,
+        "angles_pot_weight": params.angles_pot_weight,
+        "seed": params.seed,
         "loss": loss,
         "valid": valid,
     }
 
-    with open(file_path, "w") as f:
-        json.dump(result, f)
+    io_utils.save_json(file_path, result)
 
     return result
 
 
-def run(grid_variables, study_name, n_workers, paths):
-    grid_values = [
-        getattr(grid_variables, f.name) for f in fields(grid_variables)
+def _individual_results_to_df(input_dir, output_path):
+    rows = []
+
+    for file in input_dir.glob("*.json"):
+        with open(file) as f:
+            rows.append(json.load(f))
+
+    df = pl.DataFrame(rows)
+    df.write_parquet(output_path)
+
+
+def _grid_vars_to_param_combs(grid_vars):
+    grid_values = [getattr(grid_vars, f.name) for f in fields(grid_vars)]
+    all_value_combs = list(product(*grid_values))
+
+    all_param_combs = [
+        parameters.Params(
+            shape=shape,
+            knots=knots,
+            quiet=True,
+            trapezoid_angle=float(tran),
+            areas_pot_weight=float(arpw),
+            anisotropies_pot_weight=float(aspw),
+            angles_pot_weight=float(anpw),
+            seed=int(seed),
+        )
+        for shape, knots, tran, arpw, aspw, anpw, seed in all_value_combs
     ]
-    all_trials = list(product(*grid_values))
+    return all_param_combs
 
-    output_dir = paths.grid_search_data_dir(study_name)
 
-    inputs = [(trial, output_dir) for trial in all_trials]
+def run(grid_variables, study_name, n_workers, paths):
+    grid_search_paths = GridSearchPaths(paths, study_name)
+    all_param_combs = _grid_vars_to_param_combs(grid_variables)
+
+    inputs = [
+        (param_comb, grid_search_paths.individual_results_dir)
+        for param_comb in all_param_combs
+    ]
 
     results = []
     with mp.Pool(processes=n_workers) as pool:
+        print(
+            f"Running {len(all_param_combs)} trials with "
+            f"{n_workers} workers..."
+        )
         for result in pool.starmap(_worker, inputs):
             results.append(result)
-            completed = len(results)
-            print(
-                f"Completed {completed}/{len(all_trials)} trials\n",
-                flush=True,
-            )
 
     print("All trials completed.")
+    print("")
 
 
-def _find_unique_anpw_val_strs(all_files):
-    pattern = re.compile(r"anpw=(.*?)__")
-    all_anpw_val_strs = []
-
-    for file in all_files:
-        if file.is_file():
-            match = pattern.search(file.name)
-            if match:
-                anpw_str = match.group(1)
-                all_anpw_val_strs.append(anpw_str)
-    return list(set(all_anpw_val_strs))
+def _transform_df(df):
+    df = df.with_columns(
+        pl.col("angles_pot_weight")
+        .map_elements(parameters.format_float_to_str)
+        .alias("angles_pot_weight")
+    )
+    return df
 
 
-def _get_plotting_data(unique_anpw_val_strs, input_dir):
-    data_by_anpw = dict()
+def _get_plotting_data(df):
+    group_cols = ["angles_pot_weight", "shape"]
+    value_cols = value_cols = [c for c in df.columns if c not in group_cols]
+    result = df.group_by(group_cols).agg(
+        pl.struct(value_cols).alias("row_dicts")
+    )
 
-    for anpw_str in unique_anpw_val_strs:
-        target_str = f"anpw={anpw_str}"
-        files = [p for p in input_dir.iterdir() if target_str in p.name]
+    data_by_anpw: dict[str, dict] = dict()
 
-        plotting_data = defaultdict(list)
-        for json_path in files:
-            try:
-                with json_path.open("r", encoding="utf-8") as f:
-                    data = json.load(f)
-            except json.JSONDecodeError:
-                print(f"Error decoding JSON from {json_path}")
-                continue
+    for row in result.iter_rows(named=True):
+        angle = row["angles_pot_weight"]
+        shape = row["shape"]
+        dict_list = [dict(d) for d in row["row_dicts"]]
 
-            shape = data["shape"]
-
-            if shape == "trapezoid":
-                if np.isclose(data["trapezoid_angle"], 100.0):
-                    continue
-                elif np.isclose(data["trapezoid_angle"], 80.0):
-                    plotting_shape = "wide_trapezoid"
-                elif np.isclose(data["trapezoid_angle"], 90.0):
-                    plotting_shape = "square"
-                else:
-                    raise ValueError(
-                        f"Unexpected trapezoid angle: {data['trapezoid_angle']}"
-                    )
-            elif shape == "petal":
-                plotting_shape = "petal"
-            elif shape == "nconv":
-                plotting_shape = "nconv"
-            else:
-                raise ValueError(f"Unexpected shape: {shape}")
-
-            strict_valid = data["valid"] and data["loss"] < 1.0
-
-            plotting_data[plotting_shape].append(
-                (
-                    data["trapezoid_angle"],
-                    data["areas_pot_weight"],
-                    data["anisotropies_pot_weight"],
-                    data["loss"],
-                    strict_valid,
-                )
-            )
-
-        data_by_anpw[anpw_str] = plotting_data
+        data_by_anpw.setdefault(angle, {})[shape] = dict_list
 
     return data_by_anpw
 
@@ -183,9 +166,9 @@ def _calc_global_loss_bounds(data_by_anpw):
     all_losses = []
     for plotting_data in data_by_anpw.values():
         for shape_data in plotting_data.values():
-            for tup in shape_data:
-                if tup[4]:  # Only consider valid runs for loss bounds
-                    all_losses.append(tup[3])
+            for dict_ in shape_data:
+                if dict_["valid"]:  # Only consider valid runs for loss bounds
+                    all_losses.append(dict_["loss"])
     return (0.0, max(all_losses))
 
 
@@ -201,9 +184,9 @@ def _find_ax_limits(data_by_anpw):
 
     for plotting_data in data_by_anpw.values():
         for shape_data in plotting_data.values():
-            for tup in shape_data:
-                all_arpw_vals.append(tup[1])
-                all_aspw_vals.append(tup[2])
+            for dict_ in shape_data:
+                all_arpw_vals.append(dict_["areas_pot_weight"])
+                all_aspw_vals.append(dict_["anisotropies_pot_weight"])
 
     arpw_min, arpw_max = min(all_arpw_vals), max(all_arpw_vals)
     aspw_min, aspw_max = min(all_aspw_vals), max(all_aspw_vals)
@@ -215,13 +198,27 @@ def _find_ax_limits(data_by_anpw):
     )
 
 
+def _get_df(grid_search_paths):
+    df_file = grid_search_paths.tabular_results_path
+    if not df_file.exists():
+        print("Converting individual JSON results to Parquet...")
+        _individual_results_to_df(
+            grid_search_paths.individual_results_dir,
+            grid_search_paths.tabular_results_path,
+        )
+        print("Conversion completed.")
+    df = pl.read_parquet(df_file)
+    return df
+
+
 def plot(study_name, paths):
-    input_dir = paths.grid_search_data_dir(study_name)
+    grid_search_paths = GridSearchPaths(paths, study_name)
 
-    all_files = input_dir.glob("*")
-    unique_anpw_val_strs = _find_unique_anpw_val_strs(all_files)
+    df = _get_df(grid_search_paths)
 
-    data_by_anpw = _get_plotting_data(unique_anpw_val_strs, input_dir)
+    df = _transform_df(df)
+
+    data_by_anpw = _get_plotting_data(df)
 
     cmap_name = "RdYlGn_r"
 
@@ -232,8 +229,6 @@ def plot(study_name, paths):
         "nconv",
     ]
     n_plots = len(ordered_shapes)
-
-    output_dir = paths.grid_search_figs_dir(study_name)
 
     global_loss_bounds = _calc_global_loss_bounds(data_by_anpw)
     normalize_loss = colors.Normalize(
@@ -248,16 +243,23 @@ def plot(study_name, paths):
         fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True)
 
         for k, shape in enumerate(ordered_shapes):
-            data_list_of_tuples = plotting_data.get(shape)
-            if data_list_of_tuples is None:
+            data_list_of_dicts = plotting_data.get(shape)
+            if data_list_of_dicts is None:
                 continue
             i, j = divmod(k, n_cols)
             ax = axs[i, j]
-            arpw_vals = np.array([tup[1] for tup in data_list_of_tuples])
-            aspw_vals = np.array([tup[2] for tup in data_list_of_tuples])
-            losses = np.array([tup[3] for tup in data_list_of_tuples])
+            arpw_vals = np.array(
+                [dict_["areas_pot_weight"] for dict_ in data_list_of_dicts]
+            )
+            aspw_vals = np.array(
+                [
+                    dict_["anisotropies_pot_weight"]
+                    for dict_ in data_list_of_dicts
+                ]
+            )
+            losses = np.array([dict_["loss"] for dict_ in data_list_of_dicts])
 
-            valid = np.array([tup[4] for tup in data_list_of_tuples])
+            valid = np.array([dict_["valid"] for dict_ in data_list_of_dicts])
             valid_losses = losses[valid]
 
             if len(valid_losses) > 0:
@@ -272,7 +274,7 @@ def plot(study_name, paths):
                 _add_colorbar(ax, normalize_loss, cmap_name)
 
             ax.scatter(
-                arpw_vals[~valid], aspw_vals[~valid], s=3.0, marker="x", c="k"
+                arpw_vals[~valid], aspw_vals[~valid], s=1.0, marker="x", c="k"
             )
             ax.set_xlim(ax_lims[0])
             ax.set_ylim(ax_lims[1])
@@ -287,6 +289,6 @@ def plot(study_name, paths):
             else:
                 ax.set_yticklabels([])
 
-        fig_path = output_dir / f"anpw={anpw_str}.pdf"
-        fig.savefig(fig_path)
+        fig_path = grid_search_paths.figures_dir / f"anpw={anpw_str}.pdf"
+        io_utils.save_pdf(fig_path, fig)
         plt.close(fig)

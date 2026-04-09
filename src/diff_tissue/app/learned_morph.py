@@ -44,11 +44,10 @@ def _assign_weighted_goals(old_polygons, goals, new_polygons):
 def plot(results, output_dir):
     figure = plotting.MorphFigure(results.new_params)
     for t, vertices in enumerate(results.morph_evolution):
-        if t % 10 == 0:
+        if t % 10 == 0 or t == len(results.morph_evolution) - 1:
+            figure.update(vertices)
             fig_path = output_dir / f"step={t:03d}.png"
-            figure.save_plot(vertices, fig_path)
-    fig_path = output_dir / f"step={t:03d}.png"
-    figure.save_plot(vertices, fig_path)
+            io_utils.save_pdf(fig_path, figure.fig, dpi=100)
 
 
 @dataclass

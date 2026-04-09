@@ -1,21 +1,27 @@
+from ..core import morphing as morphing_core
 from ..core import shape_opt as shape_opt_core
-from . import io_utils, morphing, parameters, plotting
+from . import config, io_utils, parameters, plotting
 
 
-OUTPUT_TYPE_DIR = "shape_opt"
-FINAL_TISSUES_DIR = "final_tissues"
-BEST_MORPH_DIR = "best_morph"
+class ShapeOptPaths(config.ProjectPaths):
+    def __init__(self, base_paths):
+        super().__init__(
+            data_base_dir=base_paths.data_base_dir,
+            outputs_base_dir=base_paths.outputs_base_dir,
+        )
+        self.final_tissues_dir = self.outputs_base_dir / "final_tissues"
+        self.best_morph_data_dir = self.processed_data_dir / "best_morph"
+        self.best_morph_figs_dir = self.outputs_base_dir / "best_morph"
 
 
 def plot_final_tissues(final_tissues, params, output_dir):
     figure = plotting.MorphFigure(params)
 
     for t, vertices in enumerate(final_tissues):
-        if t % 10 == 0:
+        if t % 10 == 0 or t == len(final_tissues) - 1:
+            figure.update(vertices, enumerate=True)
             fig_path = output_dir / f"step={t:03d}.png"
-            figure.save_plot(vertices, fig_path, enumerate=True)
-    fig_path = output_dir / f"step={t:03d}.png"
-    figure.save_plot(vertices, fig_path, enumerate=True)
+            io_utils.save_pdf(fig_path, figure.fig, dpi=100)
 
 
 def get_sim_states(params, paths):
@@ -37,7 +43,7 @@ def get_best_morph_evolution(
     if data_path.exists():
         best_morph_evolution = io_utils.load_pkl(data_path)
     else:
-        best_morph_evolution = morphing.jiterate(
+        best_morph_evolution = morphing_core.iterate(
             best_goal_areas,
             best_goal_anisotropies,
             params.n_morph_steps,
@@ -53,8 +59,7 @@ def plot_best_morph(morph_evolution, params, output_dir):
     figure = plotting.MorphGrowthFigure(params)
 
     for t, vertices in enumerate(morph_evolution):
-        if t % 10 == 0:
+        if t % 10 == 0 or t == len(morph_evolution) - 1:
+            figure.update(vertices, t)
             fig_path = output_dir / f"step={t:03d}.png"
-            figure.save_plot(vertices, t, fig_path)
-    fig_path = output_dir / f"step={t:03d}.png"
-    figure.save_plot(vertices, t, fig_path)
+            io_utils.save_pdf(fig_path, figure.fig, dpi=100)

@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ..core import init_systems, metrics
-from . import parameters
+from . import io_utils, parameters
 
 
 OUTPUT_TYPE_DIR = "tutte"
@@ -59,7 +59,7 @@ def _plot_mapping(
     ax.set_title("Vector Field: Initial → Tutte")
 
     fig.tight_layout()
-    fig.savefig(output_path)
+    io_utils.save_pdf(output_path, fig)
 
 
 def plot(params, output_dir):

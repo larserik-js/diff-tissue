@@ -113,12 +113,6 @@ class _PotentialWeights:
 
 def _get_potential_weights(params):
     match params.system:
-        case "few":
-            potential_weights = _PotentialWeights(
-                areas=params.areas_pot_weight,
-                angles=params.angles_pot_weight,
-                anisotropies=params.anisotropies_pot_weight,
-            )
         case "many":
             # TODO: Tune these weights.
             potential_weights = _PotentialWeights(
@@ -127,9 +121,10 @@ def _get_potential_weights(params):
                 anisotropies=params.anisotropies_pot_weight,  # Best: ?
             )
         case _:
-            raise NotImplementedError(
-                "Potential weights not implemented for system: "
-                f"{params.system}"
+            potential_weights = _PotentialWeights(
+                areas=params.areas_pot_weight,
+                angles=params.angles_pot_weight,
+                anisotropies=params.anisotropies_pot_weight,
             )
     return potential_weights
 

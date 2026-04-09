@@ -30,12 +30,12 @@ def _calc_inverse_anisotropies(anisotropies):
 
 
 def _calc_smoothing_stds(logits):
-    smoothing_stds = _calc_sigmoid(0.0, 10.0, logits)
+    smoothing_stds = _calc_sigmoid(0.0, 5.0, logits)
     return smoothing_stds
 
 
 def _calc_inverse_smoothing_stds(smoothing_stds):
-    logits = _calc_inverse_sigmoid(0.0, 10.0, smoothing_stds)
+    logits = _calc_inverse_sigmoid(0.0, 5.0, smoothing_stds)
     return logits
 
 
@@ -363,11 +363,11 @@ def _find_closest_polygon_by_knots(knots, tutte_centroids):
     return closest_inds
 
 
-def _calc_std_logits(knots):
+def _calc_init_std_logits(knots):
     knots_x_diff = knots.center_knots[0, 0] - knots.left_knots[-1, 0]
     knots_y_diff = knots.left_knots[-1, 1] - knots.left_knots[-2, 1]
 
-    init_smoothing_stds = jnp.array([knots_x_diff, knots_y_diff])
+    init_smoothing_stds = jnp.array([knots_x_diff, knots_y_diff]) / 2
     std_logits = _calc_inverse_smoothing_stds(init_smoothing_stds)
     return std_logits
 
@@ -415,7 +415,7 @@ def _get_knot_init_logits(
 
     ar_logits = jnp.concatenate(left_and_center_ar_logits)
     an_logits = jnp.concatenate(left_and_center_an_logits)
-    std_logits = _calc_std_logits(knots)
+    std_logits = _calc_init_std_logits(knots)
 
     init_logits = _Logits(
         ar_logits=ar_logits, an_logits=an_logits, std_logits=std_logits
@@ -442,9 +442,9 @@ def _get_init_logits(goal_area_bounds, knots, tutte_metrics, params):
 
 
 class _MyOptimizer:
-    def __init__(self, init_logits):
+    def __init__(self, init_logits, init_lr):
         self._lr_schedule = optax.cosine_decay_schedule(
-            init_value=0.02, decay_steps=500, alpha=1e-5
+            init_value=init_lr, decay_steps=200, alpha=1e-5
         )
         self._optimizer = optax.chain(
             optax.clip_by_global_norm(1.0),
@@ -531,7 +531,7 @@ def _iterate_towards_shape(
 
     min_dist_mask = _make_min_dist_mask(polygons, target_boundary)
 
-    optimizer = _MyOptimizer(logits)
+    optimizer = _MyOptimizer(logits, params.init_lr)
 
     poly_metrics = metrics.initialize_poly_metrics(
         vertices=vertices,
@@ -546,7 +546,8 @@ def _iterate_towards_shape(
     best_loss = jnp.inf
     steps_since_best_loss = 0
 
-    for shape_step in range(params.n_shape_steps):
+    shape_step = 0
+    while True:
         (loss, aux_data), grads = loss_fn(
             logits,
             knot_ctx,
@@ -596,13 +597,14 @@ def _iterate_towards_shape(
         else:
             steps_since_best_loss += 1
 
-        if steps_since_best_loss >= 50 and best_loss != jnp.inf:
+        if steps_since_best_loss >= 50:
             if not params.quiet:
                 print("(Stopped - iteration diverged.)")
                 print("")
             break
         else:
             logits = optimizer.update(logits, grads)
+            shape_step += 1
 
     return sim_states
 
