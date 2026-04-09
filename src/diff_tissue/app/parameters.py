@@ -111,7 +111,7 @@ class Params:
         },
     )
     poly_id_loss_weight: float = struct.field(
-        default=0.4,
+        default=0.5,
         pytree_node=True,
         metadata={"help": "Poly identity loss weight.", "cli_flag": "ilw"},
     )
