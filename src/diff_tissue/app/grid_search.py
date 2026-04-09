@@ -228,6 +228,7 @@ def plot(study_name, paths):
 
     ordered_shapes = [
         "wide_trapezoid",
+        "narrow_trapezoid",
         "square",
         "petal",
         "nconv",
@@ -272,6 +273,7 @@ def plot(study_name, paths):
                     aspw_vals[valid],
                     c=valid_losses,
                     cmap=cmap_name,
+                    norm=normalize_loss,
                     s=10.0,
                     marker="s",
                 )
