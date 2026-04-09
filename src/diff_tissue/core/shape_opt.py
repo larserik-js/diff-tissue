@@ -229,44 +229,6 @@ def _calc_shape_loss(
     return shape_loss
 
 
-def _calc_area_id_loss(poly_metrics, poly_ids):
-    proximal_areas = poly_metrics.areas[poly_ids.proximal_inds]
-    distal_areas = poly_metrics.areas[poly_ids.distal_inds]
-
-    proximal_to_distal_scale = 1.75  # From paper
-
-    proximal_loss = jnp.square(
-        jnp.mean(proximal_areas)
-        - proximal_to_distal_scale * jnp.mean(distal_areas)
-    )
-    distal_loss = jnp.square(
-        jnp.mean(distal_areas)
-        - (1.0 / proximal_to_distal_scale) * jnp.mean(proximal_areas)
-    )
-
-    area_loss = proximal_loss + distal_loss
-
-    return area_loss
-
-
-def _calc_anisotropy_id_loss(poly_metrics, poly_ids):
-    proximal_anisotropies = poly_metrics.anisotropies[poly_ids.proximal_inds]
-    anisotropy_loss = jnp.mean(jnp.square(proximal_anisotropies - 1.0))
-    return anisotropy_loss
-
-
-def _calc_poly_id_loss(poly_ids, poly_metrics):
-    if poly_ids is None:
-        poly_id_loss = 0.0
-    else:
-        area_loss = _calc_area_id_loss(poly_metrics, poly_ids)
-        anisotropy_loss = _calc_anisotropy_id_loss(poly_metrics, poly_ids)
-
-        poly_id_loss = 0.1 * area_loss + anisotropy_loss
-
-    return poly_id_loss
-
-
 def _loss_fn(
     logits,
     knot_ctx,
@@ -306,8 +268,11 @@ def _loss_fn(
         min_dist_mask,
     )
 
-    poly_id_loss = params.poly_id_loss_weight * _calc_poly_id_loss(
-        poly_ids, poly_metrics
+    poly_id_loss = (
+        params.poly_id_loss_weight
+        * poly_identities.calc_poly_id_loss(
+            params.poly_id_cfg, poly_ids, poly_metrics
+        )
     )
 
     loss = shape_loss + poly_id_loss

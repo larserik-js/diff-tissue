@@ -33,6 +33,48 @@ class _PolyIdentities:
         return distal_inds
 
 
+def _calc_area_id_loss(poly_ids, poly_metrics):
+    proximal_areas = poly_metrics.areas[poly_ids.proximal_inds]
+    distal_areas = poly_metrics.areas[poly_ids.distal_inds]
+
+    proximal_to_distal_scale = 1.75  # From paper
+
+    proximal_loss = jnp.square(
+        jnp.mean(proximal_areas)
+        - proximal_to_distal_scale * jnp.mean(distal_areas)
+    )
+    distal_loss = jnp.square(
+        jnp.mean(distal_areas)
+        - (1.0 / proximal_to_distal_scale) * jnp.mean(proximal_areas)
+    )
+
+    area_loss = proximal_loss + distal_loss
+
+    return area_loss
+
+
+def _calc_anisotropy_id_loss(poly_ids, poly_metrics):
+    proximal_anisotropies = poly_metrics.anisotropies[poly_ids.proximal_inds]
+    anisotropy_loss = jnp.mean(jnp.square(proximal_anisotropies - 1.0))
+    return anisotropy_loss
+
+
+def _calc_prox_dist_loss(poly_ids, poly_metrics):
+    area_loss = _calc_area_id_loss(poly_ids, poly_metrics)
+    anisotropy_loss = _calc_anisotropy_id_loss(poly_ids, poly_metrics)
+
+    poly_id_loss = 0.1 * area_loss + anisotropy_loss
+    return poly_id_loss
+
+
+def calc_poly_id_loss(id, poly_ids, poly_metrics):
+    if id == 0:
+        poly_id_loss = 0.0
+    elif id == 1:
+        poly_id_loss = _calc_prox_dist_loss(poly_ids, poly_metrics)
+    return poly_id_loss
+
+
 @struct.dataclass
 class _JaxPolyIdentities:
     proximal_inds: jnp.ndarray
@@ -40,9 +82,9 @@ class _JaxPolyIdentities:
 
 
 def get_poly_identities(params):
-    if params.poly_id_configuration == 0:
+    if params.poly_id_cfg == 0:
         return None
-    elif params.poly_id_configuration == 1:
+    elif params.poly_id_cfg == 1:
         polygons = init_systems.get_system(params)
         init_centroids = metrics.calc_centroids(
             polygons.init_vertices, polygons.indices, polygons.valid_mask

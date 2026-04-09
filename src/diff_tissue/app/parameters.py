@@ -101,7 +101,7 @@ class Params:
         pytree_node=True,
         metadata={"help": "Shape loss weight.", "cli_flag": "slw"},
     )
-    poly_id_configuration: int = struct.field(
+    poly_id_cfg: int = struct.field(
         default=0,
         pytree_node=False,
         metadata={
