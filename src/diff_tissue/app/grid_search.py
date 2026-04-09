@@ -134,33 +134,7 @@ def run(grid_variables, study_name, n_workers, paths):
     print("")
 
 
-def _shape_to_plotting_shape(trapezoid_angle, shape):
-    if shape == "trapezoid":
-        if np.isclose(trapezoid_angle, 80.0):
-            plotting_shape = "wide_trapezoid"
-        elif np.isclose(trapezoid_angle, 90.0):
-            plotting_shape = "square"
-        elif np.isclose(trapezoid_angle, 100.0):
-            plotting_shape = "narrow_trapezoid"
-        else:
-            raise ValueError(f"Unexpected trapezoid angle: {trapezoid_angle}")
-    else:
-        plotting_shape = shape
-    return plotting_shape
-
-
 def _transform_df(df):
-    df = df.with_columns(
-        pl.struct(["trapezoid_angle", "shape"])
-        .map_elements(
-            lambda x: _shape_to_plotting_shape(
-                x["trapezoid_angle"], x["shape"]
-            ),
-            return_dtype=pl.Utf8,
-        )
-        .alias("plotting_shape")
-    )
-    df = df.drop("shape")
     df = df.with_columns(
         pl.col("angles_pot_weight")
         .map_elements(parameters.format_float_to_str)
@@ -170,7 +144,7 @@ def _transform_df(df):
 
 
 def _get_plotting_data(df):
-    group_cols = ["angles_pot_weight", "plotting_shape"]
+    group_cols = ["angles_pot_weight", "shape"]
     value_cols = value_cols = [c for c in df.columns if c not in group_cols]
     result = df.group_by(group_cols).agg(
         pl.struct(value_cols).alias("row_dicts")
@@ -180,7 +154,7 @@ def _get_plotting_data(df):
 
     for row in result.iter_rows(named=True):
         angle = row["angles_pot_weight"]
-        shape = row["plotting_shape"]
+        shape = row["shape"]
         dict_list = [dict(d) for d in row["row_dicts"]]
 
         data_by_anpw.setdefault(angle, {})[shape] = dict_list
