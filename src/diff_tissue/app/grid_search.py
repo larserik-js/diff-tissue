@@ -65,6 +65,7 @@ def _worker(params, output_dir):
     valid = all(sim_states.valid)
 
     result = {
+        "system": params.system,
         "shape": params.shape,
         "knots": params.knots,
         "trapezoid_angle": params.trapezoid_angle,
@@ -98,6 +99,7 @@ def _grid_vars_to_param_combs(grid_vars):
 
     all_param_combs = [
         parameters.Params(
+            system=system,
             shape=shape,
             knots=knots,
             quiet=True,
@@ -107,7 +109,7 @@ def _grid_vars_to_param_combs(grid_vars):
             angles_pot_weight=float(anpw),
             seed=int(seed),
         )
-        for shape, knots, tran, arpw, aspw, anpw, seed in all_value_combs
+        for system, shape, knots, tran, arpw, aspw, anpw, seed in all_value_combs
     ]
     return all_param_combs
 
