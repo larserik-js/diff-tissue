@@ -101,17 +101,17 @@ class Params:
         pytree_node=True,
         metadata={"help": "Shape loss weight.", "cli_flag": "slw"},
     )
-    poly_id_configuration: int = struct.field(
+    poly_id_cfg: int = struct.field(
         default=0,
         pytree_node=False,
         metadata={
             "help": ("Polygon identity configuration."),
-            "choices": [0, 1],
+            "choices": [0, 1, 2],
             "cli_flag": "id",
         },
     )
     poly_id_loss_weight: float = struct.field(
-        default=0.4,
+        default=0.5,
         pytree_node=True,
         metadata={"help": "Poly identity loss weight.", "cli_flag": "ilw"},
     )

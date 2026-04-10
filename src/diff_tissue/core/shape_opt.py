@@ -229,57 +229,6 @@ def _calc_shape_loss(
     return shape_loss
 
 
-def _calc_area_id_loss(poly_metrics, poly_ids):
-    proximal_areas = poly_metrics.areas[poly_ids.proximal_inds]
-    distal_areas = poly_metrics.areas[poly_ids.distal_inds]
-
-    proximal_to_distal_scale = 2.0
-
-    target_area = proximal_to_distal_scale * jnp.mean(distal_areas)
-    proximal_loss = jnp.mean(jnp.square(proximal_areas - target_area))
-
-    target_area = jnp.mean(proximal_areas) / proximal_to_distal_scale
-    distal_loss = jnp.mean(jnp.square(distal_areas - target_area))
-
-    area_loss = proximal_loss + distal_loss
-
-    return area_loss
-
-
-def _calc_anisotropy_id_loss(poly_metrics, poly_ids):
-    proximal_anisotropies = poly_metrics.anisotropies[poly_ids.proximal_inds]
-    distal_anisotropies = poly_metrics.anisotropies[poly_ids.distal_inds]
-
-    # Interpolation between the distal mean and the right limit (1.0)
-    t = 1.0
-    target_anisotropy = (1.0 - t) * jnp.mean(distal_anisotropies) + t * 1.0
-
-    proximal_loss = jnp.mean(
-        jnp.square(proximal_anisotropies - target_anisotropy)
-    )
-
-    # Interpolation between the proximal mean and 0.0
-    t = 1.0
-    target_anisotropy = (1.0 - t) * jnp.mean(proximal_anisotropies)
-    distal_loss = jnp.mean(jnp.square(distal_anisotropies - target_anisotropy))
-
-    anisotropy_loss = proximal_loss + distal_loss
-
-    return anisotropy_loss
-
-
-def _calc_poly_id_loss(poly_ids, poly_metrics):
-    if poly_ids is None:
-        poly_id_loss = 0.0
-    else:
-        area_loss = _calc_area_id_loss(poly_metrics, poly_ids)
-        anisotropy_loss = _calc_anisotropy_id_loss(poly_metrics, poly_ids)
-
-        poly_id_loss = area_loss + anisotropy_loss
-
-    return poly_id_loss
-
-
 def _loss_fn(
     logits,
     knot_ctx,
@@ -319,8 +268,11 @@ def _loss_fn(
         min_dist_mask,
     )
 
-    poly_id_loss = params.poly_id_loss_weight * _calc_poly_id_loss(
-        poly_ids, poly_metrics
+    poly_id_loss = (
+        params.poly_id_loss_weight
+        * poly_identities.calc_poly_id_loss(
+            params.poly_id_cfg, poly_ids, poly_metrics
+        )
     )
 
     loss = shape_loss + poly_id_loss

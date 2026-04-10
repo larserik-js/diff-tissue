@@ -12,6 +12,12 @@ def _parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        "--systems",
+        nargs="+",
+        default=["few"],
+        help="List of shapes.",
+    )
+    parser.add_argument(
         "--shapes",
         nargs="+",
         default=["trapezoid"],
@@ -42,6 +48,7 @@ def _parse_args():
 
 @dataclass
 class _GridVariables:
+    systems: list[str]
     shapes: list[str]
     knots: list[bool]
     trapezoid_angles: NDArray[np.floating]
@@ -70,6 +77,7 @@ def _main():
     seeds = _parse_arange(args.seeds, dtype=int)
 
     grid_variables = _GridVariables(
+        systems=args.systems,
         shapes=args.shapes,
         knots=knots,
         trapezoid_angles=trapezoid_angles,

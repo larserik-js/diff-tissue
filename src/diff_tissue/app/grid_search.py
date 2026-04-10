@@ -46,7 +46,9 @@ class GridSearchPaths(config.ProjectPaths):
 def _worker(params, output_dir):
     """Run a single trial and save results to a JSON file."""
     print(
-        f"Running with shape={params.shape}, "
+        f"Running with "
+        f"system={params.system}, "
+        f"shape={params.shape}, "
         f"knots={params.knots}, "
         f"tran={params.trapezoid_angle}, "
         f"arpw={params.areas_pot_weight}, "
@@ -65,6 +67,7 @@ def _worker(params, output_dir):
     valid = all(sim_states.valid)
 
     result = {
+        "system": params.system,
         "shape": params.shape,
         "knots": params.knots,
         "trapezoid_angle": params.trapezoid_angle,
@@ -98,6 +101,7 @@ def _grid_vars_to_param_combs(grid_vars):
 
     all_param_combs = [
         parameters.Params(
+            system=system,
             shape=shape,
             knots=knots,
             quiet=True,
@@ -107,7 +111,7 @@ def _grid_vars_to_param_combs(grid_vars):
             angles_pot_weight=float(anpw),
             seed=int(seed),
         )
-        for shape, knots, tran, arpw, aspw, anpw, seed in all_value_combs
+        for system, shape, knots, tran, arpw, aspw, anpw, seed in all_value_combs
     ]
     return all_param_combs
 
@@ -224,6 +228,7 @@ def plot(study_name, paths):
 
     ordered_shapes = [
         "wide_trapezoid",
+        "narrow_trapezoid",
         "square",
         "petal",
         "nconv",
@@ -268,6 +273,7 @@ def plot(study_name, paths):
                     aspw_vals[valid],
                     c=valid_losses,
                     cmap=cmap_name,
+                    norm=normalize_loss,
                     s=10.0,
                     marker="s",
                 )
