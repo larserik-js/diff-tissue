@@ -110,7 +110,7 @@ def _calc_mid_outer_anisotropy_loss(poly_ids, poly_metrics):
 def _calc_mid_outer_loss(poly_ids, poly_metrics):
     anisotropy_loss = _calc_mid_outer_anisotropy_loss(poly_ids, poly_metrics)
 
-    poly_id_loss = 10.0 * anisotropy_loss
+    poly_id_loss = 25.0 * anisotropy_loss
     return poly_id_loss
 
 
