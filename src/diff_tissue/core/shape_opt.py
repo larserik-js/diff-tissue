@@ -505,8 +505,7 @@ def _iterate_towards_shape(
     best_loss = jnp.inf
     steps_since_best_loss = 0
 
-    shape_step = 0
-    while True:
+    for shape_step in range(params.n_shape_steps):
         (loss, aux_data), grads = loss_fn(
             logits,
             knot_ctx,
@@ -563,7 +562,6 @@ def _iterate_towards_shape(
             break
         else:
             logits = optimizer.update(logits, grads)
-            shape_step += 1
 
     return sim_states
 

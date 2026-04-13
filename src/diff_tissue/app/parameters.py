@@ -96,6 +96,11 @@ class Params:
             "cli_flag": "init_lr",
         },
     )
+    n_shape_steps: int = struct.field(
+        default=1000,
+        pytree_node=True,
+        metadata={"help": "Number of shape steps.", "cli_flag": "ssteps"},
+    )
     shape_loss_weight: float = struct.field(
         default=1.0,
         pytree_node=True,
