@@ -101,6 +101,11 @@ class Params:
         pytree_node=True,
         metadata={"help": "Shape loss weight.", "cli_flag": "slw"},
     )
+    var_loss_weight: float = struct.field(
+        default=0.0,
+        pytree_node=True,
+        metadata={"help": "Variance loss weight.", "cli_flag": "vlw"},
+    )
     poly_id_cfg: int = struct.field(
         default=0,
         pytree_node=False,

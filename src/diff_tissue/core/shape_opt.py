@@ -229,6 +229,11 @@ def _calc_shape_loss(
     return shape_loss
 
 
+def _calc_var_loss(poly_metrics):
+    area_variance = jnp.var(poly_metrics.areas)
+    return area_variance
+
+
 def _loss_fn(
     logits,
     knot_ctx,
@@ -268,6 +273,8 @@ def _loss_fn(
         min_dist_mask,
     )
 
+    var_loss = params.var_loss_weight * _calc_var_loss(poly_metrics)
+
     poly_id_loss = (
         params.poly_id_loss_weight
         * poly_identities.calc_poly_id_loss(
@@ -275,7 +282,7 @@ def _loss_fn(
         )
     )
 
-    loss = shape_loss + poly_id_loss
+    loss = shape_loss + var_loss + poly_id_loss
 
     aux_data = (
         final_vertices,
