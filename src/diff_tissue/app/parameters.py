@@ -18,17 +18,17 @@ class Params:
         },
     )
     shape: str = struct.field(
-        default="trapezoid",
+        default="petal",
         pytree_node=False,
         metadata={
             "help": "Shape of target boundary.",
             "choices": [
+                "petal",
+                "long_petal",
                 "trapezoid",
                 "narrow_trapezoid",
                 "wide_trapezoid",
                 "square",
-                "petal",
-                "long_petal",
                 "nconv",
                 "complex_nconv",
             ],
