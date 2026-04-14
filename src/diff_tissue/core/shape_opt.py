@@ -283,11 +283,8 @@ def _loss_fn(
 
     var_loss = params.var_loss_weight * _calc_var_loss(poly_metrics)
 
-    poly_id_loss = (
-        params.poly_id_loss_weight
-        * poly_identities.calc_poly_id_loss(
-            params.poly_id_cfg, poly_ids, poly_metrics
-        )
+    poly_id_loss = poly_identities.calc_poly_id_loss(
+        params.poly_id_cfg, poly_ids, poly_metrics
     )
 
     loss = shape_loss + var_loss + poly_id_loss
