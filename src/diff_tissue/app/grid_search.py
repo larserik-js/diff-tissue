@@ -147,8 +147,12 @@ def _transform_df(df):
     return df
 
 
-def _get_plotting_data(df):
+def _get_plotting_data(df, shapes=None):
     group_cols = ["angles_pot_weight", "shape"]
+
+    if shapes is not None:
+        df = df.filter(pl.col("shape").is_in(shapes))
+
     value_cols = value_cols = [c for c in df.columns if c not in group_cols]
     result = df.group_by(group_cols).agg(
         pl.struct(value_cols).alias("row_dicts")
@@ -222,10 +226,6 @@ def plot(study_name, paths):
 
     df = _transform_df(df)
 
-    data_by_anpw = _get_plotting_data(df)
-
-    cmap_name = "RdYlGn_r"
-
     ordered_shapes = [
         "wide_trapezoid",
         "narrow_trapezoid",
@@ -233,12 +233,16 @@ def plot(study_name, paths):
         "petal",
         "nconv",
     ]
+    data_by_anpw = _get_plotting_data(df, ordered_shapes)
+
     n_plots = len(ordered_shapes)
 
     global_loss_bounds = _calc_global_loss_bounds(data_by_anpw)
     normalize_loss = colors.Normalize(
         vmin=global_loss_bounds[0], vmax=global_loss_bounds[1]
     )
+    cmap_name = "RdYlGn_r"
+
     ax_lims = _find_ax_limits(data_by_anpw)
 
     n_rows = int(np.ceil(n_plots / 2))
