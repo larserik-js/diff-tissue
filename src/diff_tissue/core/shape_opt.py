@@ -234,6 +234,14 @@ def _calc_var_loss(poly_metrics):
     return area_variance
 
 
+@struct.dataclass
+class _LossTerms:
+    shape_loss: float = jnp.inf
+    var_loss: float = jnp.inf
+    poly_id_loss: float = jnp.inf
+    total_loss: float = jnp.inf
+
+
 def _loss_fn(
     logits,
     knot_ctx,
@@ -284,12 +292,20 @@ def _loss_fn(
 
     loss = shape_loss + var_loss + poly_id_loss
 
+    loss_terms = _LossTerms(
+        shape_loss=shape_loss,
+        var_loss=var_loss,
+        poly_id_loss=poly_id_loss,
+        total_loss=loss,
+    )
+
     aux_data = (
         final_vertices,
         goal_areas,
         goal_anisotropies,
         knot_ctx,
         poly_metrics,
+        loss_terms,
     )
 
     return loss, aux_data
@@ -423,6 +439,9 @@ class _MyOptimizer:
 @dataclass
 class _SimStates:
     loss_vals: list[float] = field(default_factory=list)
+    shape_loss_vals: list[float] = field(default_factory=list)
+    var_loss_vals: list[float] = field(default_factory=list)
+    poly_id_loss_vals: list[float] = field(default_factory=list)
     valid: list[bool] = field(default_factory=list)
     final_vertices: list[jnp.ndarray] = field(default_factory=list)
     goal_areas: list[jnp.ndarray] = field(default_factory=list)
@@ -435,6 +454,9 @@ class _SimStates:
 @dataclass
 class BestState:
     loss: float
+    shape_loss: float
+    var_loss: float
+    poly_id_loss: float
     final_vertices: jnp.ndarray
     goal_areas: jnp.ndarray
     goal_anisotropies: jnp.ndarray
@@ -461,6 +483,9 @@ def get_best_state(sim_states):
     best_index = _get_valid_best_idx(sim_states)
     best = BestState(
         loss=sim_states.loss_vals[best_index],
+        shape_loss=sim_states.shape_loss_vals[best_index],
+        var_loss=sim_states.var_loss_vals[best_index],
+        poly_id_loss=sim_states.poly_id_loss_vals[best_index],
         final_vertices=sim_states.final_vertices[best_index],
         goal_areas=sim_states.goal_areas[best_index],
         goal_anisotropies=sim_states.goal_anisotropies[best_index],
@@ -518,9 +543,14 @@ def _iterate_towards_shape(
             polygons,
             params,
         )
-        vertices, goal_areas, goal_anisotropies, knot_ctx, poly_metrics = (
-            aux_data
-        )
+        (
+            vertices,
+            goal_areas,
+            goal_anisotropies,
+            knot_ctx,
+            poly_metrics,
+            loss_terms,
+        ) = aux_data
 
         poly_metrics = metrics.update_poly_metrics(poly_metrics, vertices)
         poly_idx_lists = init_systems.make_poly_idx_lists(polygons.indices)
@@ -529,6 +559,9 @@ def _iterate_towards_shape(
         )
 
         sim_states.loss_vals.append(float(loss))
+        sim_states.shape_loss_vals.append(float(loss_terms.shape_loss))
+        sim_states.var_loss_vals.append(float(loss_terms.var_loss))
+        sim_states.poly_id_loss_vals.append(float(loss_terms.poly_id_loss))
         sim_states.final_vertices.append(vertices)
         sim_states.goal_areas.append(goal_areas)
         sim_states.goal_anisotropies.append(goal_anisotropies)
