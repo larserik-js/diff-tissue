@@ -75,11 +75,6 @@ class Params:
         pytree_node=True,
         metadata={"help": "Areas potential weight.", "cli_flag": "arpw"},
     )
-    angles_pot_weight: float = struct.field(
-        default=13.0,
-        pytree_node=True,
-        metadata={"help": "Angles potential weight.", "cli_flag": "anpw"},
-    )
     anisotropies_pot_weight: float = struct.field(
         default=50.0,
         pytree_node=True,
@@ -87,6 +82,11 @@ class Params:
             "help": "Anisotropies potential weight.",
             "cli_flag": "aspw",
         },
+    )
+    angles_pot_weight: float = struct.field(
+        default=13.0,
+        pytree_node=True,
+        metadata={"help": "Angles potential weight.", "cli_flag": "anpw"},
     )
     init_lr: float = struct.field(
         default=0.01,

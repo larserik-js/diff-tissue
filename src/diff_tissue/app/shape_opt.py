@@ -1,3 +1,7 @@
+from dataclasses import fields
+from itertools import product
+import multiprocessing as mp
+
 from ..core import morphing as morphing_core
 from ..core import shape_opt as shape_opt_core
 from . import config, io_utils, parameters, plotting
@@ -35,6 +39,44 @@ def get_sim_states(params, paths):
         io_utils.save_pkl(data_path, sim_states)
 
     return sim_states
+
+
+def _grid_vars_to_param_combs(grid_vars):
+    field_names = [f.name for f in fields(grid_vars)]
+    grid_values = [getattr(grid_vars, name) for name in field_names]
+
+    all_param_combs = []
+    for values in product(*grid_values):
+        combo = {
+            k: (v.item() if hasattr(v, "item") else v)
+            for k, v in zip(field_names, values)
+        }
+        all_param_combs.append(parameters.Params(**combo))
+    return all_param_combs
+
+
+def run_multi(grid_variables, paths, n_workers):
+    all_param_combs = _grid_vars_to_param_combs(grid_variables)
+
+    if len(all_param_combs) == 1:
+        params = all_param_combs[0]
+        params = params.replace(quiet=False)
+        _ = get_sim_states(params, paths)
+
+    else:
+        inputs = [(param_comb, paths) for param_comb in all_param_combs]
+
+        results = []
+        with mp.Pool(processes=n_workers) as pool:
+            print(
+                f"Running {len(all_param_combs)} trials with "
+                f"{n_workers} workers..."
+            )
+            for result in pool.starmap(get_sim_states, inputs):
+                results.append(result)
+
+        print("All trials completed.")
+        print("")
 
 
 def get_best_morph_evolution(
