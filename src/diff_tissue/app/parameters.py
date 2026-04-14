@@ -202,10 +202,11 @@ class _ParamStringFormatter:
 
         for field in fields(self._params):
             cli_flag = field.metadata.get("cli_flag")
-            param_name_val = self._format_param_val_str(
-                cli_flag, getattr(self._params, field.name)
-            )
-            param_name_vals.append(param_name_val)
+            if cli_flag != "quiet":
+                param_name_val = self._format_param_val_str(
+                    cli_flag, getattr(self._params, field.name)
+                )
+                param_name_vals.append(param_name_val)
         param_path_str = "__".join(param_name_vals)
         return param_path_str
 
