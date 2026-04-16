@@ -66,12 +66,10 @@ def run_learned_morph(params, paths):
 
 def plot_tutte_fields(paths):
     shape = "petal"
+    tutte_fields_paths = tutte_fields.TutteFieldsPaths(paths)
 
-    tutte_fields_ = tutte_fields.get_fields(shape, paths)
+    tutte_fields_ = tutte_fields.get_fields(shape, tutte_fields_paths)
 
     fig = tutte_fields.plot(tutte_fields_)
 
-    output_dir = paths.make_subdir(
-        paths.outputs_base_dir, tutte_fields.OUTPUT_TYPE_DIR
-    )
-    tutte_fields.save_plot(fig, shape, output_dir)
+    tutte_fields.save_plot(fig, shape, tutte_fields_paths.output_dir)

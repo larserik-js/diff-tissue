@@ -2,12 +2,36 @@ from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from . import io_utils, parameters
+from . import config, io_utils, parameters
 from ..core import tutte_fields as tutte_fields_core
 from ..core import init_systems, shapes
 
 
-OUTPUT_TYPE_DIR = "tutte_fields"
+class TutteFieldsPaths(config.ProjectPaths):
+    def __init__(self, base_paths):
+        super().__init__(
+            data_base_dir=base_paths.data_base_dir,
+            outputs_base_dir=base_paths.outputs_base_dir,
+        )
+        self._output_type_dir = "tutte_fields"
+
+    @property
+    def fields_dir(self):
+        data_dir = self.make_subdir(
+            self.processed_data_dir, self._output_type_dir
+        )
+        return data_dir
+
+    def fields_path(self, shape):
+        return self.fields_dir / f"fields__{shape}.npz"
+
+    @property
+    def meshes_dir(self):
+        return self.make_subdir(self.interim_data_dir, self._output_type_dir)
+
+    @property
+    def output_dir(self):
+        return self.make_subdir(self.outputs_base_dir, self._output_type_dir)
 
 
 def _get_general_target_boundary(shape):
@@ -49,15 +73,11 @@ def _generate_fields(shape, meshes):
 
 
 def get_fields(shape, paths):
-    data_dir = paths.make_subdir(paths.processed_data_dir, OUTPUT_TYPE_DIR)
-    data_path = data_dir / f"fields__{shape}.npz"
+    data_path = paths.fields_path(shape)
     if data_path.exists():
         tutte_fields_ = _load_tutte_fields(data_path)
     else:
-        meshes_data_dir = paths.make_subdir(
-            paths.interim_data_dir, OUTPUT_TYPE_DIR
-        )
-        meshes_data_path = meshes_data_dir / f"meshes__{shape}.pkl"
+        meshes_data_path = paths.meshes_dir / f"meshes__{shape}.pkl"
         meshes = _get_meshes(shape, meshes_data_path)
 
         tutte_fields_ = _generate_fields(shape, meshes)
