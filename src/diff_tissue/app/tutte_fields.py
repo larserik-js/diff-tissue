@@ -32,13 +32,11 @@ def _load_tutte_fields(path):
     return tutte_fields_core.TutteFields(**data_dict)
 
 
-def _generate_fields(shape, meshes_data_path):
+def _generate_fields(shape, meshes):
     target_boundary = _get_general_target_boundary(shape)
     points_inside_shape = tutte_fields_core.get_points_inside_shape(
         target_boundary, nx=100, ny=100
     )
-
-    meshes = _get_meshes(shape, meshes_data_path)
 
     area_field, anisotropy_field = tutte_fields_core.get_fields(
         meshes, points_inside_shape
@@ -60,7 +58,9 @@ def get_fields(shape, paths):
             paths.interim_data_dir, OUTPUT_TYPE_DIR
         )
         meshes_data_path = meshes_data_dir / f"meshes__{shape}.pkl"
-        tutte_fields_ = _generate_fields(shape, meshes_data_path)
+        meshes = _get_meshes(shape, meshes_data_path)
+
+        tutte_fields_ = _generate_fields(shape, meshes)
         io_utils.save_arrays_from_dataclass(data_path, tutte_fields_)
     return tutte_fields_
 
