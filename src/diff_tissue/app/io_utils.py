@@ -1,4 +1,6 @@
+from dataclasses import asdict
 import json
+from pathlib import Path
 import pickle
 
 import numpy as np
@@ -16,6 +18,15 @@ def load_pkl(path):
 def save_pkl(path, data):
     with open(path, "wb") as f:
         pickle.dump(data, f)
+
+
+def save_arrays_from_dataclass(path, dataclass):
+    np.savez(path, **asdict(dataclass))
+
+
+def load_dict_of_arrays(path: Path) -> dict[str, np.ndarray]:
+    data = np.load(path)
+    return data
 
 
 def save_arrays(path, arrays):

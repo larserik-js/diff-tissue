@@ -27,6 +27,11 @@ def _get_meshes(shape, data_path):
     return meshes
 
 
+def _load_tutte_fields(path):
+    data_dict = io_utils.load_dict_of_arrays(path)
+    return tutte_fields_core.TutteFields(**data_dict)
+
+
 def _generate_fields(shape, meshes_data_path):
     target_boundary = _get_general_target_boundary(shape)
     points_inside_shape = tutte_fields_core.get_points_inside_shape(
@@ -47,16 +52,16 @@ def _generate_fields(shape, meshes_data_path):
 
 def get_fields(shape, paths):
     data_dir = paths.make_subdir(paths.processed_data_dir, OUTPUT_TYPE_DIR)
-    data_path = data_dir / f"fields__{shape}.pkl"
+    data_path = data_dir / f"fields__{shape}.npz"
     if data_path.exists():
-        tutte_fields_ = io_utils.load_pkl(data_path)
+        tutte_fields_ = _load_tutte_fields(data_path)
     else:
         meshes_data_dir = paths.make_subdir(
             paths.interim_data_dir, OUTPUT_TYPE_DIR
         )
         meshes_data_path = meshes_data_dir / f"meshes__{shape}.pkl"
         tutte_fields_ = _generate_fields(shape, meshes_data_path)
-        io_utils.save_pkl(data_path, tutte_fields_)
+        io_utils.save_arrays_from_dataclass(data_path, tutte_fields_)
     return tutte_fields_
 
 
