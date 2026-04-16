@@ -35,7 +35,7 @@ def get_points_inside_shape(target_boundary, nx, ny):
 
 
 @dataclass
-class _Mesh:
+class Mesh:
     polygons: list
     areas: np.ndarray
     anisotropies: np.ndarray
@@ -57,7 +57,7 @@ def build_meshes(params, n_meshes=100):
             tutte_metrics.vertices, polygons.indices
         )
 
-        mesh = _Mesh(
+        mesh = Mesh(
             shapely_polygons,
             np.array(tutte_metrics.areas),
             np.array(tutte_metrics.anisotropies),
@@ -67,7 +67,7 @@ def build_meshes(params, n_meshes=100):
     return meshes
 
 
-def _sample_mesh(mesh: _Mesh, points_inside_shape: np.ndarray):
+def _sample_mesh(mesh: Mesh, points_inside_shape: np.ndarray):
     """
     Assign mesh scalar values to sample points.
     Points must already be NumPy and lie inside the domain.

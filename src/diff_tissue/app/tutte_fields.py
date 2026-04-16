@@ -1,6 +1,7 @@
 from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
+from shapely import geometry as shapely_geo
 
 from . import config, io_utils, parameters
 from ..core import tutte_fields as tutte_fields_core
@@ -29,6 +30,13 @@ class TutteFieldsPaths(config.ProjectPaths):
     def meshes_dir(self):
         return self.make_subdir(self.interim_data_dir, self._output_type_dir)
 
+    def mesh_subdir(self, idx):
+        return self.make_subdir(self.meshes_dir, f"mesh_{idx:03d}")
+
+    @property
+    def mesh_subdirs(self):
+        return list(self.meshes_dir.glob("mesh*"))
+
     @property
     def output_dir(self):
         return self.make_subdir(self.outputs_base_dir, self._output_type_dir)
@@ -41,13 +49,50 @@ def _get_general_target_boundary(shape):
     return target_boundary.vertices
 
 
-def _get_meshes(shape, data_path):
-    if data_path.exists():
-        meshes = io_utils.load_pkl(data_path)
-    else:
+def _save_mesh(mesh_dir, mesh):
+    polygons_geo = [shapely_geo.mapping(poly) for poly in mesh.polygons]
+    io_utils.save_json(mesh_dir / "geometry.json", polygons_geo)
+
+    np.savez(
+        mesh_dir / "arrays.npz",
+        areas=mesh.areas,
+        anisotropies=mesh.anisotropies,
+    )
+
+
+def _save_meshes(paths, meshes):
+    assert len(meshes) < 1000
+    for i, mesh in enumerate(meshes):
+        mesh_dir = paths.mesh_subdir(i)
+        _save_mesh(mesh_dir, mesh)
+
+
+def _load_meshes(mesh_dirs):
+    meshes = []
+    for mesh_dir in mesh_dirs:
+        poly_geo_data = io_utils.load_json(mesh_dir / "geometry.json")
+        polygons = [shapely_geo.shape(g) for g in poly_geo_data]
+
+        arrays = io_utils.load_arrays(mesh_dir / "arrays.npz")
+
+        mesh = tutte_fields_core.Mesh(
+            polygons=polygons,
+            areas=arrays["areas"],
+            anisotropies=arrays["anisotropies"],
+        )
+        meshes.append(mesh)
+
+    return meshes
+
+
+def _get_meshes(shape, paths):
+    mesh_dirs = paths.mesh_subdirs
+    if len(mesh_dirs) == 0:
         params = parameters.Params(shape=shape)
         meshes = tutte_fields_core.build_meshes(params)
-        io_utils.save_pkl(data_path, meshes)
+        _save_meshes(paths, meshes)
+    else:
+        meshes = _load_meshes(mesh_dirs)
     return meshes
 
 
@@ -77,8 +122,7 @@ def get_fields(shape, paths):
     if data_path.exists():
         tutte_fields_ = _load_tutte_fields(data_path)
     else:
-        meshes_data_path = paths.meshes_dir / f"meshes__{shape}.pkl"
-        meshes = _get_meshes(shape, meshes_data_path)
+        meshes = _get_meshes(shape, paths)
 
         tutte_fields_ = _generate_fields(shape, meshes)
         io_utils.save_arrays_from_dataclass(data_path, tutte_fields_)
