@@ -5,7 +5,16 @@ from ..core import init_systems, metrics
 from . import io_utils, parameters
 
 
-OUTPUT_TYPE_DIR = "tutte"
+class _TuttePaths:
+    def __init__(self, project_paths):
+        self._project_paths = project_paths
+
+    @property
+    def output_dir(self):
+        output_dir_ = self._project_paths.make_subdir(
+            self._project_paths.outputs_base_dir, "tutte"
+        )
+        return output_dir_
 
 
 def _add_artists(ax, indices, valid_mask, vertices):
@@ -62,12 +71,13 @@ def _plot_mapping(
     io_utils.save_pdf(output_path, fig)
 
 
-def plot(params, output_dir):
+def plot(params, paths):
     polygons = init_systems.get_system(params)
     tutte_metrics = metrics.get_tutte_metrics(params)
 
+    tutte_paths = _TuttePaths(paths)
     param_string = parameters.get_param_string(params)
-    output_path = output_dir / f"{param_string}.pdf"
+    output_path = tutte_paths.output_dir / f"{param_string}.pdf"
 
     _plot_mapping(
         polygons.init_vertices,

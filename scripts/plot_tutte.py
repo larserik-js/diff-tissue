@@ -9,11 +9,8 @@ def _main():
         data_base_dir=cfg.data_base_dir,
         outputs_base_dir=cfg.outputs_base_dir,
     )
-    output_dir = paths.make_subdir(
-        paths.outputs_base_dir, tutte.OUTPUT_TYPE_DIR
-    )
 
-    tutte.plot(params, output_dir)
+    tutte.plot(params, paths)
 
 
 if __name__ == "__main__":
