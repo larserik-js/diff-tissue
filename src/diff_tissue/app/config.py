@@ -39,13 +39,6 @@ class ProjectPaths:
         return subdir
 
     @property
-    def sim_states_dir(self):
-        sim_states_dir = self.make_subdir(
-            self.processed_data_dir / "sim_states"
-        )
-        return sim_states_dir
-
-    @property
     def param_search_db(self):
         data_dir = self.make_subdir(self.interim_data_dir)
         db_path = data_dir / "optuna.db"

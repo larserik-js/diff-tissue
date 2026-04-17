@@ -29,8 +29,9 @@ def plot_final_tissues(final_tissues, params, output_dir):
 
 
 def get_sim_states(params, paths):
+    sim_states_dir = paths.make_subdir(paths.processed_data_dir / "sim_states")
     param_string = parameters.get_param_string(params)
-    data_path = paths.sim_states_dir / f"{param_string}.pkl"
+    data_path = sim_states_dir / f"{param_string}.pkl"
 
     if data_path.exists():
         sim_states = io_utils.load_pkl(data_path)
