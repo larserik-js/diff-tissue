@@ -3,23 +3,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 from shapely import geometry as shapely_geo
 
-from . import config, io_utils, parameters
+from . import io_utils, parameters
 from ..core import tutte_fields as tutte_fields_core
 from ..core import init_systems, shapes
 
 
-class TutteFieldsPaths(config.ProjectPaths):
-    def __init__(self, base_paths):
-        super().__init__(
-            data_base_dir=base_paths.data_base_dir,
-            outputs_base_dir=base_paths.outputs_base_dir,
-        )
+class TutteFieldsPaths:
+    def __init__(self, project_paths):
+        self._project_paths = project_paths
         self._output_type_dir = "tutte_fields"
 
     @property
     def fields_dir(self):
-        data_dir = self.make_subdir(
-            self.processed_data_dir, self._output_type_dir
+        data_dir = self._project_paths.make_subdir(
+            self._project_paths.processed_data_dir, self._output_type_dir
         )
         return data_dir
 
@@ -28,10 +25,14 @@ class TutteFieldsPaths(config.ProjectPaths):
 
     @property
     def meshes_dir(self):
-        return self.make_subdir(self.interim_data_dir, self._output_type_dir)
+        return self._project_paths.make_subdir(
+            self._project_paths.interim_data_dir, self._output_type_dir
+        )
 
     def mesh_subdir(self, idx):
-        return self.make_subdir(self.meshes_dir, f"mesh_{idx:03d}")
+        return self._project_paths.make_subdir(
+            self.meshes_dir, f"mesh_{idx:03d}"
+        )
 
     @property
     def mesh_subdirs(self):
@@ -39,7 +40,9 @@ class TutteFieldsPaths(config.ProjectPaths):
 
     @property
     def output_dir(self):
-        return self.make_subdir(self.outputs_base_dir, self._output_type_dir)
+        return self._project_paths.make_subdir(
+            self._project_paths.outputs_base_dir, self._output_type_dir
+        )
 
 
 def _get_general_target_boundary(shape):

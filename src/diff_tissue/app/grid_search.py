@@ -8,28 +8,29 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-from . import config, io_utils, parameters
+from . import io_utils, parameters
 from ..core import shape_opt
 
 
-class GridSearchPaths(config.ProjectPaths):
-    def __init__(self, base_paths, study_name):
-        super().__init__(
-            data_base_dir=base_paths.data_base_dir,
-            outputs_base_dir=base_paths.outputs_base_dir,
-        )
+class GridSearchPaths:
+    def __init__(self, project_paths, study_name):
+        self._project_paths = project_paths
         self.study_name = study_name
 
     @property
     def individual_results_dir(self):
-        return self.make_subdir(
-            self.interim_data_dir / "grid_search" / self.study_name
+        return self._project_paths.make_subdir(
+            self._project_paths.interim_data_dir
+            / "grid_search"
+            / self.study_name
         )
 
     @property
     def tabular_results_dir(self):
-        return self.make_subdir(
-            self.processed_data_dir / "grid_search" / self.study_name
+        return self._project_paths.make_subdir(
+            self._project_paths.processed_data_dir
+            / "grid_search"
+            / self.study_name
         )
 
     @property
@@ -38,8 +39,10 @@ class GridSearchPaths(config.ProjectPaths):
 
     @property
     def figures_dir(self):
-        return self.make_subdir(
-            self.outputs_base_dir / "grid_search" / self.study_name
+        return self._project_paths.make_subdir(
+            self._project_paths.outputs_base_dir
+            / "grid_search"
+            / self.study_name
         )
 
 
@@ -111,7 +114,16 @@ def _grid_vars_to_param_combs(grid_vars):
             angles_pot_weight=float(anpw),
             seed=int(seed),
         )
-        for system, shape, knots, tran, arpw, aspw, anpw, seed in all_value_combs
+        for (
+            system,
+            shape,
+            knots,
+            tran,
+            arpw,
+            aspw,
+            anpw,
+            seed,
+        ) in all_value_combs
     ]
     return all_param_combs
 

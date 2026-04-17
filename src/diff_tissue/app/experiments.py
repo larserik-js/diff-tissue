@@ -27,7 +27,7 @@ def run_shape_opt(params, paths):
     shape_opt_paths = shape_opt_app.ShapeOptPaths(paths)
 
     param_string = parameters.get_param_string(params)
-    output_dir = shape_opt_paths.make_subdir(
+    output_dir = paths.make_subdir(
         shape_opt_paths.final_tissues_dir,
         param_string,
     )
