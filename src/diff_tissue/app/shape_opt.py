@@ -8,17 +8,41 @@ from . import io_utils, parameters, plotting
 
 
 class ShapeOptPaths:
-    def __init__(self, project_paths):
+    def __init__(self, project_paths, param_string):
         self._project_paths = project_paths
-        self.final_tissues_dir = (
-            self._project_paths.outputs_base_dir / "final_tissues"
+        self._param_string = param_string
+        self._best_morph_name = "best_morph"
+
+    @property
+    def final_tissues_dir(self):
+        final_tissues_dir_ = self._project_paths.make_subdir(
+            self._project_paths.outputs_base_dir,
+            "final_tissues",
+            self._param_string,
         )
-        self.best_morph_data_dir = (
-            self._project_paths.processed_data_dir / "best_morph"
+        return final_tissues_dir_
+
+    @property
+    def _best_morph_data_dir(self):
+        best_morph_data_dir_ = self._project_paths.make_subdir(
+            self._project_paths.processed_data_dir / self._best_morph_name
         )
-        self.best_morph_figs_dir = (
-            self._project_paths.outputs_base_dir / "best_morph"
+        return best_morph_data_dir_
+
+    @property
+    def best_morph_data_path(self):
+        best_morph_data_path_ = (
+            self._best_morph_data_dir / f"{self._param_string}.pkl"
         )
+        return best_morph_data_path_
+
+    @property
+    def best_morph_figs_dir(self):
+        best_morph_figs_dir_ = self._project_paths.make_subdir(
+            self._project_paths.outputs_base_dir / self._best_morph_name,
+            self._param_string,
+        )
+        return best_morph_figs_dir_
 
 
 def plot_final_tissues(final_tissues, params, output_dir):

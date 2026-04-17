@@ -20,15 +20,11 @@ def run_morphing(params, paths):
 def run_shape_opt(params, paths):
     sim_states = shape_opt_app.get_sim_states(params, paths)
 
-    shape_opt_paths = shape_opt_app.ShapeOptPaths(paths)
-
     param_string = parameters.get_param_string(params)
-    output_dir = paths.make_subdir(
-        shape_opt_paths.final_tissues_dir,
-        param_string,
-    )
+    shape_opt_paths = shape_opt_app.ShapeOptPaths(paths, param_string)
+
     shape_opt_app.plot_final_tissues(
-        sim_states.final_vertices, params, output_dir
+        sim_states.final_vertices, params, shape_opt_paths.final_tissues_dir
     )
 
     best_state = shape_opt_core.get_best_state(sim_states)
@@ -37,17 +33,17 @@ def run_shape_opt(params, paths):
 
     polygons = init_systems.get_jax_polygons(params)
 
-    data_dir = paths.make_subdir(shape_opt_paths.best_morph_data_dir)
-    data_path = data_dir / f"{param_string}.pkl"
     best_morph_evolution = shape_opt_app.get_best_morph_evolution(
-        best_goal_areas, best_goal_anisotropies, polygons, params, data_path
+        best_goal_areas,
+        best_goal_anisotropies,
+        polygons,
+        params,
+        shape_opt_paths.best_morph_data_path,
     )
 
-    output_dir = paths.make_subdir(
-        shape_opt_paths.best_morph_figs_dir,
-        param_string,
+    shape_opt_app.plot_best_morph(
+        best_morph_evolution, params, shape_opt_paths.best_morph_figs_dir
     )
-    shape_opt_app.plot_best_morph(best_morph_evolution, params, output_dir)
 
 
 def run_learned_morph(params, paths):
