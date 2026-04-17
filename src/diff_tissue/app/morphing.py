@@ -4,7 +4,32 @@ from ..core import morphing as morphing_core
 from . import io_utils, plotting
 
 
-OUTPUT_TYPE_DIR = "morphing"
+class MorphingPaths:
+    def __init__(self, project_paths, param_string):
+        self._project_paths = project_paths
+        self._param_string = param_string
+        self._output_type_dir_name = "morphing"
+
+    @property
+    def _data_dir(self):
+        data_dir_ = self._project_paths.make_subdir(
+            self._project_paths.processed_data_dir, self._output_type_dir_name
+        )
+        return data_dir_
+
+    @property
+    def data_path(self):
+        data_path = self._data_dir / f"{self._param_string}.npz"
+        return data_path
+
+    @property
+    def output_dir(self):
+        output_dir_ = self._project_paths.make_subdir(
+            self._project_paths.outputs_base_dir,
+            self._output_type_dir_name,
+            self._param_string,
+        )
+        return output_dir_
 
 
 def save_figs(morph_evolution, params, output_dir):

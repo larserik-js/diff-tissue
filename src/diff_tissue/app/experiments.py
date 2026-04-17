@@ -5,20 +5,16 @@ from . import shape_opt as shape_opt_app
 
 
 def run_morphing(params, paths):
+    param_string = parameters.get_param_string(params)
+    morphing_paths = morphing.MorphingPaths(paths, param_string)
+
     polygons = init_systems.get_jax_polygons(params)
 
-    data_dir = paths.make_subdir(
-        paths.processed_data_dir, morphing.OUTPUT_TYPE_DIR
+    morph_evolution = morphing.get_morph_evolution(
+        polygons, params, morphing_paths.data_path
     )
-    param_string = parameters.get_param_string(params)
-    data_path = data_dir / f"{param_string}.npz"
 
-    morph_evolution = morphing.get_morph_evolution(polygons, params, data_path)
-
-    output_dir = paths.make_subdir(
-        paths.outputs_base_dir, morphing.OUTPUT_TYPE_DIR, param_string
-    )
-    morphing.save_figs(morph_evolution, params, output_dir)
+    morphing.save_figs(morph_evolution, params, morphing_paths.output_dir)
 
 
 def run_shape_opt(params, paths):
