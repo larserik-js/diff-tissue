@@ -1,5 +1,7 @@
 import optuna
 
+from . import param_search
+
 
 def _show_studies(storage):
     study_summaries = optuna.get_all_study_summaries(storage)
@@ -35,9 +37,9 @@ def _show_n_completed(study):
     print(f"Trials completed: {n_completed}")
 
 
-def inspect_param_search(db_path, study_name):
-    db_url = f"sqlite:///{db_path}"
-    storage = optuna.storages.RDBStorage(db_url)
+def inspect_param_search(paths, study_name):
+    param_search_paths = param_search.ParamSearchPaths(paths)
+    storage = optuna.storages.RDBStorage(param_search_paths.db_url)
 
     _show_studies(storage)
 

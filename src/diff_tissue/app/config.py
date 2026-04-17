@@ -37,9 +37,3 @@ class ProjectPaths:
         subdir = Path(*parts)
         subdir.mkdir(parents=True, exist_ok=True)
         return subdir
-
-    @property
-    def param_search_db(self):
-        data_dir = self.make_subdir(self.interim_data_dir)
-        db_path = data_dir / "optuna.db"
-        return db_path
