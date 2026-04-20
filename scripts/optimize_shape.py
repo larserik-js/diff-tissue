@@ -69,7 +69,6 @@ class _GridVariables:
     shape_loss_weight: NDArray[np.floating]
     var_loss_weight: NDArray[np.floating]
     poly_id_cfg: NDArray[np.integer]
-    poly_id_loss_weight: NDArray[np.floating]
     seed: NDArray[np.integer]
 
 
@@ -91,7 +90,6 @@ def _main():
         shape_loss_weight=_parse_arange(args.slws, dtype=float),
         var_loss_weight=_parse_arange(args.vlws, dtype=float),
         poly_id_cfg=_parse_arange(args.ids, dtype=int),
-        poly_id_loss_weight=_parse_arange(args.ilws, dtype=float),
         seed=_parse_arange(args.seeds, dtype=int),
     )
 
