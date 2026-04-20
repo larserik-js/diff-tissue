@@ -18,10 +18,12 @@ def run_morphing(params, paths):
 
 
 def run_shape_opt(params, paths):
-    sim_states = shape_opt_app.get_sim_states(params, paths)
-
     param_string = parameters.get_param_string(params)
     shape_opt_paths = shape_opt_app.ShapeOptPaths(paths, param_string)
+
+    sim_states = shape_opt_app.get_sim_states(
+        params, shape_opt_paths.sim_states_data_path
+    )
 
     shape_opt_app.plot_final_tissues(
         sim_states.final_vertices, params, shape_opt_paths.final_tissues_dir
@@ -52,7 +54,7 @@ def run_learned_morph(params, project_paths):
         project_paths, param_string
     )
 
-    results = learned_morph.run(params, project_paths, learned_morph_paths)
+    results = learned_morph.run(params, learned_morph_paths)
 
     learned_morph.plot(results, learned_morph_paths.figs_dir)
 

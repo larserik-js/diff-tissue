@@ -11,13 +11,26 @@ class ShapeOptPaths:
     def __init__(self, project_paths, param_string):
         self._project_paths = project_paths
         self._param_string = param_string
+        self._sim_states_name = "sim_states"
+        self._final_tissues_name = "final_tissues"
         self._best_morph_name = "best_morph"
+
+    @property
+    def _sim_states_dir(self):
+        sim_states_dir_ = self._project_paths.make_subdir(
+            self._project_paths.processed_data_dir / self._sim_states_name
+        )
+        return sim_states_dir_
+
+    @property
+    def sim_states_data_path(self):
+        return self._sim_states_dir / f"{self._param_string}.pkl"
 
     @property
     def final_tissues_dir(self):
         final_tissues_dir_ = self._project_paths.make_subdir(
             self._project_paths.outputs_base_dir,
-            "final_tissues",
+            self._final_tissues_name,
             self._param_string,
         )
         return final_tissues_dir_
@@ -55,11 +68,7 @@ def plot_final_tissues(final_tissues, params, output_dir):
             io_utils.save_pdf(fig_path, figure.fig, dpi=100)
 
 
-def get_sim_states(params, paths):
-    sim_states_dir = paths.make_subdir(paths.processed_data_dir / "sim_states")
-    param_string = parameters.get_param_string(params)
-    data_path = sim_states_dir / f"{param_string}.pkl"
-
+def get_sim_states(params, data_path):
     if data_path.exists():
         sim_states = io_utils.load_pkl(data_path)
     else:
@@ -83,13 +92,20 @@ def _grid_vars_to_param_combs(grid_vars):
     return all_param_combs
 
 
+def _worker_fn(params, paths):
+    param_string = parameters.get_param_string(params)
+    shape_opt_paths = ShapeOptPaths(paths, param_string)
+    sim_states = get_sim_states(params, shape_opt_paths.sim_states_data_path)
+    return sim_states
+
+
 def run_multi(grid_variables, paths, n_workers):
     all_param_combs = _grid_vars_to_param_combs(grid_variables)
 
     if len(all_param_combs) == 1:
         params = all_param_combs[0]
         params = params.replace(quiet=False)
-        _ = get_sim_states(params, paths)
+        _ = _worker_fn(params, paths)
 
     else:
         inputs = [(param_comb, paths) for param_comb in all_param_combs]
@@ -100,7 +116,7 @@ def run_multi(grid_variables, paths, n_workers):
                 f"Running {len(all_param_combs)} trials with "
                 f"{n_workers} workers..."
             )
-            for result in pool.starmap(get_sim_states, inputs):
+            for result in pool.starmap(_worker_fn, inputs):
                 results.append(result)
 
         print("All trials completed.")

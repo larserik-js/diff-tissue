@@ -16,6 +16,13 @@ class LearnedMorphPaths:
         self._output_type = "learned_morph"
 
     @property
+    def sim_states_data_path(self):
+        shape_opt_paths = shape_opt_app.ShapeOptPaths(
+            self._project_paths, self._param_string
+        )
+        return shape_opt_paths.sim_states_data_path
+
+    @property
     def _data_dir(self):
         data_dir_ = self._project_paths.make_subdir(
             self._project_paths.processed_data_dir, self._output_type
@@ -81,7 +88,7 @@ class _Results:
     new_params: parameters.Params
 
 
-def run(params, project_paths, learned_morph_paths):
+def run(params, learned_morph_paths):
     input_seed = params.seed  # Store for regenerated system
     replaced_params = params.replace(
         seed=0
@@ -92,7 +99,9 @@ def run(params, project_paths, learned_morph_paths):
         polygons.init_vertices, polygons.indices
     )
 
-    sim_states = shape_opt_app.get_sim_states(replaced_params, project_paths)
+    sim_states = shape_opt_app.get_sim_states(
+        replaced_params, learned_morph_paths.sim_states_data_path
+    )
     best_state = shape_opt_core.get_best_state(sim_states)
     goal_areas = best_state.goal_areas
     goal_anisotropies = best_state.goal_anisotropies
