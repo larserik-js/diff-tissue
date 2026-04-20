@@ -448,6 +448,28 @@ class _SimStates:
     n_edge_crossings: list[int] = field(default_factory=list)
 
 
+def _store_results(
+    sim_states,
+    loss,
+    loss_terms,
+    vertices,
+    goal_areas,
+    goal_anisotropies,
+    poly_metrics,
+    n_edge_crossings,
+):
+    sim_states.loss_vals.append(float(loss))
+    sim_states.shape_loss_vals.append(float(loss_terms.shape_loss))
+    sim_states.var_loss_vals.append(float(loss_terms.var_loss))
+    sim_states.poly_id_loss_vals.append(float(loss_terms.poly_id_loss))
+    sim_states.final_vertices.append(vertices)
+    sim_states.goal_areas.append(goal_areas)
+    sim_states.goal_anisotropies.append(goal_anisotropies)
+    sim_states.final_areas.append(poly_metrics.areas)
+    sim_states.final_anisotropies.append(poly_metrics.anisotropies)
+    sim_states.n_edge_crossings.append(n_edge_crossings)
+
+
 @dataclass
 class BestState:
     loss: float
@@ -555,16 +577,16 @@ def _iterate_towards_shape(
             vertices, poly_idx_lists
         )
 
-        sim_states.loss_vals.append(float(loss))
-        sim_states.shape_loss_vals.append(float(loss_terms.shape_loss))
-        sim_states.var_loss_vals.append(float(loss_terms.var_loss))
-        sim_states.poly_id_loss_vals.append(float(loss_terms.poly_id_loss))
-        sim_states.final_vertices.append(vertices)
-        sim_states.goal_areas.append(goal_areas)
-        sim_states.goal_anisotropies.append(goal_anisotropies)
-        sim_states.final_areas.append(poly_metrics.areas)
-        sim_states.final_anisotropies.append(poly_metrics.anisotropies)
-        sim_states.n_edge_crossings.append(n_edge_crossings)
+        _store_results(
+            sim_states,
+            loss,
+            loss_terms,
+            vertices,
+            goal_areas,
+            goal_anisotropies,
+            poly_metrics,
+            n_edge_crossings,
+        )
 
         if not params.quiet:
             print(f"{shape_step}: Shape loss = {loss}")
