@@ -46,14 +46,15 @@ def run_shape_opt(params, paths):
     )
 
 
-def run_learned_morph(params, paths):
-    results = learned_morph.run(params, paths)
-
+def run_learned_morph(params, project_paths):
     param_string = parameters.get_param_string(params)
-    output_dir = paths.make_subdir(
-        paths.outputs_base_dir, learned_morph.OUTPUT_TYPE_DIR, param_string
+    learned_morph_paths = learned_morph.LearnedMorphPaths(
+        project_paths, param_string
     )
-    learned_morph.plot(results, output_dir)
+
+    results = learned_morph.run(params, project_paths, learned_morph_paths)
+
+    learned_morph.plot(results, learned_morph_paths.figs_dir)
 
 
 def plot_tutte_fields(paths):

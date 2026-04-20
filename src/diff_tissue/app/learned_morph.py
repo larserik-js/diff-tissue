@@ -9,7 +9,32 @@ from . import shape_opt as shape_opt_app
 from . import io_utils, parameters, plotting
 
 
-OUTPUT_TYPE_DIR = "learned_morph"
+class LearnedMorphPaths:
+    def __init__(self, project_paths, param_string):
+        self._project_paths = project_paths
+        self._param_string = param_string
+        self._output_type = "learned_morph"
+
+    @property
+    def _data_dir(self):
+        data_dir_ = self._project_paths.make_subdir(
+            self._project_paths.processed_data_dir, self._output_type
+        )
+        return data_dir_
+
+    @property
+    def data_output_path(self):
+        output_path_ = self._data_dir / f"{self._param_string}.npz"
+        return output_path_
+
+    @property
+    def figs_dir(self):
+        figs_dir_ = self._project_paths.make_subdir(
+            self._project_paths.outputs_base_dir,
+            self._output_type,
+            self._param_string,
+        )
+        return figs_dir_
 
 
 def _assign_weighted_goals(old_polygons, goals, new_polygons):
@@ -56,23 +81,25 @@ class _Results:
     new_params: parameters.Params
 
 
-def run(params, paths):
+def run(params, project_paths, learned_morph_paths):
     input_seed = params.seed  # Store for regenerated system
-    params = params.replace(seed=0)  # Always base on same initial system
+    replaced_params = params.replace(
+        seed=0
+    )  # Always base on same initial system
 
-    polygons = init_systems.get_system(params)
+    polygons = init_systems.get_system(replaced_params)
     old_shapely_polygons = init_systems.get_shapely_polygons(
         polygons.init_vertices, polygons.indices
     )
 
-    sim_states = shape_opt_app.get_sim_states(params, paths)
+    sim_states = shape_opt_app.get_sim_states(replaced_params, project_paths)
     best_state = shape_opt_core.get_best_state(sim_states)
     goal_areas = best_state.goal_areas
     goal_anisotropies = best_state.goal_anisotropies
 
     # Regenerate new system, base on cli seed
-    new_params = params.replace(seed=input_seed)
-    new_polygons = init_systems.get_jax_polygons(new_params)
+    params = replaced_params.replace(seed=input_seed)
+    new_polygons = init_systems.get_jax_polygons(params)
 
     new_shapely_polygons = init_systems.get_shapely_polygons(
         new_polygons.init_vertices, new_polygons.indices
@@ -88,19 +115,16 @@ def run(params, paths):
     morph_evolution = morphing.iterate(
         resulting_areas,
         resulting_anisotropies,
-        new_params.n_morph_steps,
+        params.n_morph_steps,
         new_polygons,
-        new_params,
+        params,
     )
 
-    param_string = parameters.get_param_string(new_params)
-    data_dir = paths.make_subdir(paths.processed_data_dir, OUTPUT_TYPE_DIR)
-    output_path = data_dir / f"{param_string}.npz"
-    io_utils.save_arrays(output_path, morph_evolution)
+    io_utils.save_arrays(learned_morph_paths.data_output_path, morph_evolution)
 
     results = _Results(
         morph_evolution=morph_evolution,
-        new_params=new_params,
+        new_params=params,
     )
 
     return results
