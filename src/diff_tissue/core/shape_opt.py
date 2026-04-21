@@ -2,8 +2,9 @@ from dataclasses import dataclass, field
 import optax
 from typing import cast
 
-from diff_tissue.app import parameters
+import numpy as np
 
+from diff_tissue.app import parameters
 from .jax_bootstrap import jax, jnp, struct
 from . import init_systems, metrics, morphing, poly_identities, shapes
 
@@ -440,11 +441,11 @@ class _SimStates:
     var_loss_vals: list[float] = field(default_factory=list)
     poly_id_loss_vals: list[float] = field(default_factory=list)
     valid: list[bool] = field(default_factory=list)
-    final_vertices: list[jnp.ndarray] = field(default_factory=list)
-    goal_areas: list[jnp.ndarray] = field(default_factory=list)
-    goal_anisotropies: list[jnp.ndarray] = field(default_factory=list)
-    final_areas: list[jnp.ndarray] = field(default_factory=list)
-    final_anisotropies: list[jnp.ndarray] = field(default_factory=list)
+    final_vertices: list[np.ndarray] = field(default_factory=list)
+    goal_areas: list[np.ndarray] = field(default_factory=list)
+    goal_anisotropies: list[np.ndarray] = field(default_factory=list)
+    final_areas: list[np.ndarray] = field(default_factory=list)
+    final_anisotropies: list[np.ndarray] = field(default_factory=list)
     n_edge_crossings: list[int] = field(default_factory=list)
 
 
@@ -452,6 +453,7 @@ def _store_results(
     sim_states,
     loss,
     loss_terms,
+    valid_sim,
     vertices,
     goal_areas,
     goal_anisotropies,
@@ -462,11 +464,12 @@ def _store_results(
     sim_states.shape_loss_vals.append(float(loss_terms.shape_loss))
     sim_states.var_loss_vals.append(float(loss_terms.var_loss))
     sim_states.poly_id_loss_vals.append(float(loss_terms.poly_id_loss))
-    sim_states.final_vertices.append(vertices)
-    sim_states.goal_areas.append(goal_areas)
-    sim_states.goal_anisotropies.append(goal_anisotropies)
-    sim_states.final_areas.append(poly_metrics.areas)
-    sim_states.final_anisotropies.append(poly_metrics.anisotropies)
+    sim_states.valid.append(valid_sim)
+    sim_states.final_vertices.append(np.array(vertices))
+    sim_states.goal_areas.append(np.array(goal_areas))
+    sim_states.goal_anisotropies.append(np.array(goal_anisotropies))
+    sim_states.final_areas.append(np.array(poly_metrics.areas))
+    sim_states.final_anisotropies.append(np.array(poly_metrics.anisotropies))
     sim_states.n_edge_crossings.append(n_edge_crossings)
 
 
@@ -476,25 +479,25 @@ class BestState:
     shape_loss: float
     var_loss: float
     poly_id_loss: float
-    final_vertices: jnp.ndarray
-    goal_areas: jnp.ndarray
-    goal_anisotropies: jnp.ndarray
-    final_areas: jnp.ndarray
-    final_anisotropies: jnp.ndarray
+    final_vertices: np.ndarray
+    goal_areas: np.ndarray
+    goal_anisotropies: np.ndarray
+    final_areas: np.ndarray
+    final_anisotropies: np.ndarray
 
 
 def _get_valid_best_idx(sim_states):
     if not any(sim_states.valid):
-        best_index = jnp.argmin(jnp.array(sim_states.loss_vals))
+        best_index = np.argmin(np.array(sim_states.loss_vals))
     else:
-        masked_loss_vals = jnp.asarray(
-            jnp.where(
-                jnp.array(sim_states.valid),
-                jnp.array(sim_states.loss_vals),
-                jnp.inf,
+        masked_loss_vals = np.asarray(
+            np.where(
+                np.array(sim_states.valid),
+                np.array(sim_states.loss_vals),
+                np.inf,
             )
         )
-        best_index = jnp.argmin(masked_loss_vals)
+        best_index = np.argmin(masked_loss_vals)
     return best_index
 
 
@@ -577,22 +580,22 @@ def _iterate_towards_shape(
             vertices, poly_idx_lists
         )
 
+        if not params.quiet:
+            print(f"{shape_step}: Shape loss = {loss}")
+
+        valid_sim = _validate(poly_metrics.areas, n_edge_crossings)
+
         _store_results(
             sim_states,
             loss,
             loss_terms,
+            valid_sim,
             vertices,
             goal_areas,
             goal_anisotropies,
             poly_metrics,
             n_edge_crossings,
         )
-
-        if not params.quiet:
-            print(f"{shape_step}: Shape loss = {loss}")
-
-        valid_sim = _validate(poly_metrics.areas, n_edge_crossings)
-        sim_states.valid.append(valid_sim)
 
         if not valid_sim and short:
             break
