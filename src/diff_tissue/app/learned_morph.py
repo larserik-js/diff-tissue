@@ -74,7 +74,7 @@ def _assign_weighted_goals(old_polygons, goals, new_polygons):
 
 
 def plot(results, output_dir):
-    figure = plotting.MorphFigure(results.new_params)
+    figure = plotting.MorphFigure(results.params)
     for t, vertices in enumerate(results.morph_evolution):
         if t % 10 == 0 or t == len(results.morph_evolution) - 1:
             figure.update(vertices)
@@ -132,7 +132,8 @@ def run(params, learned_morph_paths):
     morph_evolution_np = np.array(morph_evolution)
 
     io_utils.save_arrays(
-        learned_morph_paths.data_output_path, morph_evolution_np
+        learned_morph_paths.data_output_path,
+        morph_evolution=morph_evolution_np,
     )
 
     results = _Results(

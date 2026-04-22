@@ -68,8 +68,9 @@ def _morph(polygons, params):
 
 def get_morph_evolution(polygons, params, data_path):
     if data_path.exists():
-        morph_evolution = io_utils.load_arrays(data_path)
+        data = io_utils.load_dict_of_arrays(data_path)
+        morph_evolution = data["morph_evolution"]
     else:
         morph_evolution = _morph(polygons, params)
-        io_utils.save_arrays(data_path, morph_evolution)
+        io_utils.save_arrays(data_path, morph_evolution=morph_evolution)
     return morph_evolution

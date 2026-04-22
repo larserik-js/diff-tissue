@@ -18,22 +18,17 @@ def save_pkl(path, data):
         pickle.dump(data, f)
 
 
-def save_arrays_from_dataclass(path, dataclass):
-    np.savez(path, **asdict(dataclass))
-
-
 def load_dict_of_arrays(path: Path) -> dict[str, np.ndarray]:
     data = np.load(path)
     return data
 
 
-def save_arrays(path: Path, arrays: np.ndarray) -> None:
-    np.savez(path, arrays=arrays)
+def save_arrays(path: Path, **arrays_by_name) -> None:
+    np.savez(path, **arrays_by_name)
 
 
-def load_arrays(path: Path) -> np.ndarray:
-    data = np.load(path)
-    return data["arrays"]
+def save_arrays_from_dataclass(path, dataclass):
+    save_arrays(path, **asdict(dataclass))
 
 
 def save_pdf(path, fig, dpi=None):

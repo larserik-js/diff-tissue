@@ -56,7 +56,7 @@ def _save_mesh(mesh_dir, mesh):
     polygons_geo = [shapely_geo.mapping(poly) for poly in mesh.polygons]
     io_utils.save_json(mesh_dir / "geometry.json", polygons_geo)
 
-    np.savez(
+    io_utils.save_arrays(
         mesh_dir / "arrays.npz",
         areas=mesh.areas,
         anisotropies=mesh.anisotropies,
@@ -76,7 +76,7 @@ def _load_meshes(mesh_dirs):
         poly_geo_data = io_utils.load_json(mesh_dir / "geometry.json")
         polygons = [shapely_geo.shape(g) for g in poly_geo_data]
 
-        arrays = io_utils.load_arrays(mesh_dir / "arrays.npz")
+        arrays = io_utils.load_dict_of_arrays(mesh_dir / "arrays.npz")
 
         mesh = tutte_fields_core.Mesh(
             polygons=polygons,
