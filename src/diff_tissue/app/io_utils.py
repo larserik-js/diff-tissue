@@ -1,21 +1,9 @@
 from dataclasses import asdict
 import json
 from pathlib import Path
-import pickle
 
 import numpy as np
 import yaml
-
-
-def load_pkl(path):
-    with open(path, "rb") as f:
-        data = pickle.load(f)
-    return data
-
-
-def save_pkl(path, data):
-    with open(path, "wb") as f:
-        pickle.dump(data, f)
 
 
 def load_dict_of_arrays(path: Path) -> dict[str, np.ndarray]:

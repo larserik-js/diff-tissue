@@ -30,14 +30,10 @@ def run_shape_opt(params, paths):
     )
 
     best_state = shape_opt_core.get_best_state(sim_states)
-    best_goal_areas = best_state.goal_areas
-    best_goal_anisotropies = best_state.goal_anisotropies
-
     polygons = init_systems.get_jax_polygons(params)
 
     best_morph_evolution = shape_opt_app.get_best_morph_evolution(
-        best_goal_areas,
-        best_goal_anisotropies,
+        best_state,
         polygons,
         params,
         shape_opt_paths.best_morph_data_path,

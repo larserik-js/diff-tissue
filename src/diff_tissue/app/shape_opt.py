@@ -24,7 +24,7 @@ class ShapeOptPaths:
 
     @property
     def sim_states_data_path(self):
-        return self._sim_states_dir / f"{self._param_string}.pkl"
+        return self._sim_states_dir / f"{self._param_string}.npz"
 
     @property
     def final_tissues_dir(self):
@@ -45,7 +45,7 @@ class ShapeOptPaths:
     @property
     def best_morph_data_path(self):
         best_morph_data_path_ = (
-            self._best_morph_data_dir / f"{self._param_string}.pkl"
+            self._best_morph_data_dir / f"{self._param_string}.npz"
         )
         return best_morph_data_path_
 
@@ -70,11 +70,11 @@ def plot_final_tissues(final_tissues, params, output_dir):
 
 def get_sim_states(params, data_path):
     if data_path.exists():
-        sim_states = io_utils.load_pkl(data_path)
+        data = io_utils.load_dict_of_arrays(data_path)
+        sim_states = data["sim_states"]
     else:
         sim_states = shape_opt_core.run(params)
-        io_utils.save_pkl(data_path, sim_states)
-
+        io_utils.save_arrays_from_dataclass(data_path, sim_states)
     return sim_states
 
 
@@ -123,20 +123,21 @@ def run_multi(grid_variables, paths, n_workers):
         print("")
 
 
-def get_best_morph_evolution(
-    best_goal_areas, best_goal_anisotropies, polygons, params, data_path
-):
+def get_best_morph_evolution(best_state, polygons, params, data_path):
     if data_path.exists():
-        best_morph_evolution = io_utils.load_pkl(data_path)
+        data = io_utils.load_dict_of_arrays(data_path)
+        best_morph_evolution = data["best_morph_evolution"]
     else:
         best_morph_evolution = morphing_core.iterate(
-            best_goal_areas,
-            best_goal_anisotropies,
+            best_state.goal_areas,
+            best_state.goal_anisotropies,
             params.n_morph_steps,
             polygons,
             params,
         )
-        io_utils.save_pkl(data_path, best_morph_evolution)
+        io_utils.save_arrays(
+            data_path, best_morph_evolution=best_morph_evolution
+        )
 
     return best_morph_evolution
 
