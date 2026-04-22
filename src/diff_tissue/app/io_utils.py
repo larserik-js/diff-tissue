@@ -6,8 +6,6 @@ import pickle
 import numpy as np
 import yaml
 
-from ..core.jax_bootstrap import jax
-
 
 def load_pkl(path):
     with open(path, "rb") as f:
@@ -29,12 +27,11 @@ def load_dict_of_arrays(path: Path) -> dict[str, np.ndarray]:
     return data
 
 
-def save_arrays(path, arrays):
-    arrays_np = jax.device_get(arrays)
-    np.savez(path, arrays=arrays_np)
+def save_arrays(path: Path, arrays: np.ndarray) -> None:
+    np.savez(path, arrays=arrays)
 
 
-def load_arrays(path):
+def load_arrays(path: Path) -> np.ndarray:
     data = np.load(path)
     return data["arrays"]
 

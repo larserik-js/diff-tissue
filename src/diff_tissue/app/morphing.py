@@ -1,3 +1,5 @@
+import numpy as np
+
 from ..core.jax_bootstrap import jnp
 from ..core import metrics
 from ..core import morphing as morphing_core
@@ -61,7 +63,7 @@ def _morph(polygons, params):
         params,
     )
 
-    return morph_evolution
+    return np.array(morph_evolution)
 
 
 def get_morph_evolution(polygons, params, data_path):

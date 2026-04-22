@@ -84,8 +84,8 @@ def plot(results, output_dir):
 
 @dataclass
 class _Results:
-    morph_evolution: jnp.ndarray
-    new_params: parameters.Params
+    morph_evolution: np.ndarray
+    params: parameters.Params
 
 
 def run(params, learned_morph_paths):
@@ -129,11 +129,15 @@ def run(params, learned_morph_paths):
         params,
     )
 
-    io_utils.save_arrays(learned_morph_paths.data_output_path, morph_evolution)
+    morph_evolution_np = np.array(morph_evolution)
+
+    io_utils.save_arrays(
+        learned_morph_paths.data_output_path, morph_evolution_np
+    )
 
     results = _Results(
-        morph_evolution=morph_evolution,
-        new_params=params,
+        morph_evolution=morph_evolution_np,
+        params=params,
     )
 
     return results
