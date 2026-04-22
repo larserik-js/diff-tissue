@@ -1,89 +1,101 @@
-from diff_tissue.core.jax_bootstrap import jnp
+import numpy as np
+
 from diff_tissue.core import shape_opt
 
 
-def _test_single_valid_sim_state():
-    mock_list_of_arrays = [jnp.ones(5)]
+def _get_mock_sim_states():
+    mock_floating_array = np.ones(5)
+    mock_int_array = np.ones(5, dtype=int)
+    mock_bool_array = np.ones(5, dtype=bool)
 
-    sim_states = shape_opt._SimStates(
-        loss_vals=[0.5],
-        valid=[True],
-        final_vertices=mock_list_of_arrays,
-        goal_areas=mock_list_of_arrays,
-        goal_anisotropies=mock_list_of_arrays,
-        final_areas=mock_list_of_arrays,
-        final_anisotropies=mock_list_of_arrays,
-        n_edge_crossings=[0],
+    mock_sim_states = shape_opt._SimStates(
+        loss_vals=mock_floating_array,
+        shape_loss_vals=mock_floating_array,
+        var_loss_vals=mock_floating_array,
+        poly_id_loss_vals=mock_floating_array,
+        valid=mock_bool_array,
+        final_vertices=mock_floating_array,
+        goal_areas=mock_floating_array,
+        goal_anisotropies=mock_floating_array,
+        final_areas=mock_floating_array,
+        final_anisotropies=mock_floating_array,
+        n_edge_crossings=mock_int_array,
     )
-    valid_best_idx = shape_opt._get_valid_best_idx(sim_states)
+    return mock_sim_states
+
+
+def _test_single_valid_sim_state():
+    mock_sim_states = _get_mock_sim_states()
+    mock_single_val_array = np.array([1.0])
+
+    mock_sim_states.loss_vals = mock_single_val_array
+    mock_sim_states.shape_loss_vals = mock_single_val_array
+    mock_sim_states.var_loss_vals = mock_single_val_array
+    mock_sim_states.poly_id_loss_vals = mock_single_val_array
+    mock_sim_states.valid = np.array([True])
+    mock_sim_states.n_edge_crossings = np.array([0])
+
+    valid_best_idx = shape_opt._get_valid_best_idx(mock_sim_states)
     assert valid_best_idx == 0
 
 
 def _test_single_invalid_sim_state():
-    mock_list_of_arrays = [jnp.ones(5)]
+    mock_sim_states = _get_mock_sim_states()
+    mock_single_val_array = np.array([1.0])
 
-    sim_states = shape_opt._SimStates(
-        loss_vals=[0.5],
-        valid=[False],
-        final_vertices=mock_list_of_arrays,
-        goal_areas=mock_list_of_arrays,
-        goal_anisotropies=mock_list_of_arrays,
-        final_areas=mock_list_of_arrays,
-        final_anisotropies=mock_list_of_arrays,
-        n_edge_crossings=[0],
-    )
-    valid_best_idx = shape_opt._get_valid_best_idx(sim_states)
+    mock_sim_states.loss_vals = mock_single_val_array
+    mock_sim_states.shape_loss_vals = mock_single_val_array
+    mock_sim_states.var_loss_vals = mock_single_val_array
+    mock_sim_states.poly_id_loss_vals = mock_single_val_array
+    mock_sim_states.valid = np.array([False])
+    mock_sim_states.n_edge_crossings = np.array([0])
+
+    valid_best_idx = shape_opt._get_valid_best_idx(mock_sim_states)
     assert valid_best_idx == 0
 
 
 def _test_two_invalid_sim_states():
-    mock_list_of_arrays = 2 * [jnp.ones(5)]
+    mock_sim_states = _get_mock_sim_states()
+    mock_two_val_array = np.array([1.0, 1.0])
 
-    sim_states = shape_opt._SimStates(
-        loss_vals=[0.5, 0.1],
-        valid=[False, False],
-        final_vertices=mock_list_of_arrays,
-        goal_areas=mock_list_of_arrays,
-        goal_anisotropies=mock_list_of_arrays,
-        final_areas=mock_list_of_arrays,
-        final_anisotropies=mock_list_of_arrays,
-        n_edge_crossings=[0, 0],
-    )
-    valid_best_idx = shape_opt._get_valid_best_idx(sim_states)
+    mock_sim_states.loss_vals = np.array([0.5, 0.1])
+    mock_sim_states.shape_loss_vals = mock_two_val_array
+    mock_sim_states.var_loss_vals = mock_two_val_array
+    mock_sim_states.poly_id_loss_vals = mock_two_val_array
+    mock_sim_states.valid = np.array([False, False])
+    mock_sim_states.n_edge_crossings = np.array([0, 0])
+
+    valid_best_idx = shape_opt._get_valid_best_idx(mock_sim_states)
     assert valid_best_idx == 1
 
 
 def _test_mixed_valid_sim_states():
-    mock_list_of_arrays = 2 * [jnp.ones(5)]
+    mock_sim_states = _get_mock_sim_states()
+    mock_two_val_array = np.array([1.0, 1.0])
 
-    sim_states = shape_opt._SimStates(
-        loss_vals=[0.5, 0.1],
-        valid=[True, False],
-        final_vertices=mock_list_of_arrays,
-        goal_areas=mock_list_of_arrays,
-        goal_anisotropies=mock_list_of_arrays,
-        final_areas=mock_list_of_arrays,
-        final_anisotropies=mock_list_of_arrays,
-        n_edge_crossings=[0, 0],
-    )
-    valid_best_idx = shape_opt._get_valid_best_idx(sim_states)
+    mock_sim_states.loss_vals = mock_two_val_array
+    mock_sim_states.shape_loss_vals = mock_two_val_array
+    mock_sim_states.var_loss_vals = mock_two_val_array
+    mock_sim_states.poly_id_loss_vals = mock_two_val_array
+    mock_sim_states.valid = np.array([True, False])
+    mock_sim_states.n_edge_crossings = np.array([0, 0])
+
+    valid_best_idx = shape_opt._get_valid_best_idx(mock_sim_states)
     assert valid_best_idx == 0
 
 
 def _test_all_inf_losses_sim_state():
-    mock_list_of_arrays = [jnp.ones(5)]
+    mock_sim_states = _get_mock_sim_states()
+    mock_two_val_array = np.array([1.0, 1.0])
 
-    sim_states = shape_opt._SimStates(
-        loss_vals=[jnp.inf, jnp.inf],
-        valid=[False, False],
-        final_vertices=mock_list_of_arrays,
-        goal_areas=mock_list_of_arrays,
-        goal_anisotropies=mock_list_of_arrays,
-        final_areas=mock_list_of_arrays,
-        final_anisotropies=mock_list_of_arrays,
-        n_edge_crossings=[5, 5],
-    )
-    valid_best_idx = shape_opt._get_valid_best_idx(sim_states)
+    mock_sim_states.loss_vals = np.array([np.inf, np.inf])
+    mock_sim_states.shape_loss_vals = mock_two_val_array
+    mock_sim_states.var_loss_vals = mock_two_val_array
+    mock_sim_states.poly_id_loss_vals = mock_two_val_array
+    mock_sim_states.valid = np.array([False, False])
+    mock_sim_states.n_edge_crossings = np.array([5, 5])
+
+    valid_best_idx = shape_opt._get_valid_best_idx(mock_sim_states)
     assert valid_best_idx == 0
 
 

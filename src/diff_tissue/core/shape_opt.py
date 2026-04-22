@@ -3,6 +3,7 @@ import optax
 from typing import cast
 
 import numpy as np
+import numpy.typing as npt
 
 from diff_tissue.app import parameters
 from .jax_bootstrap import jax, jnp, struct
@@ -288,13 +289,13 @@ def _loss_fn(
         params.poly_id_cfg, poly_ids, poly_metrics
     )
 
-    loss = shape_loss + var_loss + poly_id_loss
+    total_loss = shape_loss + var_loss + poly_id_loss
 
     loss_terms = _LossTerms(
         shape_loss=shape_loss,
         var_loss=var_loss,
         poly_id_loss=poly_id_loss,
-        total_loss=loss,
+        total_loss=total_loss,
     )
 
     aux_data = (
@@ -306,7 +307,7 @@ def _loss_fn(
         loss_terms,
     )
 
-    return loss, aux_data
+    return total_loss, aux_data
 
 
 loss_fn = jax.jit(
@@ -435,7 +436,7 @@ class _MyOptimizer:
 
 
 @dataclass
-class _SimStates:
+class _RunningSimStates:
     loss_vals: list[float] = field(default_factory=list)
     shape_loss_vals: list[float] = field(default_factory=list)
     var_loss_vals: list[float] = field(default_factory=list)
@@ -451,7 +452,6 @@ class _SimStates:
 
 def _store_results(
     sim_states,
-    loss,
     loss_terms,
     valid_sim,
     vertices,
@@ -460,7 +460,7 @@ def _store_results(
     poly_metrics,
     n_edge_crossings,
 ):
-    sim_states.loss_vals.append(float(loss))
+    sim_states.loss_vals.append(float(loss_terms.total_loss))
     sim_states.shape_loss_vals.append(float(loss_terms.shape_loss))
     sim_states.var_loss_vals.append(float(loss_terms.var_loss))
     sim_states.poly_id_loss_vals.append(float(loss_terms.poly_id_loss))
@@ -471,6 +471,38 @@ def _store_results(
     sim_states.final_areas.append(np.array(poly_metrics.areas))
     sim_states.final_anisotropies.append(np.array(poly_metrics.anisotropies))
     sim_states.n_edge_crossings.append(n_edge_crossings)
+
+
+@dataclass
+class _SimStates:
+    loss_vals: npt.NDArray[np.floating]
+    shape_loss_vals: npt.NDArray[np.floating]
+    var_loss_vals: npt.NDArray[np.floating]
+    poly_id_loss_vals: npt.NDArray[np.floating]
+    valid: npt.NDArray[np.bool_]
+    final_vertices: npt.NDArray[np.floating]
+    goal_areas: npt.NDArray[np.floating]
+    goal_anisotropies: npt.NDArray[np.floating]
+    final_areas: npt.NDArray[np.floating]
+    final_anisotropies: npt.NDArray[np.floating]
+    n_edge_crossings: npt.NDArray[np.integer]
+
+
+def _finalize_results(running_sim_states):
+    sim_states = _SimStates(
+        loss_vals=np.array(running_sim_states.loss_vals),
+        shape_loss_vals=np.array(running_sim_states.shape_loss_vals),
+        var_loss_vals=np.array(running_sim_states.var_loss_vals),
+        poly_id_loss_vals=np.array(running_sim_states.poly_id_loss_vals),
+        valid=np.array(running_sim_states.valid),
+        final_vertices=np.array(running_sim_states.final_vertices),
+        goal_areas=np.array(running_sim_states.goal_areas),
+        goal_anisotropies=np.array(running_sim_states.goal_anisotropies),
+        final_areas=np.array(running_sim_states.final_areas),
+        final_anisotropies=np.array(running_sim_states.final_anisotropies),
+        n_edge_crossings=np.array(running_sim_states.n_edge_crossings),
+    )
+    return sim_states
 
 
 @dataclass
@@ -547,7 +579,7 @@ def _iterate_towards_shape(
 
     poly_ids = poly_identities.get_poly_identities(params)
 
-    sim_states = _SimStates()
+    running_sim_states = _RunningSimStates()
 
     best_loss = jnp.inf
     steps_since_best_loss = 0
@@ -586,8 +618,7 @@ def _iterate_towards_shape(
         valid_sim = _validate(poly_metrics.areas, n_edge_crossings)
 
         _store_results(
-            sim_states,
-            loss,
+            running_sim_states,
             loss_terms,
             valid_sim,
             vertices,
@@ -617,6 +648,8 @@ def _iterate_towards_shape(
             break
         else:
             logits = optimizer.update(logits, grads)
+
+    sim_states = _finalize_results(running_sim_states)
 
     return sim_states
 
