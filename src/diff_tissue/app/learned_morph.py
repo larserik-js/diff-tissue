@@ -24,7 +24,7 @@ class LearnedMorphPaths:
 
     @property
     def _data_dir(self):
-        data_dir_ = self._project_paths.make_subdir(
+        data_dir_ = self._project_paths.make_dir(
             self._project_paths.processed_data_dir, self._output_type
         )
         return data_dir_
@@ -36,7 +36,7 @@ class LearnedMorphPaths:
 
     @property
     def figs_dir(self):
-        figs_dir_ = self._project_paths.make_subdir(
+        figs_dir_ = self._project_paths.make_dir(
             self._project_paths.outputs_base_dir,
             self._output_type,
             self._param_string,

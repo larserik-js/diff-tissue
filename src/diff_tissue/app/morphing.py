@@ -14,7 +14,7 @@ class MorphingPaths:
 
     @property
     def _data_dir(self):
-        data_dir_ = self._project_paths.make_subdir(
+        data_dir_ = self._project_paths.make_dir(
             self._project_paths.processed_data_dir, self._output_type_dir_name
         )
         return data_dir_
@@ -26,7 +26,7 @@ class MorphingPaths:
 
     @property
     def output_dir(self):
-        output_dir_ = self._project_paths.make_subdir(
+        output_dir_ = self._project_paths.make_dir(
             self._project_paths.outputs_base_dir,
             self._output_type_dir_name,
             self._param_string,

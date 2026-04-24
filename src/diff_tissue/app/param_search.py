@@ -10,7 +10,7 @@ class ParamSearchPaths:
 
     @property
     def param_search_db(self):
-        data_dir = self._project_paths.make_subdir(
+        data_dir = self._project_paths.make_dir(
             self._project_paths.interim_data_dir
         )
         db_path = data_dir / "optuna.db"

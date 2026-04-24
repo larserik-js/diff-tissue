@@ -15,7 +15,7 @@ class TutteFieldsPaths:
 
     @property
     def fields_dir(self):
-        data_dir = self._project_paths.make_subdir(
+        data_dir = self._project_paths.make_dir(
             self._project_paths.processed_data_dir, self._output_type_dir
         )
         return data_dir
@@ -25,14 +25,12 @@ class TutteFieldsPaths:
 
     @property
     def meshes_dir(self):
-        return self._project_paths.make_subdir(
+        return self._project_paths.make_dir(
             self._project_paths.interim_data_dir, self._output_type_dir
         )
 
     def mesh_subdir(self, idx):
-        return self._project_paths.make_subdir(
-            self.meshes_dir, f"mesh_{idx:03d}"
-        )
+        return self._project_paths.make_dir(self.meshes_dir, f"mesh_{idx:03d}")
 
     @property
     def mesh_subdirs(self):
@@ -40,7 +38,7 @@ class TutteFieldsPaths:
 
     @property
     def output_dir(self):
-        return self._project_paths.make_subdir(
+        return self._project_paths.make_dir(
             self._project_paths.outputs_base_dir, self._output_type_dir
         )
 

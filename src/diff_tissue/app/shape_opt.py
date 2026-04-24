@@ -17,7 +17,7 @@ class ShapeOptPaths:
 
     @property
     def _sim_states_dir(self):
-        sim_states_dir_ = self._project_paths.make_subdir(
+        sim_states_dir_ = self._project_paths.make_dir(
             self._project_paths.processed_data_dir / self._sim_states_name
         )
         return sim_states_dir_
@@ -28,7 +28,7 @@ class ShapeOptPaths:
 
     @property
     def final_tissues_dir(self):
-        final_tissues_dir_ = self._project_paths.make_subdir(
+        final_tissues_dir_ = self._project_paths.make_dir(
             self._project_paths.outputs_base_dir,
             self._final_tissues_name,
             self._param_string,
@@ -37,7 +37,7 @@ class ShapeOptPaths:
 
     @property
     def _best_morph_data_dir(self):
-        best_morph_data_dir_ = self._project_paths.make_subdir(
+        best_morph_data_dir_ = self._project_paths.make_dir(
             self._project_paths.processed_data_dir / self._best_morph_name
         )
         return best_morph_data_dir_
@@ -51,7 +51,7 @@ class ShapeOptPaths:
 
     @property
     def best_morph_figs_dir(self):
-        best_morph_figs_dir_ = self._project_paths.make_subdir(
+        best_morph_figs_dir_ = self._project_paths.make_dir(
             self._project_paths.outputs_base_dir / self._best_morph_name,
             self._param_string,
         )

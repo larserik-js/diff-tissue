@@ -11,7 +11,7 @@ class _TuttePaths:
 
     @property
     def output_dir(self):
-        output_dir_ = self._project_paths.make_subdir(
+        output_dir_ = self._project_paths.make_dir(
             self._project_paths.outputs_base_dir, "tutte"
         )
         return output_dir_

@@ -19,7 +19,7 @@ class GridSearchPaths:
 
     @property
     def individual_results_dir(self):
-        return self._project_paths.make_subdir(
+        return self._project_paths.make_dir(
             self._project_paths.interim_data_dir
             / "grid_search"
             / self.study_name
@@ -27,7 +27,7 @@ class GridSearchPaths:
 
     @property
     def tabular_results_dir(self):
-        return self._project_paths.make_subdir(
+        return self._project_paths.make_dir(
             self._project_paths.processed_data_dir
             / "grid_search"
             / self.study_name
@@ -39,7 +39,7 @@ class GridSearchPaths:
 
     @property
     def figures_dir(self):
-        return self._project_paths.make_subdir(
+        return self._project_paths.make_dir(
             self._project_paths.outputs_base_dir
             / "grid_search"
             / self.study_name
