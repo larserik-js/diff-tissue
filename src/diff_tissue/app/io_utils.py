@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import polars as pl
 import yaml
 
 
@@ -41,3 +42,7 @@ def load_json(path):
 def save_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+
+
+def save_as_parquet(path: Path, df: pl.DataFrame) -> None:
+    df.write_parquet(path)

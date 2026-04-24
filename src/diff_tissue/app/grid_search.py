@@ -95,7 +95,7 @@ def _individual_results_to_df(input_dir, output_path):
             rows.append(json.load(f))
 
     df = pl.DataFrame(rows)
-    df.write_parquet(output_path)
+    io_utils.save_as_parquet(output_path, df)
 
 
 def _grid_vars_to_param_combs(grid_vars):
