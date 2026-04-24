@@ -32,8 +32,3 @@ class ProjectPaths:
     @property
     def processed_data_dir(self):
         return self.data_base_dir / "processed"
-
-    def make_dir(self, *parts):
-        subdir = Path(*parts)
-        subdir.mkdir(parents=True, exist_ok=True)
-        return subdir

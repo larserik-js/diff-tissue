@@ -1,6 +1,7 @@
 from dataclasses import fields
 from itertools import product
 import multiprocessing as mp
+from pathlib import Path
 
 from ..core import morphing as morphing_core
 from ..core import shape_opt as shape_opt_core
@@ -17,44 +18,52 @@ class ShapeOptPaths:
 
     @property
     def _sim_states_dir(self):
-        sim_states_dir_ = self._project_paths.make_dir(
-            self._project_paths.processed_data_dir / self._sim_states_name
+        sim_states_dir_ = Path(
+            self._project_paths.processed_data_dir, self._sim_states_name
         )
+        io_utils.ensure_dir(sim_states_dir_)
         return sim_states_dir_
 
     @property
     def sim_states_data_path(self):
-        return self._sim_states_dir / f"{self._param_string}.npz"
+        data_path = Path(self._sim_states_dir, f"{self._param_string}.npz")
+        io_utils.ensure_parent_dir(data_path)
+        return data_path
 
     @property
     def final_tissues_dir(self):
-        final_tissues_dir_ = self._project_paths.make_dir(
+        final_tissues_dir_ = Path(
             self._project_paths.outputs_base_dir,
             self._final_tissues_name,
             self._param_string,
         )
+        io_utils.ensure_dir(final_tissues_dir_)
         return final_tissues_dir_
 
     @property
     def _best_morph_data_dir(self):
-        best_morph_data_dir_ = self._project_paths.make_dir(
-            self._project_paths.processed_data_dir / self._best_morph_name
+        best_morph_data_dir_ = Path(
+            self._project_paths.processed_data_dir, self._best_morph_name
         )
+        io_utils.ensure_dir(best_morph_data_dir_)
         return best_morph_data_dir_
 
     @property
     def best_morph_data_path(self):
-        best_morph_data_path_ = (
-            self._best_morph_data_dir / f"{self._param_string}.npz"
+        data_path = Path(
+            self._best_morph_data_dir, f"{self._param_string}.npz"
         )
-        return best_morph_data_path_
+        io_utils.ensure_parent_dir(data_path)
+        return data_path
 
     @property
     def best_morph_figs_dir(self):
-        best_morph_figs_dir_ = self._project_paths.make_dir(
-            self._project_paths.outputs_base_dir / self._best_morph_name,
+        best_morph_figs_dir_ = Path(
+            self._project_paths.outputs_base_dir,
+            self._best_morph_name,
             self._param_string,
         )
+        io_utils.ensure_dir(best_morph_figs_dir_)
         return best_morph_figs_dir_
 
 

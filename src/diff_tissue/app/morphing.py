@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 
 from ..core.jax_bootstrap import jnp
@@ -14,23 +16,26 @@ class MorphingPaths:
 
     @property
     def _data_dir(self):
-        data_dir_ = self._project_paths.make_dir(
+        data_dir_ = Path(
             self._project_paths.processed_data_dir, self._output_type_dir_name
         )
+        io_utils.ensure_dir(data_dir_)
         return data_dir_
 
     @property
     def data_path(self):
-        data_path = self._data_dir / f"{self._param_string}.npz"
+        data_path = Path(self._data_dir, f"{self._param_string}.npz")
+        io_utils.ensure_parent_dir(data_path)
         return data_path
 
     @property
     def output_dir(self):
-        output_dir_ = self._project_paths.make_dir(
+        output_dir_ = Path(
             self._project_paths.outputs_base_dir,
             self._output_type_dir_name,
             self._param_string,
         )
+        io_utils.ensure_dir(output_dir_)
         return output_dir_
 
 

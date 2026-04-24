@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
@@ -17,30 +18,34 @@ class LearnedMorphPaths:
 
     @property
     def sim_states_data_path(self):
-        shape_opt_paths = shape_opt_app.ShapeOptPaths(
+        sim_states_data_path_ = shape_opt_app.ShapeOptPaths(
             self._project_paths, self._param_string
-        )
-        return shape_opt_paths.sim_states_data_path
+        ).sim_states_data_path
+        io_utils.ensure_parent_dir(sim_states_data_path_)
+        return sim_states_data_path_
 
     @property
     def _data_dir(self):
-        data_dir_ = self._project_paths.make_dir(
+        data_dir_ = Path(
             self._project_paths.processed_data_dir, self._output_type
         )
+        io_utils.ensure_dir(data_dir_)
         return data_dir_
 
     @property
     def data_output_path(self):
-        output_path_ = self._data_dir / f"{self._param_string}.npz"
+        output_path_ = Path(self._data_dir, f"{self._param_string}.npz")
+        io_utils.ensure_parent_dir(output_path_)
         return output_path_
 
     @property
     def figs_dir(self):
-        figs_dir_ = self._project_paths.make_dir(
+        figs_dir_ = Path(
             self._project_paths.outputs_base_dir,
             self._output_type,
             self._param_string,
         )
+        io_utils.ensure_dir(figs_dir_)
         return figs_dir_
 
 

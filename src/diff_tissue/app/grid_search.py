@@ -2,6 +2,7 @@ from dataclasses import fields
 from itertools import product
 import json
 import multiprocessing as mp
+from pathlib import Path
 
 from matplotlib import colors
 import matplotlib.pyplot as plt
@@ -19,31 +20,41 @@ class GridSearchPaths:
 
     @property
     def individual_results_dir(self):
-        return self._project_paths.make_dir(
-            self._project_paths.interim_data_dir
-            / "grid_search"
-            / self.study_name
+        individual_results_dir_ = Path(
+            self._project_paths.interim_data_dir,
+            "grid_search",
+            self.study_name,
         )
+        io_utils.ensure_dir(individual_results_dir_)
+        return individual_results_dir_
 
     @property
     def tabular_results_dir(self):
-        return self._project_paths.make_dir(
-            self._project_paths.processed_data_dir
-            / "grid_search"
-            / self.study_name
+        tabular_results_dir_ = Path(
+            self._project_paths.processed_data_dir,
+            "grid_search",
+            self.study_name,
         )
+        io_utils.ensure_dir(tabular_results_dir_)
+        return tabular_results_dir_
 
     @property
     def tabular_results_path(self):
-        return self.tabular_results_dir / "results.parquet"
+        tabular_results_path_ = Path(
+            self.tabular_results_dir, "results.parquet"
+        )
+        io_utils.ensure_parent_dir(tabular_results_path_)
+        return tabular_results_path_
 
     @property
     def figures_dir(self):
-        return self._project_paths.make_dir(
-            self._project_paths.outputs_base_dir
-            / "grid_search"
-            / self.study_name
+        figures_dir_ = Path(
+            self._project_paths.outputs_base_dir,
+            "grid_search",
+            self.study_name,
         )
+        io_utils.ensure_dir(figures_dir_)
+        return figures_dir_
 
 
 def _worker(params, output_dir):

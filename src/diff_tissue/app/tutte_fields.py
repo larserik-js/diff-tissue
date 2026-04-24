@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,22 +17,29 @@ class TutteFieldsPaths:
 
     @property
     def fields_dir(self):
-        data_dir = self._project_paths.make_dir(
+        data_dir = Path(
             self._project_paths.processed_data_dir, self._output_type_dir
         )
+        io_utils.ensure_dir(data_dir)
         return data_dir
 
     def fields_path(self, shape):
-        return self.fields_dir / f"fields__{shape}.npz"
+        data_path = Path(self.fields_dir, f"fields__{shape}.npz")
+        io_utils.ensure_parent_dir(data_path)
+        return data_path
 
     @property
     def meshes_dir(self):
-        return self._project_paths.make_dir(
+        data_dir = Path(
             self._project_paths.interim_data_dir, self._output_type_dir
         )
+        io_utils.ensure_dir(data_dir)
+        return data_dir
 
     def mesh_subdir(self, idx):
-        return self._project_paths.make_dir(self.meshes_dir, f"mesh_{idx:03d}")
+        mesh_subdir_ = Path(self.meshes_dir, f"mesh_{idx:03d}")
+        io_utils.ensure_dir(mesh_subdir_)
+        return mesh_subdir_
 
     @property
     def mesh_subdirs(self):
@@ -38,9 +47,11 @@ class TutteFieldsPaths:
 
     @property
     def output_dir(self):
-        return self._project_paths.make_dir(
+        output_dir = Path(
             self._project_paths.outputs_base_dir, self._output_type_dir
         )
+        io_utils.ensure_dir(output_dir)
+        return output_dir
 
 
 def _get_general_target_boundary(shape):

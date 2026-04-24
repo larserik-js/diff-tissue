@@ -1,6 +1,8 @@
+from pathlib import Path
+
 import optuna
 
-from . import parameters
+from . import io_utils, parameters
 from diff_tissue.core import shape_opt
 
 
@@ -10,10 +12,8 @@ class ParamSearchPaths:
 
     @property
     def param_search_db(self):
-        data_dir = self._project_paths.make_dir(
-            self._project_paths.interim_data_dir
-        )
-        db_path = data_dir / "optuna.db"
+        db_path = Path(self._project_paths.interim_data_dir, "optuna.db")
+        io_utils.ensure_parent_dir(db_path)
         return db_path
 
     @property

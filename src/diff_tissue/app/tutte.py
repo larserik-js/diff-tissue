@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -6,15 +8,20 @@ from . import io_utils, parameters
 
 
 class _TuttePaths:
-    def __init__(self, project_paths):
+    def __init__(self, project_paths, param_string):
         self._project_paths = project_paths
+        self._param_string = param_string
 
     @property
     def output_dir(self):
-        output_dir_ = self._project_paths.make_dir(
-            self._project_paths.outputs_base_dir, "tutte"
-        )
+        output_dir_ = Path(self._project_paths.outputs_base_dir, "tutte")
+        io_utils.ensure_dir(output_dir_)
         return output_dir_
+
+    @property
+    def output_path(self):
+        output_path_ = Path(self.output_dir, f"{self._param_string}.pdf")
+        return output_path_
 
 
 def _add_artists(ax, indices, valid_mask, vertices):
@@ -75,14 +82,13 @@ def plot(params, paths):
     polygons = init_systems.get_system(params)
     tutte_metrics = metrics.get_tutte_metrics(params)
 
-    tutte_paths = _TuttePaths(paths)
     param_string = parameters.get_param_string(params)
-    output_path = tutte_paths.output_dir / f"{param_string}.pdf"
+    tutte_paths = _TuttePaths(paths, param_string)
 
     _plot_mapping(
         polygons.init_vertices,
         polygons.indices,
         polygons.valid_mask,
         tutte_metrics.vertices,
-        output_path,
+        tutte_paths.output_path,
     )

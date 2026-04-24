@@ -7,6 +7,14 @@ import polars as pl
 import yaml
 
 
+def ensure_dir(path):
+    path.mkdir(parents=True, exist_ok=True)
+
+
+def ensure_parent_dir(path):
+    ensure_dir(path.parent)
+
+
 def load_dict_of_arrays(path: Path) -> dict[str, np.ndarray]:
     data = np.load(path)
     return data
