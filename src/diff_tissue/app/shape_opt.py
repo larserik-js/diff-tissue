@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ..core import morphing as morphing_core
 from ..core import shape_opt as shape_opt_core
+from ..core import init_systems
 from . import io_utils, parameters, plotting
 
 
@@ -21,13 +22,11 @@ class ShapeOptPaths:
         sim_states_dir_ = Path(
             self._project_paths.processed_data_dir, self._sim_states_name
         )
-        io_utils.ensure_dir(sim_states_dir_)
         return sim_states_dir_
 
     @property
     def sim_states_data_path(self):
         data_path = Path(self._sim_states_dir, f"{self._param_string}.npz")
-        io_utils.ensure_parent_dir(data_path)
         return data_path
 
     @property
@@ -37,7 +36,6 @@ class ShapeOptPaths:
             self._final_tissues_name,
             self._param_string,
         )
-        io_utils.ensure_dir(final_tissues_dir_)
         return final_tissues_dir_
 
     @property
@@ -45,7 +43,6 @@ class ShapeOptPaths:
         best_morph_data_dir_ = Path(
             self._project_paths.processed_data_dir, self._best_morph_name
         )
-        io_utils.ensure_dir(best_morph_data_dir_)
         return best_morph_data_dir_
 
     @property
@@ -53,7 +50,6 @@ class ShapeOptPaths:
         data_path = Path(
             self._best_morph_data_dir, f"{self._param_string}.npz"
         )
-        io_utils.ensure_parent_dir(data_path)
         return data_path
 
     @property
@@ -63,13 +59,13 @@ class ShapeOptPaths:
             self._best_morph_name,
             self._param_string,
         )
-        io_utils.ensure_dir(best_morph_figs_dir_)
         return best_morph_figs_dir_
 
 
 def plot_final_tissues(final_tissues, params, output_dir):
     figure = plotting.MorphFigure(params)
 
+    io_utils.ensure_dir(output_dir)
     for t, vertices in enumerate(final_tissues):
         if t % 10 == 0 or t == len(final_tissues) - 1:
             figure.update(vertices, enumerate=True)
@@ -78,13 +74,19 @@ def plot_final_tissues(final_tissues, params, output_dir):
 
 
 def get_sim_states(params, data_path):
-    if data_path.exists():
-        sim_states_dict = io_utils.load_dict_of_arrays(data_path)
-        return shape_opt_core.SimStates(**sim_states_dict)
-    else:
-        sim_states = shape_opt_core.run(params)
-        io_utils.save_arrays_from_dataclass(data_path, sim_states)
-    return sim_states
+    def load(path):
+        sim_states = io_utils.load_dict_of_arrays(path)
+        return shape_opt_core.SimStates(**sim_states)
+
+    def compute():
+        return shape_opt_core.run(params)
+
+    def save(path, sim_states):
+        return io_utils.save_arrays_from_dataclass(path, sim_states)
+
+    return io_utils.cache(
+        path=data_path, load_fn=load, compute_fn=compute, save_fn=save
+    )
 
 
 def _grid_vars_to_param_combs(grid_vars):
@@ -132,11 +134,14 @@ def run_multi(grid_variables, paths, n_workers):
         print("")
 
 
-def get_best_morph_evolution(best_state, polygons, params, data_path):
-    if data_path.exists():
-        data = io_utils.load_dict_of_arrays(data_path)
-        best_morph_evolution = data["best_morph_evolution"]
-    else:
+def get_best_morph_evolution(sim_states, params, data_path):
+    def load(path):
+        data = io_utils.load_dict_of_arrays(path)
+        return data["best_morph_evolution"]
+
+    def compute():
+        best_state = shape_opt_core.get_best_state(sim_states)
+        polygons = init_systems.get_jax_polygons(params)
         best_morph_evolution = morphing_core.iterate(
             best_state.goal_areas,
             best_state.goal_anisotropies,
@@ -144,16 +149,20 @@ def get_best_morph_evolution(best_state, polygons, params, data_path):
             polygons,
             params,
         )
-        io_utils.save_arrays(
-            data_path, best_morph_evolution=best_morph_evolution
-        )
+        return best_morph_evolution
 
-    return best_morph_evolution
+    def save(path, best_morph_evolution):
+        io_utils.save_arrays(path, best_morph_evolution=best_morph_evolution)
+
+    return io_utils.cache(
+        path=data_path, load_fn=load, compute_fn=compute, save_fn=save
+    )
 
 
 def plot_best_morph(morph_evolution, params, output_dir):
     figure = plotting.MorphGrowthFigure(params)
 
+    io_utils.ensure_dir(output_dir)
     for t, vertices in enumerate(morph_evolution):
         if t % 10 == 0 or t == len(morph_evolution) - 1:
             figure.update(vertices, t)

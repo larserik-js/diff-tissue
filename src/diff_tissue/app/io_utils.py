@@ -15,6 +15,18 @@ def ensure_parent_dir(path):
     ensure_dir(path.parent)
 
 
+def cache(path: Path, load_fn, compute_fn, save_fn):
+    if path.exists():
+        results = load_fn(path)
+    else:
+        results = compute_fn()
+
+        ensure_parent_dir(path)
+        save_fn(path, results)
+
+    return results
+
+
 def load_dict_of_arrays(path: Path) -> dict[str, np.ndarray]:
     data = np.load(path)
     return data

@@ -1,5 +1,4 @@
 from ..core import init_systems
-from ..core import shape_opt as shape_opt_core
 from . import learned_morph, morphing, parameters, tutte_fields
 from . import shape_opt as shape_opt_app
 
@@ -29,12 +28,8 @@ def run_shape_opt(params, paths):
         sim_states.final_vertices, params, shape_opt_paths.final_tissues_dir
     )
 
-    best_state = shape_opt_core.get_best_state(sim_states)
-    polygons = init_systems.get_jax_polygons(params)
-
     best_morph_evolution = shape_opt_app.get_best_morph_evolution(
-        best_state,
-        polygons,
+        sim_states,
         params,
         shape_opt_paths.best_morph_data_path,
     )
