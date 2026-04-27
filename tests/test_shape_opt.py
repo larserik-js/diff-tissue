@@ -8,7 +8,7 @@ def _get_mock_sim_states():
     mock_int_array = np.ones(5, dtype=int)
     mock_bool_array = np.ones(5, dtype=bool)
 
-    mock_sim_states = shape_opt._SimStates(
+    mock_sim_states = shape_opt.SimStates(
         loss_vals=mock_floating_array,
         shape_loss_vals=mock_floating_array,
         var_loss_vals=mock_floating_array,

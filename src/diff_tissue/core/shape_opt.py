@@ -474,7 +474,7 @@ def _store_results(
 
 
 @dataclass
-class _SimStates:
+class SimStates:
     loss_vals: npt.NDArray[np.floating]
     shape_loss_vals: npt.NDArray[np.floating]
     var_loss_vals: npt.NDArray[np.floating]
@@ -489,7 +489,7 @@ class _SimStates:
 
 
 def _finalize_results(running_sim_states):
-    sim_states = _SimStates(
+    sim_states = SimStates(
         loss_vals=np.array(running_sim_states.loss_vals),
         shape_loss_vals=np.array(running_sim_states.shape_loss_vals),
         var_loss_vals=np.array(running_sim_states.var_loss_vals),
@@ -564,7 +564,7 @@ def _iterate_towards_shape(
     polygons: init_systems.JaxPolygons,
     params: parameters.Params,
     short: bool,
-) -> _SimStates:
+) -> SimStates:
     vertices = polygons.init_vertices
 
     min_dist_mask = _make_min_dist_mask(polygons, target_boundary)

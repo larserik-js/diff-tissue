@@ -79,8 +79,8 @@ def plot_final_tissues(final_tissues, params, output_dir):
 
 def get_sim_states(params, data_path):
     if data_path.exists():
-        data = io_utils.load_dict_of_arrays(data_path)
-        sim_states = data["sim_states"]
+        sim_states_dict = io_utils.load_dict_of_arrays(data_path)
+        return shape_opt_core.SimStates(**sim_states_dict)
     else:
         sim_states = shape_opt_core.run(params)
         io_utils.save_arrays_from_dataclass(data_path, sim_states)
