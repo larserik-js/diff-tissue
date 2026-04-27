@@ -21,7 +21,6 @@ class LearnedMorphPaths:
         sim_states_data_path_ = shape_opt_app.ShapeOptPaths(
             self._project_paths, self._param_string
         ).sim_states_data_path
-        io_utils.ensure_parent_dir(sim_states_data_path_)
         return sim_states_data_path_
 
     @property
@@ -29,13 +28,11 @@ class LearnedMorphPaths:
         data_dir_ = Path(
             self._project_paths.processed_data_dir, self._output_type
         )
-        io_utils.ensure_dir(data_dir_)
         return data_dir_
 
     @property
     def data_output_path(self):
         output_path_ = Path(self._data_dir, f"{self._param_string}.npz")
-        io_utils.ensure_parent_dir(output_path_)
         return output_path_
 
     @property
@@ -45,7 +42,6 @@ class LearnedMorphPaths:
             self._output_type,
             self._param_string,
         )
-        io_utils.ensure_dir(figs_dir_)
         return figs_dir_
 
 
@@ -80,6 +76,7 @@ def _assign_weighted_goals(old_polygons, goals, new_polygons):
 
 def plot(results, output_dir):
     figure = plotting.MorphFigure(results.params)
+    io_utils.ensure_dir(output_dir)
     for t, vertices in enumerate(results.morph_evolution):
         if t % 10 == 0 or t == len(results.morph_evolution) - 1:
             figure.update(vertices)
@@ -136,6 +133,7 @@ def run(params, learned_morph_paths):
 
     morph_evolution_np = np.array(morph_evolution)
 
+    io_utils.ensure_parent_dir(learned_morph_paths.data_output_path)
     io_utils.save_arrays(
         learned_morph_paths.data_output_path,
         morph_evolution=morph_evolution_np,
