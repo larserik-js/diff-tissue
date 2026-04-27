@@ -45,9 +45,11 @@ def run_learned_morph(params, project_paths):
         project_paths, param_string
     )
 
-    results = learned_morph.run(params, learned_morph_paths)
+    learned_morph_evolution = learned_morph.run(params, learned_morph_paths)
 
-    learned_morph.plot(results, learned_morph_paths.figs_dir)
+    learned_morph.plot(
+        learned_morph_evolution, params, learned_morph_paths.figs_dir
+    )
 
 
 def plot_tutte_fields(paths):
