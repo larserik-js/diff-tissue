@@ -108,7 +108,7 @@ def _get_resulting_metrics(params, goal_areas, goal_anisotropies):
     return resulting_areas, resulting_anisotropies
 
 
-def run(params, learned_morph_paths):
+def _get_learned_morph_evolution(params, learned_morph_paths):
     polygons = init_systems.get_jax_polygons(params)
     sim_states = shape_opt_app.get_sim_states(
         params, learned_morph_paths.sim_states_data_path
@@ -129,12 +129,26 @@ def run(params, learned_morph_paths):
         params,
     )
 
-    morph_evolution_np = np.array(morph_evolution)
+    return np.array(morph_evolution)
 
-    io_utils.ensure_parent_dir(learned_morph_paths.data_output_path)
-    io_utils.save_arrays(
-        learned_morph_paths.data_output_path,
-        morph_evolution=morph_evolution_np,
+
+def run(params, learned_morph_paths):
+    def load(path):
+        data = io_utils.load_dict_of_arrays(path)
+        return data["morph_evolution"]
+
+    def compute():
+        learned_morph_evolution = _get_learned_morph_evolution(
+            params, learned_morph_paths
+        )
+        return learned_morph_evolution
+
+    def save(path, morph_evolution):
+        io_utils.save_arrays(path, morph_evolution=morph_evolution)
+
+    return io_utils.cache(
+        path=learned_morph_paths.data_output_path,
+        load_fn=load,
+        compute_fn=compute,
+        save_fn=save,
     )
-
-    return morph_evolution_np
