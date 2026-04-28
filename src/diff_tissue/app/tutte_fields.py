@@ -16,34 +16,31 @@ class TutteFieldsPaths:
         self._output_type_dir = "tutte_fields"
 
     @property
-    def fields_dir(self):
+    def _fields_dir(self):
         data_dir = Path(
             self._project_paths.processed_data_dir, self._output_type_dir
         )
-        io_utils.ensure_dir(data_dir)
         return data_dir
 
     def fields_path(self, shape):
-        data_path = Path(self.fields_dir, f"fields__{shape}.npz")
-        io_utils.ensure_parent_dir(data_path)
+        data_path = Path(self._fields_dir, f"fields__{shape}.npz")
         return data_path
 
     @property
-    def meshes_dir(self):
+    def _meshes_dir(self):
         data_dir = Path(
             self._project_paths.interim_data_dir, self._output_type_dir
         )
-        io_utils.ensure_dir(data_dir)
         return data_dir
 
     def mesh_subdir(self, idx):
-        mesh_subdir_ = Path(self.meshes_dir, f"mesh_{idx:03d}")
+        mesh_subdir_ = Path(self._meshes_dir, f"mesh_{idx:03d}")
         io_utils.ensure_dir(mesh_subdir_)
         return mesh_subdir_
 
     @property
     def mesh_subdirs(self):
-        return list(self.meshes_dir.glob("mesh*"))
+        return list(self._meshes_dir.glob("mesh*"))
 
     @property
     def output_dir(self):
@@ -130,15 +127,22 @@ def _generate_fields(shape, meshes):
 
 
 def get_fields(shape, paths):
-    data_path = paths.fields_path(shape)
-    if data_path.exists():
-        tutte_fields_ = _load_tutte_fields(data_path)
-    else:
-        meshes = _get_meshes(shape, paths)
+    def load(path):
+        return _load_tutte_fields(path)
 
-        tutte_fields_ = _generate_fields(shape, meshes)
-        io_utils.save_arrays_from_dataclass(data_path, tutte_fields_)
-    return tutte_fields_
+    def compute():
+        meshes = _get_meshes(shape, paths)
+        return _generate_fields(shape, meshes)
+
+    def save(path, tutte_fields):
+        io_utils.save_arrays_from_dataclass(path, tutte_fields)
+
+    return io_utils.cache(
+        paths.fields_path(shape),
+        load_fn=load,
+        compute_fn=compute,
+        save_fn=save,
+    )
 
 
 def _add_colorbar(ax, cmap_vals, cmap_name):
