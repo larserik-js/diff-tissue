@@ -13,7 +13,6 @@ class ParamSearchPaths:
     @property
     def param_search_db(self):
         db_path = Path(self._project_paths.interim_data_dir, "optuna.db")
-        io_utils.ensure_parent_dir(db_path)
         return db_path
 
     @property
@@ -54,6 +53,7 @@ def _objective_f(trial):
 
 def run(paths):
     param_search_paths = ParamSearchPaths(paths)
+    io_utils.ensure_parent_dir(param_search_paths.param_search_db)
 
     study = optuna.create_study(
         study_name="my_study",
@@ -104,12 +104,16 @@ def _show_n_completed(study):
 
 def inspect_param_search(paths, study_name):
     param_search_paths = ParamSearchPaths(paths)
-    storage = optuna.storages.RDBStorage(param_search_paths.db_url)
 
-    _show_studies(storage)
+    if not param_search_paths.param_search_db.exists():
+        print("No param search database found.")
+    else:
+        storage = optuna.storages.RDBStorage(param_search_paths.db_url)
 
-    study = optuna.load_study(study_name=f"{study_name}", storage=storage)
+        _show_studies(storage)
 
-    _show_first_trials(study)
-    _show_best_trial(study)
-    _show_n_completed(study)
+        study = optuna.load_study(study_name=f"{study_name}", storage=storage)
+
+        _show_first_trials(study)
+        _show_best_trial(study)
+        _show_n_completed(study)
