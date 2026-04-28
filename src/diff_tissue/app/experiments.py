@@ -60,4 +60,4 @@ def plot_tutte_fields(paths):
 
     fig = tutte_fields.plot(tutte_fields_)
 
-    tutte_fields.save_plot(fig, shape, tutte_fields_paths.output_dir)
+    tutte_fields.save_plot(fig, tutte_fields_paths.fig_path(shape))

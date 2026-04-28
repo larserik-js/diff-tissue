@@ -35,20 +35,28 @@ class TutteFieldsPaths:
 
     def mesh_subdir(self, idx):
         mesh_subdir_ = Path(self._meshes_dir, f"mesh_{idx:03d}")
-        io_utils.ensure_dir(mesh_subdir_)
         return mesh_subdir_
 
     @property
     def mesh_subdirs(self):
         return list(self._meshes_dir.glob("mesh*"))
 
+    def mesh_geometry_path(self, mesh_subdir):
+        return mesh_subdir / "geometry.json"
+
+    def mesh_arrays_path(self, mesh_subdir):
+        return mesh_subdir / "arrays.npz"
+
     @property
-    def output_dir(self):
+    def _output_dir(self):
         output_dir = Path(
             self._project_paths.outputs_base_dir, self._output_type_dir
         )
-        io_utils.ensure_dir(output_dir)
         return output_dir
+
+    def fig_path(self, shape):
+        fig_path_ = self._output_dir / f"tutte_fields__{shape}.pdf"
+        return fig_path_
 
 
 def _get_general_target_boundary(shape):
@@ -58,12 +66,14 @@ def _get_general_target_boundary(shape):
     return target_boundary.vertices
 
 
-def _save_mesh(mesh_dir, mesh):
+def _save_mesh_geometry(mesh, path):
     polygons_geo = [shapely_geo.mapping(poly) for poly in mesh.polygons]
-    io_utils.save_json(mesh_dir / "geometry.json", polygons_geo)
+    io_utils.save_json(path, polygons_geo)
 
+
+def _save_mesh_arrays(mesh, path):
     io_utils.save_arrays(
-        mesh_dir / "arrays.npz",
+        path,
         areas=mesh.areas,
         anisotropies=mesh.anisotropies,
     )
@@ -73,16 +83,18 @@ def _save_meshes(paths, meshes):
     assert len(meshes) < 1000
     for i, mesh in enumerate(meshes):
         mesh_dir = paths.mesh_subdir(i)
-        _save_mesh(mesh_dir, mesh)
+        io_utils.ensure_dir(mesh_dir)
+        _save_mesh_geometry(mesh, paths.mesh_geometry_path(mesh_dir))
+        _save_mesh_arrays(mesh, paths.mesh_arrays_path(mesh_dir))
 
 
-def _load_meshes(mesh_dirs):
+def _load_meshes(paths):
     meshes = []
-    for mesh_dir in mesh_dirs:
-        poly_geo_data = io_utils.load_json(mesh_dir / "geometry.json")
+    for mesh_dir in paths.mesh_subdirs:
+        poly_geo_data = io_utils.load_json(paths.mesh_geometry_path(mesh_dir))
         polygons = [shapely_geo.shape(g) for g in poly_geo_data]
 
-        arrays = io_utils.load_dict_of_arrays(mesh_dir / "arrays.npz")
+        arrays = io_utils.load_dict_of_arrays(paths.mesh_arrays_path(mesh_dir))
 
         mesh = tutte_fields_core.Mesh(
             polygons=polygons,
@@ -95,13 +107,12 @@ def _load_meshes(mesh_dirs):
 
 
 def _get_meshes(shape, paths):
-    mesh_dirs = paths.mesh_subdirs
-    if len(mesh_dirs) == 0:
+    if len(paths.mesh_subdirs) > 0:
+        meshes = _load_meshes(paths)
+    else:
         params = parameters.Params(shape=shape)
         meshes = tutte_fields_core.build_meshes(params)
         _save_meshes(paths, meshes)
-    else:
-        meshes = _load_meshes(mesh_dirs)
     return meshes
 
 
@@ -182,6 +193,6 @@ def plot(tutte_fields):
     return fig
 
 
-def save_plot(fig, shape, output_dir):
-    output_file = output_dir / f"tutte_fields__{shape}.pdf"
-    io_utils.save_pdf(output_file, fig)
+def save_plot(fig, fig_path):
+    io_utils.ensure_parent_dir(fig_path)
+    io_utils.save_pdf(fig_path, fig)
