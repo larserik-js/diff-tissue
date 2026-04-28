@@ -19,13 +19,11 @@ class MorphingPaths:
         data_dir_ = Path(
             self._project_paths.processed_data_dir, self._output_type_dir_name
         )
-        io_utils.ensure_dir(data_dir_)
         return data_dir_
 
     @property
     def data_path(self):
         data_path = Path(self._data_dir, f"{self._param_string}.npz")
-        io_utils.ensure_parent_dir(data_path)
         return data_path
 
     @property
@@ -35,13 +33,13 @@ class MorphingPaths:
             self._output_type_dir_name,
             self._param_string,
         )
-        io_utils.ensure_dir(output_dir_)
         return output_dir_
 
 
 def save_figs(morph_evolution, params, output_dir):
     figure = plotting.MorphFigure(params)
 
+    io_utils.ensure_dir(output_dir)
     for t, vertices in enumerate(morph_evolution):
         if t % 10 == 0 or t == len(morph_evolution) - 1:
             figure.update(vertices)
@@ -72,10 +70,19 @@ def _morph(polygons, params):
 
 
 def get_morph_evolution(polygons, params, data_path):
-    if data_path.exists():
-        data = io_utils.load_dict_of_arrays(data_path)
-        morph_evolution = data["morph_evolution"]
-    else:
-        morph_evolution = _morph(polygons, params)
-        io_utils.save_arrays(data_path, morph_evolution=morph_evolution)
-    return morph_evolution
+    def load(path):
+        data = io_utils.load_dict_of_arrays(path)
+        return data["morph_evolution"]
+
+    def compute():
+        return _morph(polygons, params)
+
+    def save(path, morph_evolution):
+        io_utils.save_arrays(path, morph_evolution=morph_evolution)
+
+    return io_utils.cache(
+        path=data_path,
+        load_fn=load,
+        compute_fn=compute,
+        save_fn=save,
+    )
