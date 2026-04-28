@@ -17,47 +17,55 @@ class GridSearchPaths:
     def __init__(self, project_paths, study_name):
         self._project_paths = project_paths
         self.study_name = study_name
+        self._output_type = "grid_search"
 
     @property
     def individual_results_dir(self):
         individual_results_dir_ = Path(
             self._project_paths.interim_data_dir,
-            "grid_search",
+            self._output_type,
             self.study_name,
         )
-        io_utils.ensure_dir(individual_results_dir_)
         return individual_results_dir_
 
+    def individual_result_path(self, params):
+        file_path = (
+            self.individual_results_dir
+            / f"{parameters.get_param_string(params)}.json"
+        )
+        return file_path
+
     @property
-    def tabular_results_dir(self):
+    def _tabular_results_dir(self):
         tabular_results_dir_ = Path(
             self._project_paths.processed_data_dir,
-            "grid_search",
+            self._output_type,
             self.study_name,
         )
-        io_utils.ensure_dir(tabular_results_dir_)
         return tabular_results_dir_
 
     @property
     def tabular_results_path(self):
         tabular_results_path_ = Path(
-            self.tabular_results_dir, "results.parquet"
+            self._tabular_results_dir, "results.parquet"
         )
-        io_utils.ensure_parent_dir(tabular_results_path_)
         return tabular_results_path_
 
     @property
-    def figures_dir(self):
+    def _figures_dir(self):
         figures_dir_ = Path(
             self._project_paths.outputs_base_dir,
-            "grid_search",
+            self._output_type,
             self.study_name,
         )
-        io_utils.ensure_dir(figures_dir_)
         return figures_dir_
 
+    def figures_path(self, anpw_str):
+        fig_path = self._figures_dir / f"anpw={anpw_str}.pdf"
+        return fig_path
 
-def _worker(params, output_dir):
+
+def _worker(params, paths):
     """Run a single trial and save results to a JSON file."""
     print(
         f"Running with "
@@ -71,7 +79,7 @@ def _worker(params, output_dir):
         f"seed={params.seed}",
     )
 
-    file_path = output_dir / f"{parameters.get_param_string(params)}.json"
+    file_path = paths.individual_result_path(params)
     if file_path.exists():
         return None
 
@@ -96,17 +104,6 @@ def _worker(params, output_dir):
     io_utils.save_json(file_path, result)
 
     return result
-
-
-def _individual_results_to_df(input_dir, output_path):
-    rows = []
-
-    for file in input_dir.glob("*.json"):
-        with open(file) as f:
-            rows.append(json.load(f))
-
-    df = pl.DataFrame(rows)
-    io_utils.save_as_parquet(output_path, df)
 
 
 def _grid_vars_to_param_combs(grid_vars):
@@ -144,10 +141,10 @@ def run(grid_variables, study_name, n_workers, paths):
     all_param_combs = _grid_vars_to_param_combs(grid_variables)
 
     inputs = [
-        (param_comb, grid_search_paths.individual_results_dir)
-        for param_comb in all_param_combs
+        (param_comb, grid_search_paths) for param_comb in all_param_combs
     ]
 
+    io_utils.ensure_dir(grid_search_paths.individual_results_dir)
     results = []
     with mp.Pool(processes=n_workers) as pool:
         print(
@@ -229,17 +226,38 @@ def _find_ax_limits(data_by_anpw):
     )
 
 
+def _individual_results_to_df(input_dir):
+    rows = []
+
+    for file in input_dir.glob("*.json"):
+        with open(file) as f:
+            rows.append(json.load(f))
+
+    df = pl.DataFrame(rows)
+    return df
+
+
 def _get_df(grid_search_paths):
-    df_file = grid_search_paths.tabular_results_path
-    if not df_file.exists():
+    def load(path):
+        return pl.read_parquet(path)
+
+    def compute():
         print("Converting individual JSON results to Parquet...")
-        _individual_results_to_df(
+        df = _individual_results_to_df(
             grid_search_paths.individual_results_dir,
-            grid_search_paths.tabular_results_path,
         )
         print("Conversion completed.")
-    df = pl.read_parquet(df_file)
-    return df
+        return df
+
+    def save(path, df):
+        io_utils.save_as_parquet(path, df)
+
+    return io_utils.cache(
+        path=grid_search_paths.tabular_results_path,
+        load_fn=load,
+        compute_fn=compute,
+        save_fn=save,
+    )
 
 
 def plot(study_name, paths):
@@ -322,6 +340,7 @@ def plot(study_name, paths):
             else:
                 ax.set_yticklabels([])
 
-        fig_path = grid_search_paths.figures_dir / f"anpw={anpw_str}.pdf"
+        fig_path = grid_search_paths.figures_path(anpw_str)
+        io_utils.ensure_parent_dir(fig_path)
         io_utils.save_pdf(fig_path, fig)
         plt.close(fig)
