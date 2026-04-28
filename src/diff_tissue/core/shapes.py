@@ -211,7 +211,7 @@ class _Petal(_Shape):
 
     @cached_property
     def _non_basal_arrays(self):
-        xs = np.linspace(self._lower_r, -self._lower_r, 100)
+        xs = np.linspace(self._lower_r, -self._lower_r, 1000)
         non_basal_ys = self._height * np.sqrt(1 - (xs / self._lower_r) ** 2)
 
         factor = 1 + self._stretch_strength * non_basal_ys / self._height
