@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -5,7 +7,20 @@ from ..core import init_systems, metrics
 from . import io_utils, parameters
 
 
-OUTPUT_TYPE_DIR = "tutte"
+class _TuttePaths:
+    def __init__(self, project_paths, param_string):
+        self._project_paths = project_paths
+        self._param_string = param_string
+
+    @property
+    def _output_dir(self):
+        output_dir_ = Path(self._project_paths.outputs_base_dir, "tutte")
+        return output_dir_
+
+    @property
+    def output_path(self):
+        output_path_ = Path(self._output_dir, f"{self._param_string}.pdf")
+        return output_path_
 
 
 def _add_artists(ax, indices, valid_mask, vertices):
@@ -18,9 +33,7 @@ def _add_artists(ax, indices, valid_mask, vertices):
         ax.plot(polygon[:, 0], polygon[:, 1], lw=0.7, color="black", zorder=2)
 
 
-def _plot_mapping(
-    init_vertices, indices, valid_mask, tutte_vertices, output_path
-):
+def _plot_mapping(init_vertices, indices, valid_mask, tutte_vertices):
     fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 
     # Initial mesh
@@ -59,20 +72,23 @@ def _plot_mapping(
     ax.set_title("Vector Field: Initial → Tutte")
 
     fig.tight_layout()
-    io_utils.save_pdf(output_path, fig)
+
+    return fig
 
 
-def plot(params, output_dir):
+def plot(params, paths):
     polygons = init_systems.get_system(params)
     tutte_metrics = metrics.get_tutte_metrics(params)
 
     param_string = parameters.get_param_string(params)
-    output_path = output_dir / f"{param_string}.pdf"
+    tutte_paths = _TuttePaths(paths, param_string)
 
-    _plot_mapping(
+    fig = _plot_mapping(
         polygons.init_vertices,
         polygons.indices,
         polygons.valid_mask,
         tutte_metrics.vertices,
-        output_path,
     )
+
+    io_utils.ensure_parent_dir(tutte_paths.output_path)
+    io_utils.save_pdf(tutte_paths.output_path, fig)

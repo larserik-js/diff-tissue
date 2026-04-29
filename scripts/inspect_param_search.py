@@ -1,6 +1,6 @@
 import argparse
 
-from diff_tissue.app import config, searches
+from diff_tissue.app import config, param_search
 
 
 def _parse_args():
@@ -24,7 +24,7 @@ def _main():
         data_base_dir=cfg.data_base_dir,
         outputs_base_dir=cfg.outputs_base_dir,
     )
-    searches.inspect_param_search(paths.param_search_db, args.study_name)
+    param_search.inspect_param_search(paths, args.study_name)
 
 
 if __name__ == "__main__":

@@ -1,13 +1,62 @@
+from pathlib import Path
+
 from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
+from shapely import geometry as shapely_geo
 
 from . import io_utils, parameters
 from ..core import tutte_fields as tutte_fields_core
 from ..core import init_systems, shapes
 
 
-OUTPUT_TYPE_DIR = "tutte_fields"
+class TutteFieldsPaths:
+    def __init__(self, project_paths):
+        self._project_paths = project_paths
+        self._output_type_dir = "tutte_fields"
+
+    @property
+    def _fields_dir(self):
+        data_dir = Path(
+            self._project_paths.processed_data_dir, self._output_type_dir
+        )
+        return data_dir
+
+    def fields_path(self, shape):
+        data_path = Path(self._fields_dir, f"fields__{shape}.npz")
+        return data_path
+
+    @property
+    def _meshes_dir(self):
+        data_dir = Path(
+            self._project_paths.interim_data_dir, self._output_type_dir
+        )
+        return data_dir
+
+    def mesh_subdir(self, idx):
+        mesh_subdir_ = Path(self._meshes_dir, f"mesh_{idx:03d}")
+        return mesh_subdir_
+
+    @property
+    def mesh_subdirs(self):
+        return list(self._meshes_dir.glob("mesh*"))
+
+    def mesh_geometry_path(self, mesh_subdir):
+        return mesh_subdir / "geometry.json"
+
+    def mesh_arrays_path(self, mesh_subdir):
+        return mesh_subdir / "arrays.npz"
+
+    @property
+    def _output_dir(self):
+        output_dir = Path(
+            self._project_paths.outputs_base_dir, self._output_type_dir
+        )
+        return output_dir
+
+    def fig_path(self, shape):
+        fig_path_ = self._output_dir / f"tutte_fields__{shape}.pdf"
+        return fig_path_
 
 
 def _get_general_target_boundary(shape):
@@ -17,23 +66,66 @@ def _get_general_target_boundary(shape):
     return target_boundary.vertices
 
 
-def _get_meshes(shape, data_path):
-    if data_path.exists():
-        meshes = io_utils.load_pkl(data_path)
-    else:
-        params = parameters.Params(shape=shape)
-        meshes = tutte_fields_core.build_meshes(params)
-        io_utils.save_pkl(data_path, meshes)
+def _save_mesh_geometry(mesh, path):
+    polygons_geo = [shapely_geo.mapping(poly) for poly in mesh.polygons]
+    io_utils.save_json(path, polygons_geo)
+
+
+def _save_mesh_arrays(mesh, path):
+    io_utils.save_arrays(
+        path,
+        areas=mesh.areas,
+        anisotropies=mesh.anisotropies,
+    )
+
+
+def _save_meshes(paths, meshes):
+    assert len(meshes) < 1000
+    for i, mesh in enumerate(meshes):
+        mesh_dir = paths.mesh_subdir(i)
+        io_utils.ensure_dir(mesh_dir)
+        _save_mesh_geometry(mesh, paths.mesh_geometry_path(mesh_dir))
+        _save_mesh_arrays(mesh, paths.mesh_arrays_path(mesh_dir))
+
+
+def _load_meshes(paths):
+    meshes = []
+    for mesh_dir in paths.mesh_subdirs:
+        poly_geo_data = io_utils.load_json(paths.mesh_geometry_path(mesh_dir))
+        polygons = [shapely_geo.shape(g) for g in poly_geo_data]
+
+        arrays = io_utils.load_dict_of_arrays(paths.mesh_arrays_path(mesh_dir))
+
+        mesh = tutte_fields_core.Mesh(
+            polygons=polygons,
+            areas=arrays["areas"],
+            anisotropies=arrays["anisotropies"],
+        )
+        meshes.append(mesh)
+
     return meshes
 
 
-def _generate_fields(shape, meshes_data_path):
+def _get_meshes(shape, paths):
+    if len(paths.mesh_subdirs) > 0:
+        meshes = _load_meshes(paths)
+    else:
+        params = parameters.Params(shape=shape)
+        meshes = tutte_fields_core.build_meshes(params)
+        _save_meshes(paths, meshes)
+    return meshes
+
+
+def _load_tutte_fields(path):
+    data_dict = io_utils.load_dict_of_arrays(path)
+    return tutte_fields_core.TutteFields(**data_dict)
+
+
+def _generate_fields(shape, meshes):
     target_boundary = _get_general_target_boundary(shape)
     points_inside_shape = tutte_fields_core.get_points_inside_shape(
         target_boundary, nx=100, ny=100
     )
-
-    meshes = _get_meshes(shape, meshes_data_path)
 
     area_field, anisotropy_field = tutte_fields_core.get_fields(
         meshes, points_inside_shape
@@ -46,18 +138,22 @@ def _generate_fields(shape, meshes_data_path):
 
 
 def get_fields(shape, paths):
-    data_dir = paths.make_subdir(paths.processed_data_dir, OUTPUT_TYPE_DIR)
-    data_path = data_dir / f"fields__{shape}.pkl"
-    if data_path.exists():
-        tutte_fields_ = io_utils.load_pkl(data_path)
-    else:
-        meshes_data_dir = paths.make_subdir(
-            paths.interim_data_dir, OUTPUT_TYPE_DIR
-        )
-        meshes_data_path = meshes_data_dir / f"meshes__{shape}.pkl"
-        tutte_fields_ = _generate_fields(shape, meshes_data_path)
-        io_utils.save_pkl(data_path, tutte_fields_)
-    return tutte_fields_
+    def load(path):
+        return _load_tutte_fields(path)
+
+    def compute():
+        meshes = _get_meshes(shape, paths)
+        return _generate_fields(shape, meshes)
+
+    def save(path, tutte_fields):
+        io_utils.save_arrays_from_dataclass(path, tutte_fields)
+
+    return io_utils.cache(
+        paths.fields_path(shape),
+        load_fn=load,
+        compute_fn=compute,
+        save_fn=save,
+    )
 
 
 def _add_colorbar(ax, cmap_vals, cmap_name):
@@ -97,6 +193,6 @@ def plot(tutte_fields):
     return fig
 
 
-def save_plot(fig, shape, output_dir):
-    output_file = output_dir / f"tutte_fields__{shape}.pdf"
-    io_utils.save_pdf(output_file, fig)
+def save_plot(fig, fig_path):
+    io_utils.ensure_parent_dir(fig_path)
+    io_utils.save_pdf(fig_path, fig)

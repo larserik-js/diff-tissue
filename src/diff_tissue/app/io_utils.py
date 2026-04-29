@@ -1,31 +1,43 @@
+from dataclasses import asdict
 import json
-import pickle
+from pathlib import Path
 
 import numpy as np
+import polars as pl
 import yaml
 
-from ..core.jax_bootstrap import jax
+
+def ensure_dir(path):
+    path.mkdir(parents=True, exist_ok=True)
 
 
-def load_pkl(path):
-    with open(path, "rb") as f:
-        data = pickle.load(f)
+def ensure_parent_dir(path):
+    ensure_dir(path.parent)
+
+
+def cache(path: Path, load_fn, compute_fn, save_fn):
+    if path.exists():
+        results = load_fn(path)
+    else:
+        results = compute_fn()
+
+        ensure_parent_dir(path)
+        save_fn(path, results)
+
+    return results
+
+
+def load_dict_of_arrays(path: Path) -> dict[str, np.ndarray]:
+    data = np.load(path)
     return data
 
 
-def save_pkl(path, data):
-    with open(path, "wb") as f:
-        pickle.dump(data, f)
+def save_arrays(path: Path, **arrays_by_name) -> None:
+    np.savez(path, **arrays_by_name)
 
 
-def save_arrays(path, arrays):
-    arrays_np = jax.device_get(arrays)
-    np.savez(path, arrays=arrays_np)
-
-
-def load_arrays(path):
-    data = np.load(path)
-    return data["arrays"]
+def save_arrays_from_dataclass(path, dataclass):
+    save_arrays(path, **asdict(dataclass))
 
 
 def save_pdf(path, fig, dpi=None):
@@ -50,3 +62,7 @@ def load_json(path):
 def save_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+
+
+def save_as_parquet(path: Path, df: pl.DataFrame) -> None:
+    df.write_parquet(path)

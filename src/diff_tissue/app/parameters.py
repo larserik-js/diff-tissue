@@ -18,17 +18,17 @@ class Params:
         },
     )
     shape: str = struct.field(
-        default="trapezoid",
+        default="petal",
         pytree_node=False,
         metadata={
             "help": "Shape of target boundary.",
             "choices": [
+                "petal",
+                "long_petal",
                 "trapezoid",
                 "narrow_trapezoid",
                 "wide_trapezoid",
                 "square",
-                "petal",
-                "long_petal",
                 "nconv",
                 "complex_nconv",
             ],
@@ -75,11 +75,6 @@ class Params:
         pytree_node=True,
         metadata={"help": "Areas potential weight.", "cli_flag": "arpw"},
     )
-    angles_pot_weight: float = struct.field(
-        default=13.0,
-        pytree_node=True,
-        metadata={"help": "Angles potential weight.", "cli_flag": "anpw"},
-    )
     anisotropies_pot_weight: float = struct.field(
         default=50.0,
         pytree_node=True,
@@ -87,6 +82,11 @@ class Params:
             "help": "Anisotropies potential weight.",
             "cli_flag": "aspw",
         },
+    )
+    angles_pot_weight: float = struct.field(
+        default=13.0,
+        pytree_node=True,
+        metadata={"help": "Angles potential weight.", "cli_flag": "anpw"},
     )
     init_lr: float = struct.field(
         default=0.01,
@@ -96,10 +96,20 @@ class Params:
             "cli_flag": "init_lr",
         },
     )
+    n_shape_steps: int = struct.field(
+        default=1000,
+        pytree_node=True,
+        metadata={"help": "Number of shape steps.", "cli_flag": "ssteps"},
+    )
     shape_loss_weight: float = struct.field(
         default=1.0,
         pytree_node=True,
         metadata={"help": "Shape loss weight.", "cli_flag": "slw"},
+    )
+    var_loss_weight: float = struct.field(
+        default=0.0,
+        pytree_node=True,
+        metadata={"help": "Variance loss weight.", "cli_flag": "vlw"},
     )
     poly_id_cfg: int = struct.field(
         default=0,
@@ -109,11 +119,6 @@ class Params:
             "choices": [0, 1, 2],
             "cli_flag": "id",
         },
-    )
-    poly_id_loss_weight: float = struct.field(
-        default=0.5,
-        pytree_node=True,
-        metadata={"help": "Poly identity loss weight.", "cli_flag": "ilw"},
     )
     seed: int = struct.field(
         default=0,
@@ -192,10 +197,11 @@ class _ParamStringFormatter:
 
         for field in fields(self._params):
             cli_flag = field.metadata.get("cli_flag")
-            param_name_val = self._format_param_val_str(
-                cli_flag, getattr(self._params, field.name)
-            )
-            param_name_vals.append(param_name_val)
+            if cli_flag != "quiet":
+                param_name_val = self._format_param_val_str(
+                    cli_flag, getattr(self._params, field.name)
+                )
+                param_name_vals.append(param_name_val)
         param_path_str = "__".join(param_name_vals)
         return param_path_str
 

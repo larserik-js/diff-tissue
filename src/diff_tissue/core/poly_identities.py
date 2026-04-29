@@ -34,38 +34,10 @@ class _ProxDistIdentities:
         return distal_inds
 
 
-def _calc_prox_dist_area_loss(poly_ids, poly_metrics):
-    proximal_areas = poly_metrics.areas[poly_ids.proximal_inds]
-    distal_areas = poly_metrics.areas[poly_ids.distal_inds]
-
-    proximal_to_distal_scale = 1.75  # From paper
-
-    proximal_loss = jnp.square(
-        jnp.mean(proximal_areas)
-        - proximal_to_distal_scale * jnp.mean(distal_areas)
-    )
-    distal_loss = jnp.square(
-        jnp.mean(distal_areas)
-        - (1.0 / proximal_to_distal_scale) * jnp.mean(proximal_areas)
-    )
-
-    area_loss = proximal_loss + distal_loss
-
-    return area_loss
-
-
-def _calc_prox_dist_anisotropy_loss(poly_ids, poly_metrics):
+def _calc_prox_dist_loss(poly_ids, poly_metrics):
     proximal_anisotropies = poly_metrics.anisotropies[poly_ids.proximal_inds]
     anisotropy_loss = jnp.mean(jnp.square(proximal_anisotropies - 1.0))
     return anisotropy_loss
-
-
-def _calc_prox_dist_loss(poly_ids, poly_metrics):
-    area_loss = _calc_prox_dist_area_loss(poly_ids, poly_metrics)
-    anisotropy_loss = _calc_prox_dist_anisotropy_loss(poly_ids, poly_metrics)
-
-    poly_id_loss = 0.1 * area_loss + 10.0 * anisotropy_loss
-    return poly_id_loss
 
 
 @struct.dataclass
@@ -101,17 +73,10 @@ class _MidOuterIdentities:
         return outer_inds_
 
 
-def _calc_mid_outer_anisotropy_loss(poly_ids, poly_metrics):
+def _calc_mid_outer_loss(poly_ids, poly_metrics):
     mid_anisotropies = poly_metrics.anisotropies[poly_ids.mid_inds]
     anisotropy_loss = jnp.mean(jnp.square(mid_anisotropies - 1.0))
     return anisotropy_loss
-
-
-def _calc_mid_outer_loss(poly_ids, poly_metrics):
-    anisotropy_loss = _calc_mid_outer_anisotropy_loss(poly_ids, poly_metrics)
-
-    poly_id_loss = 25.0 * anisotropy_loss
-    return poly_id_loss
 
 
 @struct.dataclass
@@ -124,9 +89,9 @@ def calc_poly_id_loss(id, poly_ids, poly_metrics):
     if id == 0:
         poly_id_loss = 0.0
     elif id == 1:
-        poly_id_loss = _calc_prox_dist_loss(poly_ids, poly_metrics)
+        poly_id_loss = 5.0 * _calc_prox_dist_loss(poly_ids, poly_metrics)
     elif id == 2:
-        poly_id_loss = _calc_mid_outer_loss(poly_ids, poly_metrics)
+        poly_id_loss = 12.5 * _calc_mid_outer_loss(poly_ids, poly_metrics)
     return poly_id_loss
 
 
