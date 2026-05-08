@@ -167,7 +167,7 @@ class MorphFigure(_Figure):
         )
 
     def _init_figure(self):
-        self.fig = plt.figure(figsize=(10, 10))
+        self.fig = plt.figure(figsize=(10, 10), constrained_layout=True)
 
     def update(self, vertices, enumerate=False):
         self._morph_artists.plot(vertices, enumerate)
@@ -204,7 +204,7 @@ class MorphGrowthFigure(_Figure):
         )
 
     def _init_figure(self):
-        self.fig = plt.figure(figsize=(8, 10))
+        self.fig = plt.figure(figsize=(8, 10), constrained_layout=True)
 
     def _scale_vertices(self, vertices, step):
         t_frac = step / self._total_steps
