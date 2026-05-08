@@ -19,12 +19,15 @@ def _get_polygons(vertices, indices, valid_mask):
 
 
 class _Artists:
-    def __init__(self, ax, polygons, target_boundary, all_knots, params):
+    def __init__(
+        self, ax, polygons, target_boundary, all_knots, params, clean=False
+    ):
         self._ax = ax
         self._polygons = polygons
         self._target_boundary = target_boundary
         self._all_knots = all_knots
         self._params = params
+        self._clean = clean
         self._ax_lims = self._get_ax_lims()
 
     def _get_ax_lims(self):
@@ -45,6 +48,8 @@ class _Artists:
         self._ax.set_xlim(self._ax_lims["x"])
         self._ax.set_ylim(self._ax_lims["y"])
         self._ax.set_aspect("equal")
+        if self._clean:
+            self._ax.axis("off")
 
     def _add_baselines(self):
         base_y = init_systems.Coords.base_origin[1]
@@ -107,9 +112,10 @@ class _Artists:
 
     def _add_artists(self, vertices, enumerate):
         self._add_baselines()
-        self._add_target_boundary()
         self._add_vertices(vertices)
-        self._add_boundary_vertices(vertices)
+        if not self._clean:
+            self._add_target_boundary()
+            self._add_boundary_vertices(vertices)
         if self._params.knots:
             self._add_knots()
 
@@ -161,7 +167,7 @@ class MorphFigure(_Figure):
         )
 
     def _init_figure(self):
-        self.fig = plt.figure(figsize=(10, 10))
+        self.fig = plt.figure(figsize=(10, 10), constrained_layout=True)
 
     def update(self, vertices, enumerate=False):
         self._morph_artists.plot(vertices, enumerate)
@@ -194,10 +200,11 @@ class MorphGrowthFigure(_Figure):
             self._scaled_target_boundary,
             self._scaled_knots,
             params,
+            clean=True,
         )
 
     def _init_figure(self):
-        self.fig = plt.figure(figsize=(8, 10))
+        self.fig = plt.figure(figsize=(8, 10), constrained_layout=True)
 
     def _scale_vertices(self, vertices, step):
         t_frac = step / self._total_steps

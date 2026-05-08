@@ -1,10 +1,13 @@
 # diff-tissue
 
-## Differentiable tissue growth
+<p align="center">
+  <img src="assets/animation__v1_5_0.gif" width="400">
+</p>
 
-This repository contains code for simulating the **morphogenesis of plant tissues using differentiable programming**. The project explores how tissue development can be modeled with fully differentiable simulations in combination with vertex models.
+## Differentiable Tissue Morphogenesis
+This repository provides code for simulating **plant tissue morphogenesis using differentiable programming**. It combines vertex-based tissue models with fully differentiable simulations.
 
-By keeping the simulation differentiable, model parameters and growth rules can be optimized or potentially learned from data, enabling new workflows in computational biology and developmental modeling.
+Keeping the simulation differentiable allows model parameters and growth rules to be optimized or potentially learned from data, enabling new workflows in computational biology and developmental modeling.
 
 ---
 
@@ -17,28 +20,36 @@ git clone https://github.com/larserik-js/diff-tissue.git
 cd diff-tissue
 ```
 
-Install dependencies (example shown using **uv**):
-
-```bash
-uv sync
-```
+Create a virtual environment and install dependencies defined in `pyproject.toml` using your preferred tool. The examples below assume that `python` refers to the interpreter in this environment.
 
 ---
 
 ## Usage
 
-Run a basic tissue growth simulation:
+Run the main optimization pipeline:
 
 ```bash
-cd scripts
-python run_shape_opt.py
+python scripts/run_shape_opt.py
 ```
 
-Typical workflow:
+This script performs shape-based optimization of tissue growth parameters. It produces:
 
-1. Optimize tissue growth
-2. View output figures under ```outputs```
+* Final optimized tissues in `outputs/final_tissues/`
+* Visualization of the morphogenesis process in `outputs/best_morph/`
 
+You can also run the script with custom parameters:
+
+```bash
+python scripts/run_shape_opt.py --shape trapezoid --id 1 --seed 10
+```
+
+Parameters:
+
+* `--shape`: target geometry
+* `--id`: cell configuration
+* `--seed`: random seed controlling mesh initialization
+
+For a full list of parameters, see `src/diff_tissue/app/parameters.py`.
 
 ---
 
@@ -46,11 +57,11 @@ Typical workflow:
 
 ```
 diff_tissue/
-├── scripts/
+├── scripts/          # Entry points and experiments
 ├── src/
-│   ├── app/
-│   └── core/
-├── pyproject.toml
+│   ├── app/          # Application-level logic and configuration
+│   └── core/         # Core simulation and modeling code
+├── pyproject.toml    # Dependencies and project metadata
 └── README.md
 ```
 
