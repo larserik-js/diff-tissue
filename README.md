@@ -1,7 +1,10 @@
 # diff-tissue
 
-## Differentiable Tissue Morphogenesis
+<p align="center">
+  <img src="assets/animation__v1_5_0.gif" width="400">
+</p>
 
+## Differentiable Tissue Morphogenesis
 This repository provides code for simulating **plant tissue morphogenesis using differentiable programming**. It combines vertex-based tissue models with fully differentiable simulations.
 
 Keeping the simulation differentiable allows model parameters and growth rules to be optimized or potentially learned from data, enabling new workflows in computational biology and developmental modeling.
