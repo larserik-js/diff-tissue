@@ -5,6 +5,7 @@ description = "Optimization of growing tissues using differentiable programming"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.136.3",
     "flax>=0.12.2",
     "jax[cpu]>=0.5.2",
     "jaxlib>=0.5.1",
@@ -16,6 +17,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "scipy>=1.15.2",
     "shapely>=2.1.1",
+    "uvicorn>=0.47.0",
 ]
 
 [build-system]
