@@ -6,7 +6,9 @@ RUN pip install uv
 
 COPY pyproject.toml uv.lock ./
 
-RUN uv sync --frozen
+ENV UV_CACHE_DIR=/tmp/uv-cache
+
+RUN uv sync --frozen --no-dev && rm -rf /tmp/uv-cache
 
 COPY src ./src
 
