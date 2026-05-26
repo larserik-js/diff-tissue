@@ -1,9 +1,15 @@
 from dataclasses import asdict
+import logging
+import time
 
+from fastapi import HTTPException
 import numpy as np
 
 from . import parameters
 from ..core import shape_opt
+
+
+logger = logging.getLogger(__name__)
 
 
 def _sim_states_to_dict(sim_states: shape_opt.SimStates) -> dict:
@@ -21,6 +27,10 @@ def _sim_states_to_dict(sim_states: shape_opt.SimStates) -> dict:
 
 
 def run_and_serialize(request_data) -> dict:
+    logger.info("Starting simulation")
+
+    start = time.perf_counter()
+
     params = parameters.Params(
         system=request_data.system,
         shape=request_data.shape,
@@ -38,6 +48,19 @@ def run_and_serialize(request_data) -> dict:
         poly_id_cfg=request_data.poly_id_cfg,
         seed=request_data.seed,
     )
-    sim_states = shape_opt.run(params)
+
+    try:
+        sim_states = shape_opt.run(params)
+    except Exception as e:
+        logger.exception("Simulation failed")
+        raise HTTPException(
+            status_code=500,
+            detail=str(e),
+        )
+
     serialized_sim_states = _sim_states_to_dict(sim_states)
+
+    elapsed = time.perf_counter() - start
+    logger.info(f"Simulation completed in {elapsed:.2f}s")
+
     return serialized_sim_states
