@@ -69,7 +69,7 @@ def plot_final_tissues(final_tissues, params, output_dir):
     for t, vertices in enumerate(final_tissues):
         if t % 10 == 0 or t == len(final_tissues) - 1:
             figure.update(vertices, enumerate=True)
-            fig_path = output_dir / f"step={t:03d}.png"
+            fig_path = output_dir / f"step={t:03d}.pdf"
             io_utils.save_pdf(fig_path, figure.fig, dpi=100)
 
 
@@ -166,5 +166,5 @@ def plot_best_morph(morph_evolution, params, output_dir):
     for t, vertices in enumerate(morph_evolution):
         if t % 10 == 0 or t == len(morph_evolution) - 1:
             figure.update(vertices, t)
-            fig_path = output_dir / f"step={t:03d}.png"
+            fig_path = output_dir / f"step={t:03d}.pdf"
             io_utils.save_pdf(fig_path, figure.fig, dpi=100)
