@@ -583,6 +583,8 @@ def _iterate_towards_shape(
 
     best_loss = jnp.inf
     steps_since_best_loss = 0
+    best_step = None
+    patience = 50
 
     for shape_step in range(params.n_shape_steps):
         (loss, aux_data), grads = loss_fn(
@@ -634,20 +636,26 @@ def _iterate_towards_shape(
         if loss < best_loss and valid_sim:
             best_loss = loss
             steps_since_best_loss = 0
+            best_step = shape_step
 
             if not params.quiet:
-                print("(New best loss.)")
-                print("")
+                print("(New best loss.)\n")
         else:
             steps_since_best_loss += 1
 
-        if steps_since_best_loss >= 50:
+        if steps_since_best_loss >= patience:
             if not params.quiet:
-                print("(Stopped - iteration diverged.)")
-                print("")
+                print(
+                    f"\nStopped - loss failed to improve for {patience} steps."
+                )
             break
         else:
             logits = optimizer.update(logits, grads)
+
+    if best_step is not None:
+        print(f"Best loss achieved: {best_loss:.6f} at step {best_step}.")
+    else:
+        print("No valid solution found.")
 
     sim_states = _finalize_results(running_sim_states)
 
