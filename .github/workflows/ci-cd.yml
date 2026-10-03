@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -40,3 +40,34 @@ jobs:
 
       - name: Run all tests
         run: make test-full
+
+  docker:
+    needs: checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t diff-tissue:${{ github.sha }} .
+
+      - name: Run Docker container
+        run: |
+          docker run -d \
+            --name diff-tissue \
+            -p 8000:8000 \
+            diff-tissue:${{ github.sha }}
+
+      - name: Wait for API
+        run: |
+          for i in {1..30}; do
+            if curl --fail http://localhost:8000/health; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "API failed to start"
+          docker logs diff-tissue
+          exit 1
