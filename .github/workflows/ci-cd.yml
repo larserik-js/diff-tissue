@@ -96,3 +96,9 @@ jobs:
         run: |
           docker push \
             ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+      - name: Trigger Render deployment
+        if: github.event_name == 'push'
+        run: |
+          curl --fail --request POST \
+            "${{ secrets.RENDER_DEPLOY_HOOK }}&imgURL=ghcr.io%2F${{ github.repository }}%3A${{ github.sha }}"
