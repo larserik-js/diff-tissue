@@ -45,6 +45,10 @@ jobs:
     needs: checks
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -71,3 +75,24 @@ jobs:
           echo "API failed to start"
           docker logs diff-tissue
           exit 1
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            docker login ghcr.io \
+            -u "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Tag image
+        if: github.event_name == 'push'
+        run: |
+          docker tag \
+            diff-tissue:${{ github.sha }} \
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+      - name: Push image
+        if: github.event_name == 'push'
+        run: |
+          docker push \
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
