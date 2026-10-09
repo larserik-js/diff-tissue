@@ -42,7 +42,7 @@ Run the main optimization pipeline:
 python scripts/run_shape_opt.py
 ```
 
-This script performs optimization of cell-level parameters, based on a tissue-level target boundary. The optimization runs for a maximum of 1000 steps, and converges when the loss does not improve over 50 steps. After this, two visualization steps are performed, which produce:
+This script runs three sequential steps. First, it performs the main simulation, optimizing cell-level parameters based on a tissue-level target boundary. By default, this target boundary is petal-shaped, the optimization runs for a maximum of 1000 steps, and it converges when the loss does not improve for 50 steps. After the simulation, two visualization steps generate the following outputs:
 
 * Final optimized tissues for different optimization steps in `outputs/final_tissues/`
 * Visualization of the best-loss morphogenesis process in `outputs/best_morph/`
