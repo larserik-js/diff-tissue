@@ -111,24 +111,6 @@ class _PotentialWeights:
     anisotropies: float
 
 
-def _get_potential_weights(params):
-    match params.system:
-        case "many":
-            # TODO: Tune these weights.
-            potential_weights = _PotentialWeights(
-                areas=params.areas_pot_weight,  # Best: ?
-                angles=params.angles_pot_weight,  # Best: ?
-                anisotropies=params.anisotropies_pot_weight,  # Best: ?
-            )
-        case _:
-            potential_weights = _PotentialWeights(
-                areas=params.areas_pot_weight,
-                angles=params.angles_pot_weight,
-                anisotropies=params.anisotropies_pot_weight,
-            )
-    return potential_weights
-
-
 def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
     poly_metrics = metrics.initialize_poly_metrics(
         vertices=polygons.init_vertices,
@@ -138,7 +120,11 @@ def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
     init_areas = poly_metrics.areas
     init_anisotropies = poly_metrics.anisotropies
 
-    potential_weights = _get_potential_weights(params)
+    potential_weights = _PotentialWeights(
+        areas=params.areas_pot_weight,
+        angles=params.angles_pot_weight,
+        anisotropies=params.anisotropies_pot_weight,
+    )
 
     def update_step(carry, t):
         vertices, poly_metrics, goal_areas, goal_anisotropies = carry

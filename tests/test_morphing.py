@@ -15,17 +15,6 @@ def test_update_targets_interpolates() -> None:
     )
 
 
-@pytest.mark.parametrize("system", ["few", "many"])
-def test_get_potential_weights(system: str) -> None:
-    params = parameters.Params(system=system)
-    weights = morphing._get_potential_weights(params)
-    assert weights.areas == pytest.approx(params.areas_pot_weight)
-    assert weights.angles == pytest.approx(params.angles_pot_weight)
-    assert weights.anisotropies == pytest.approx(
-        params.anisotropies_pot_weight
-    )
-
-
 _N_STEPS = 10
 
 
