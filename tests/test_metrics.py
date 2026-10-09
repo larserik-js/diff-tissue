@@ -1,4 +1,7 @@
+from collections.abc import Sequence
+
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 from diff_tissue.app import parameters
@@ -10,7 +13,11 @@ _WIDE_SQUARE = [[0.5, -1.0], [3.5, -1.0], [3.5, 2.0], [0.5, 2.0]]
 _SHIFTED_SQUARE = [[3.0, 0.0], [4.0, 0.0], [4.0, 1.0], [3.0, 1.0]]
 
 
-def _assert_n_crossings(vertices, indices, expected):
+def _assert_n_crossings(
+    vertices: npt.NDArray[np.floating],
+    indices: Sequence[npt.ArrayLike],
+    expected: int,
+) -> None:
     n_crossings = metrics.count_edge_crossings(vertices, indices)
     assert n_crossings == expected
 
@@ -44,17 +51,24 @@ def _assert_n_crossings(vertices, indices, expected):
         ),
     ],
 )
-def test_count_edge_crossings(vertices, indices, expected):
+def test_count_edge_crossings(
+    vertices: list[list[float]], indices: list[list[int]], expected: int
+) -> None:
     _assert_n_crossings(np.array(vertices), indices, expected)
 
 
-def test_count_edge_crossings_init_mesh():
+def test_count_edge_crossings_init_mesh() -> None:
     polygons = init_systems.get_system(parameters.Params())
     valid_inds = init_systems.make_poly_idx_lists(polygons.indices)
     _assert_n_crossings(polygons.init_vertices, valid_inds, expected=0)
 
 
-def _make_square_and_triangle():
+_PolygonArrays = tuple[
+    npt.NDArray[np.floating], npt.NDArray[np.integer], npt.NDArray[np.bool_]
+]
+
+
+def _make_square_and_triangle() -> _PolygonArrays:
     vertices = np.array(
         [
             [0.0, 0.0],
@@ -72,7 +86,7 @@ def _make_square_and_triangle():
     return vertices, indices, valid_mask
 
 
-def test_initialize_poly_metrics():
+def test_initialize_poly_metrics() -> None:
     vertices, indices, valid_mask = _make_square_and_triangle()
     poly_metrics = metrics.initialize_poly_metrics(
         vertices, indices, valid_mask
@@ -90,7 +104,7 @@ def test_initialize_poly_metrics():
     np.testing.assert_allclose(poly_metrics.masked_cosines[0], 0.0, atol=1e-5)
 
 
-def test_update_poly_metrics_scales_areas():
+def test_update_poly_metrics_scales_areas() -> None:
     vertices, indices, valid_mask = _make_square_and_triangle()
     poly_metrics = metrics.initialize_poly_metrics(
         vertices, indices, valid_mask
@@ -103,7 +117,7 @@ def test_update_poly_metrics_scales_areas():
     )
 
 
-def test_get_tutte_metrics():
+def test_get_tutte_metrics() -> None:
     params = parameters.Params()
     tutte_metrics = metrics.get_tutte_metrics(params)
     polygons = init_systems.get_system(params)

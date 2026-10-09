@@ -9,7 +9,7 @@ from diff_tissue.core import init_systems
 _UNIT_SQUARE = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
 
 
-def test_sort_counterclockwise():
+def test_sort_counterclockwise() -> None:
     shuffled_inds = [2, 0, 3, 1]
     sorted_inds = init_systems.sort_counterclockwise(
         shuffled_inds, _UNIT_SQUARE[shuffled_inds]
@@ -18,14 +18,14 @@ def test_sort_counterclockwise():
     assert sorted_inds == [0, 1, 2, 3]
 
 
-def test_get_segments_closes_polygon():
+def test_get_segments_closes_polygon() -> None:
     segments = init_systems.get_segments(_UNIT_SQUARE)
     expected = [[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [0.0, -1.0]]
     assert segments == pytest.approx(np.array(expected))
 
 
 @pytest.mark.parametrize("system", ["few", "many", "full", "single"])
-def test_get_system_is_consistent(system):
+def test_get_system_is_consistent(system: str) -> None:
     polygons = init_systems.get_system(parameters.Params(system=system))
 
     n_vertices = polygons.init_vertices.shape[0]
@@ -49,12 +49,12 @@ def test_get_system_is_consistent(system):
     assert 0 < np.count_nonzero(~polygons.free_mask) < polygons.free_mask.size
 
 
-def test_get_system_invalid():
+def test_get_system_invalid() -> None:
     with pytest.raises(ValueError, match="Invalid initial system"):
         init_systems.get_system(parameters.Params(system="invalid"))
 
 
-def test_single_polygon():
+def test_single_polygon() -> None:
     polygons = init_systems.get_system(parameters.Params(system="single"))
     n_vertices = polygons.init_vertices.shape[0]
 
@@ -69,7 +69,7 @@ def test_single_polygon():
     assert polygons.mesh_area == pytest.approx(polygon.area)
 
 
-def test_get_jax_polygons_matches_system():
+def test_get_jax_polygons_matches_system() -> None:
     params = parameters.Params(system="single")
     polygons = init_systems.get_system(params)
     jax_polygons = init_systems.get_jax_polygons(params)
@@ -81,7 +81,7 @@ def test_get_jax_polygons_matches_system():
     assert jax_polygons.mesh_area == pytest.approx(polygons.mesh_area)
 
 
-def test_get_shapely_polygons_areas_sum_to_mesh_area():
+def test_get_shapely_polygons_areas_sum_to_mesh_area() -> None:
     polygons = init_systems.get_system(parameters.Params(system="few"))
     shapely_polygons = init_systems.get_shapely_polygons(
         polygons.init_vertices, polygons.indices
@@ -94,7 +94,7 @@ def test_get_shapely_polygons_areas_sum_to_mesh_area():
 
 
 @pytest.mark.parametrize("system", ["few", "many", "full", "single"])
-def test_vertex_numbers(system):
+def test_vertex_numbers(system: str) -> None:
     polygons = init_systems.get_system(parameters.Params(system=system))
     vertex_numbers = init_systems.VertexNumbers(polygons)
 
@@ -110,7 +110,7 @@ def test_vertex_numbers(system):
     )
 
 
-def test_knots():
+def test_knots() -> None:
     knots = init_systems.Knots()
     origin_x = init_systems.Coords.base_origin[0]
 
