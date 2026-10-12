@@ -1,8 +1,8 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.8
+    rev: v0.15.5
     hooks:
-      - id: ruff        # linting
+      - id: ruff-check  # linting
       - id: ruff-format # auto-formatting
 
   - repo: local
