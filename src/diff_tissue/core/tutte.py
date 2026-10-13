@@ -196,11 +196,8 @@ def _align_inds(ccw_vertices, ccw_boundary_inds):
 
 
 def get_mapped_vertices(
-    init_vertices, all_polygon_inds, boundary_inds, target_boundary
+    init_vertices, all_polygon_inds, ccw_boundary_inds, target_boundary
 ):
-    ccw_boundary_inds = init_systems.get_ccw_boundary_inds(
-        init_vertices, boundary_inds
-    )
     ccw_boundary_vertices = init_vertices[ccw_boundary_inds]
 
     aligned_boundary_inds = _align_inds(

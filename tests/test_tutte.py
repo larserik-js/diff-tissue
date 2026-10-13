@@ -131,7 +131,7 @@ def mapping(request: pytest.FixtureRequest) -> _Mapping:
     mapped = tutte.get_mapped_vertices(
         polygons.init_vertices,
         polygons.indices,
-        polygons.boundary_inds,
+        polygons.ccw_boundary_inds,
         target_vertices,
     )
     return _Mapping(polygons, target_vertices, mapped)
@@ -141,17 +141,6 @@ _FEW_CASES = [
     pytest.param(("few", shape), id=f"few-{shape}") for shape in _SHAPES
 ]
 _FULL_CASE = pytest.param(("full", "square"), id="full-square")
-_FULL_CASE_XFAIL = pytest.param(
-    ("full", "square"),
-    id="full-square",
-    marks=pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "get_ccw_boundary_inds sorts the full mesh's boundary by angle, "
-            "which does not follow its boundary edges near the base corners"
-        ),
-    ),
-)
 
 
 @pytest.mark.parametrize("mapping", _FEW_CASES + [_FULL_CASE], indirect=True)
@@ -189,18 +178,14 @@ def test_tutte_keeps_interior_vertices_inside_target(
     assert np.all(shapely.covers(target_polygon, interior_points))
 
 
-@pytest.mark.parametrize(
-    "mapping", _FEW_CASES + [_FULL_CASE_XFAIL], indirect=True
-)
+@pytest.mark.parametrize("mapping", _FEW_CASES + [_FULL_CASE], indirect=True)
 def test_tutte_mapping_has_no_edge_crossings(mapping: _Mapping) -> None:
     poly_idx_lists = init_systems.make_poly_idx_lists(mapping.polygons.indices)
     n_crossings = metrics.count_edge_crossings(mapping.mapped, poly_idx_lists)
     assert n_crossings == 0
 
 
-@pytest.mark.parametrize(
-    "mapping", _FEW_CASES + [_FULL_CASE_XFAIL], indirect=True
-)
+@pytest.mark.parametrize("mapping", _FEW_CASES + [_FULL_CASE], indirect=True)
 def test_tutte_mapping_does_not_fold_cells(mapping: _Mapping) -> None:
     cells = init_systems.get_shapely_polygons(
         mapping.mapped, mapping.polygons.indices

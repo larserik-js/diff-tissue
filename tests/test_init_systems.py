@@ -49,6 +49,53 @@ def test_get_system_is_consistent(system: str) -> None:
     assert 0 < np.count_nonzero(~polygons.free_mask) < polygons.free_mask.size
 
 
+def _assert_ccw_ring_of_mesh_edges(
+    polygons: init_systems._Polygons, ring: list[int]
+) -> None:
+    mesh_edges: set[frozenset[int]] = set()
+    for polygon_inds in polygons.indices:
+        cell = polygon_inds[polygon_inds != -1][1:-1].tolist()
+        mesh_edges.update(map(frozenset, zip(cell, cell[1:] + cell[:1])))
+
+    ring_edges = map(frozenset, zip(ring, ring[1:] + ring[:1]))
+    assert len(set(ring)) == len(ring)
+    assert all(edge in mesh_edges for edge in ring_edges)
+    boundary = shapely.LinearRing(polygons.init_vertices[ring])
+    assert boundary.is_valid and shapely.is_ccw(boundary)
+
+
+@pytest.mark.parametrize("system", ["few", "many", "full", "single"])
+def test_ccw_boundary_inds_form_ccw_ring_of_mesh_edges(system: str) -> None:
+    polygons = init_systems.get_system(parameters.Params(system=system))
+    _assert_ccw_ring_of_mesh_edges(
+        polygons, polygons.ccw_boundary_inds.tolist()
+    )
+
+
+_INDEX_SORTED_BOUNDARY_XFAIL = pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "boundary_inds is index-sorted, so the shape loss in shape_opt "
+        "builds segments between vertices that are not boundary neighbours"
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    "system",
+    [
+        pytest.param("few", marks=_INDEX_SORTED_BOUNDARY_XFAIL),
+        pytest.param("many", marks=_INDEX_SORTED_BOUNDARY_XFAIL),
+        pytest.param("full", marks=_INDEX_SORTED_BOUNDARY_XFAIL),
+        # The single polygon's vertices are already numbered in ring order
+        "single",
+    ],
+)
+def test_boundary_inds_form_ccw_ring_of_mesh_edges(system: str) -> None:
+    polygons = init_systems.get_system(parameters.Params(system=system))
+    _assert_ccw_ring_of_mesh_edges(polygons, polygons.boundary_inds.tolist())
+
+
 def test_get_system_invalid() -> None:
     with pytest.raises(ValueError, match="Invalid initial system"):
         init_systems.get_system(parameters.Params(system="invalid"))
