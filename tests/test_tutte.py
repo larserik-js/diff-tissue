@@ -131,7 +131,7 @@ def mapping(request: pytest.FixtureRequest) -> _Mapping:
     mapped = tutte.get_mapped_vertices(
         polygons.init_vertices,
         polygons.indices,
-        polygons.ccw_boundary_inds,
+        polygons.boundary_inds,
         target_vertices,
     )
     return _Mapping(polygons, target_vertices, mapped)

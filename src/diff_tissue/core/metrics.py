@@ -141,7 +141,7 @@ class TutteMetrics:
         vertices_ = tutte.get_mapped_vertices(
             self._polygons.init_vertices,
             self._polygons.indices,
-            self._polygons.ccw_boundary_inds,
+            self._polygons.boundary_inds,
             self._target_boundary.vertices,
         )
         return vertices_

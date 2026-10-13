@@ -52,10 +52,7 @@ class _Polygons(ABC):
         self._build()
 
         self._valid_mask = self._find_valid_mask()
-        self._ccw_boundary_inds = self._get_ccw_boundary_inds()
-        # Kept index-sorted: shape_opt builds segments between consecutive
-        # boundary_inds and its results depend on this order
-        self._boundary_inds = np.sort(self._ccw_boundary_inds)
+        self._boundary_inds = self._get_ccw_boundary_inds()
         self._poly_neighbors = self._calc_poly_neighbors()
         self._vertex_polygons = self._calc_vertex_polygons()
 
@@ -161,10 +158,6 @@ class _Polygons(ABC):
     @property
     def boundary_inds(self):
         return self._boundary_inds
-
-    @property
-    def ccw_boundary_inds(self):
-        return self._ccw_boundary_inds
 
     @property
     def poly_neighbors(self):

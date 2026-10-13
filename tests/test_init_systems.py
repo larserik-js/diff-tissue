@@ -65,32 +65,6 @@ def _assert_ccw_ring_of_mesh_edges(
 
 
 @pytest.mark.parametrize("system", ["few", "many", "full", "single"])
-def test_ccw_boundary_inds_form_ccw_ring_of_mesh_edges(system: str) -> None:
-    polygons = init_systems.get_system(parameters.Params(system=system))
-    _assert_ccw_ring_of_mesh_edges(
-        polygons, polygons.ccw_boundary_inds.tolist()
-    )
-
-
-_INDEX_SORTED_BOUNDARY_XFAIL = pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "boundary_inds is index-sorted, so the shape loss in shape_opt "
-        "builds segments between vertices that are not boundary neighbours"
-    ),
-)
-
-
-@pytest.mark.parametrize(
-    "system",
-    [
-        pytest.param("few", marks=_INDEX_SORTED_BOUNDARY_XFAIL),
-        pytest.param("many", marks=_INDEX_SORTED_BOUNDARY_XFAIL),
-        pytest.param("full", marks=_INDEX_SORTED_BOUNDARY_XFAIL),
-        # The single polygon's vertices are already numbered in ring order
-        "single",
-    ],
-)
 def test_boundary_inds_form_ccw_ring_of_mesh_edges(system: str) -> None:
     polygons = init_systems.get_system(parameters.Params(system=system))
     _assert_ccw_ring_of_mesh_edges(polygons, polygons.boundary_inds.tolist())
