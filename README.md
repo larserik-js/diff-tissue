@@ -23,14 +23,36 @@ The code accompanies:
 
 ## Installation
 
-Clone the repository:
-
+### Prerequisites
+This project uses **uv** for fast, modern dependency management. If you don't have it installed, you can get it via curl/PowerShell, or simply using pip:
 ```bash
-git clone https://github.com/larserik-js/diff-tissue.git
-cd diff-tissue
+pip install uv
 ```
 
-Create a virtual environment and install dependencies defined in `pyproject.toml` using your preferred tool. The examples below assume that the `python` command refers to the interpreter in this environment.
+### Setup Steps
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/larserik-js/diff-tissue.git
+   cd diff-tissue
+   ```
+
+2. **Fetch and switch to your desired version (tag):**
+   Ensure you have the latest list of versions from the remote server, then switch to the tag you want to run (replace `v1.0.0` with your target version):
+   ```bash
+   git fetch --all --tags
+   git switch --detach v1.0.0
+   ```
+   *Note: This puts you in a "detached HEAD" state for read-only use. If you plan to make changes, create a new branch from this tag instead:*
+   ```bash
+   git switch -c my-new-branch v1.0.0
+   ```
+
+3. **Install dependencies:**
+   Sync the project dependencies defined in `pyproject.toml` and `uv.lock`. This command automatically creates and configures your virtual environment (`.venv`) for this specific version:
+   ```bash
+   uv sync
+   ```
 
 ---
 
@@ -39,7 +61,7 @@ Create a virtual environment and install dependencies defined in `pyproject.toml
 Run the main optimization pipeline:
 
 ```bash
-python scripts/run_shape_opt.py
+uv run python scripts/run_shape_opt.py
 ```
 
 This script runs three sequential steps. First, it performs the main simulation, optimizing cell-level parameters based on a tissue-level target boundary. By default, this target boundary is petal-shaped, the optimization runs for a maximum of 1000 steps, and it converges when the loss does not improve for 50 steps. After the simulation, two visualization steps generate the following outputs:
@@ -52,18 +74,18 @@ Note that for a given set of parameters, the program caches intermediate simulat
 The script can also be run with custom parameters, for example:
 
 ```bash
-python scripts/run_shape_opt.py --shape trapezoid --id 1 --seed 10
+uv run python scripts/run_shape_opt.py --shape trapezoid --id 1 --seed 10
 ```
 
 Parameters:
 
-* `--shape`: target geometry
-* `--id`: regional cell identity configuration
-* `--seed`: random seed controlling mesh initialization
+* `--shape`: Target geometry
+* `--id`: Regional cell identity configuration
+* `--seed`: Random seed controlling mesh initialization
 
 For a full list of parameters, see `src/diff_tissue/app/parameters.py`.
 
-There are a few tests included for development purposes. They can be run with the `pytest` command.
+There are a few tests included for development purposes. They can be run with the `uv run pytest` command.
 
 ---
 
