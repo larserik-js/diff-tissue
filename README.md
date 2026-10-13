@@ -85,7 +85,20 @@ Parameters:
 
 For a full list of parameters, see `src/diff_tissue/app/parameters.py`.
 
-There are a few tests included for development purposes. They can be run with the `uv run pytest` command.
+## Testing
+
+A test suite is included for development purposes.
+ To run the full test suite:
+
+
+```bash
+uv run pytest
+```
+
+To run unit tests only (which is significantly faster):
+```bash
+uv run pytest -m "not integration"
+```
 
 ---
 
