@@ -1,3 +1,4 @@
+# Miscellaneous
 __pycache__/
 *.py[oc]
 build/
@@ -6,5 +7,11 @@ wheels/
 *.egg-info
 .DS_Store
 
+# Test coverage
+.coverage
+htmlcov/
+coverage.xml
+
+# Project
 data/
 outputs/

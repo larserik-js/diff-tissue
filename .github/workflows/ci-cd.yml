@@ -38,8 +38,8 @@ jobs:
       - name: Run mypy type checks
         run: make type
 
-      - name: Run all tests
-        run: make test-full
+      - name: Run tests and check coverage threshold (Min 90%)
+        run: make test-coverage
 
   docker:
     needs: checks
