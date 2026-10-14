@@ -106,6 +106,10 @@ def test_target_boundary_is_simple_polygon(target: _Target) -> None:
     assert shapely.Polygon(target.vertices).is_valid
 
 
+def test_target_boundary_is_ccw_ring(target: _Target) -> None:
+    assert shapely.is_ccw(shapely.Polygon(target.vertices).exterior)
+
+
 def test_target_boundary_has_basal_vertices_on_base(target: _Target) -> None:
     base_y = init_systems.Coords.base_origin[1]
     on_base = np.isclose(target.vertices[:, 1], base_y)

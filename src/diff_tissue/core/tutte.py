@@ -4,8 +4,6 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 
-from . import init_systems
-
 
 def _cells_to_edges(polygons):
     edges = set()
@@ -195,7 +193,7 @@ def _align_inds(ccw_vertices, ccw_boundary_inds):
 
 
 def get_mapped_vertices(
-    init_vertices, all_polygon_inds, ccw_boundary_inds, target_boundary
+    init_vertices, all_polygon_inds, ccw_boundary_inds, ccw_target_boundary
 ):
     ccw_boundary_vertices = init_vertices[ccw_boundary_inds]
 
@@ -208,17 +206,10 @@ def get_mapped_vertices(
         polygon = polygon_inds[polygon_inds != -1][:-2]
         polygons.append(polygon.tolist())
 
-    ccw_target_boundary_inds = init_systems.sort_counterclockwise(
-        np.arange(target_boundary.shape[0]), target_boundary
-    )
-
-    ccw_target_boundary_inds = np.array(ccw_target_boundary_inds)
-    ccw_target_boundary = target_boundary[ccw_target_boundary_inds]
-
     aligned_target_boundary_inds = _align_inds(
-        ccw_target_boundary, ccw_target_boundary_inds
+        ccw_target_boundary, np.arange(len(ccw_target_boundary))
     )
-    aligned_target_boundary = target_boundary[aligned_target_boundary_inds]
+    aligned_target_boundary = ccw_target_boundary[aligned_target_boundary_inds]
 
     _, mapped_vertices, _ = _map_to_given_shape(
         init_vertices, polygons, aligned_boundary_inds, aligned_target_boundary

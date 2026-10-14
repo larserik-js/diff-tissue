@@ -113,6 +113,31 @@ def test_map_to_given_shape_length_mismatch() -> None:
         )
 
 
+def test_get_mapped_vertices_keeps_target_ring_order() -> None:
+    # A fan of eight triangles around a center vertex in a square
+    center = [[1.0, 1.0]]
+    ring = [[2, 0], [2, 1], [2, 2], [1, 2], [0, 2], [0, 1], [0, 0], [1, 0]]
+    vertices = np.array(center + ring, dtype=float)
+    boundary_inds = np.arange(1, 9)
+    # Each cell is stored as [last, v0, v1, v2, v0]
+    indices = np.array(
+        [
+            [b, 0, a, b, 0]
+            for a, b in zip(boundary_inds, np.roll(boundary_inds, -1))
+        ]
+    )
+    # A C shape that opens to the right. It is not star-shaped around the mean
+    # of its vertices, so sorting its vertices by angle scrambles the ring
+    target = np.array(
+        [[3, 0], [3, 1], [1, 1], [1, 2], [3, 2], [3, 3], [0, 3], [0, 0]],
+        dtype=float,
+    )
+    mapped = tutte.get_mapped_vertices(
+        vertices, indices, boundary_inds, target
+    )
+    np.testing.assert_allclose(mapped[boundary_inds], target, atol=1e-12)
+
+
 _SHAPES = [
     "petal",
     "long_petal",
