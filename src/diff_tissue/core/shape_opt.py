@@ -653,9 +653,9 @@ def _iterate_towards_shape(
             logits = optimizer.update(logits, grads)
 
     if best_step is not None:
-        print(f"Best loss achieved: {best_loss:.6f} at step {best_step}.")
+        print(f"Best loss achieved: {best_loss:.6f} at step {best_step}.\n")
     else:
-        print("No valid solution found.")
+        print("No valid solution found.\n")
 
     sim_states = _finalize_results(running_sim_states)
 
