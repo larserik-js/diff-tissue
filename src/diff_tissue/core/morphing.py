@@ -84,7 +84,7 @@ def _update_vertices(
     potential_weights,
     polygons,
 ):
-    t_frac = t / n_morph_steps
+    t_frac = (t + 1) / n_morph_steps
     target_areas = _update_targets(init_areas, goal_areas, t_frac)
     target_anisotropies = _update_targets(
         init_anisotropies, goal_anisotropies, t_frac
