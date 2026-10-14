@@ -27,6 +27,16 @@ def test_rotate_rows() -> None:
     )
 
 
+def test_get_bottom_right_vertex_ignores_vertices_above_base() -> None:
+    # The side bulges out to the right just above the base corner at (1, 0)
+    vertices = np.array(
+        [[-1.0, 0.0], [1.0, 0.0], [1.5, 0.5], [0.0, 2.0], [-1.5, 0.5]]
+    )
+    np.testing.assert_array_equal(
+        tutte._get_bottom_right_vertex(vertices), [1.0, 0.0]
+    )
+
+
 @dataclass
 class _Fan:
     """A center vertex surrounded by a square of four boundary vertices,
@@ -140,6 +150,9 @@ def mapping(request: pytest.FixtureRequest) -> _Mapping:
 _FEW_CASES = [
     pytest.param(("few", shape), id=f"few-{shape}") for shape in _SHAPES
 ]
+_MANY_CASES = [
+    pytest.param(("many", shape), id=f"many-{shape}") for shape in _SHAPES
+]
 _FULL_CASE = pytest.param(("full", "square"), id="full-square")
 
 
@@ -156,7 +169,9 @@ def test_tutte_maps_boundary_one_to_one_onto_target(
     assert len(hit_target_inds) == len(mapping.target_vertices)
 
 
-@pytest.mark.parametrize("mapping", _FEW_CASES + [_FULL_CASE], indirect=True)
+@pytest.mark.parametrize(
+    "mapping", _FEW_CASES + _MANY_CASES + [_FULL_CASE], indirect=True
+)
 def test_tutte_keeps_basal_vertices_on_base(mapping: _Mapping) -> None:
     basal_inds = np.flatnonzero(~mapping.polygons.free_mask[:, 1])
     base_y = init_systems.Coords.base_origin[1]

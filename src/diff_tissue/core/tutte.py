@@ -171,13 +171,12 @@ def _map_to_given_shape(
 
 
 def _get_bottom_right_vertex(vertices):
-    close_inds = np.where(
-        np.isclose(
-            vertices[:, 1] - init_systems.Coords.base_origin[1], 0.0, atol=1.0
-        )
-    )
-    close_vertices = vertices[close_inds]
-    bottom_right_vertex = close_vertices[np.argmax(close_vertices[:, 0])]
+    # Only vertices on the lowest row, so a side that bulges out just above
+    # the base corner cannot be picked instead of the corner. The lowest row
+    # is used rather than the base line, as the full mesh lies slightly below it
+    on_base = np.isclose(vertices[:, 1], vertices[:, 1].min())
+    base_vertices = vertices[on_base]
+    bottom_right_vertex = base_vertices[np.argmax(base_vertices[:, 0])]
     return bottom_right_vertex
 
 
