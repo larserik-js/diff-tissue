@@ -15,7 +15,9 @@ def test_update_targets_interpolates() -> None:
     )
 
 
-_N_STEPS = 10
+# The solver does not converge within a step, so the outcome is sensitive to
+# platform-level rounding. Small steps keep it reliably moving to the goals
+_N_STEPS = 50
 
 
 @dataclass
