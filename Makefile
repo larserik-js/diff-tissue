@@ -1,4 +1,4 @@
-.PHONY: format lint type test-full check
+.PHONY: format lint type test-coverage check
 
 format:
 	uv run ruff format --check .
