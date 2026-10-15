@@ -43,7 +43,6 @@ _SHAPES = [
     "wide_trapezoid",
     "square",
     "nconv",
-    "complex_nconv",
 ]
 # Limits of the valid trapezoid angles, which the shapes above do not cover
 _EXTREME_TRAPEZOID_ANGLES = [61.0, 120.0]

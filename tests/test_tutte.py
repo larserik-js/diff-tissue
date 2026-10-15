@@ -146,7 +146,6 @@ _SHAPES = [
     "wide_trapezoid",
     "square",
     "nconv",
-    "complex_nconv",
 ]
 
 
@@ -181,30 +180,6 @@ _MANY_CASES = [
 _FULL_CASE = pytest.param(("full", "square", 0), id="full-square")
 
 
-_CONCAVE_DIP_XFAIL = pytest.mark.xfail(
-    strict=True,
-    reason="Tutte embedding is only guaranteed for convex targets; "
-    + "cells fold across the concave dip in the top edge",
-)
-# Known complex_nconv failures. In "few" seed 4 the cells fold, but no
-# interior vertex leaves the target
-_DIP_CASES_OUTSIDE = [
-    pytest.param(
-        (system, "complex_nconv", seed),
-        id=f"{system}-complex_nconv-seed{seed}",
-        marks=_CONCAVE_DIP_XFAIL,
-    )
-    for system, seed in [("few", 2), ("many", 10)]
-]
-_DIP_CASES_FOLDED = _DIP_CASES_OUTSIDE + [
-    pytest.param(
-        ("few", "complex_nconv", 4),
-        id="few-complex_nconv-seed4",
-        marks=_CONCAVE_DIP_XFAIL,
-    )
-]
-
-
 @pytest.mark.parametrize("mapping", _FEW_CASES + [_FULL_CASE], indirect=True)
 def test_tutte_maps_boundary_one_to_one_onto_target(
     mapping: _Mapping,
@@ -229,9 +204,7 @@ def test_tutte_keeps_basal_vertices_on_base(mapping: _Mapping) -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "mapping", _FEW_CASES + [_FULL_CASE] + _DIP_CASES_OUTSIDE, indirect=True
-)
+@pytest.mark.parametrize("mapping", _FEW_CASES + [_FULL_CASE], indirect=True)
 def test_tutte_keeps_interior_vertices_inside_target(
     mapping: _Mapping,
 ) -> None:
@@ -244,18 +217,14 @@ def test_tutte_keeps_interior_vertices_inside_target(
     assert np.all(shapely.covers(target_polygon, interior_points))
 
 
-@pytest.mark.parametrize(
-    "mapping", _FEW_CASES + [_FULL_CASE] + _DIP_CASES_FOLDED, indirect=True
-)
+@pytest.mark.parametrize("mapping", _FEW_CASES + [_FULL_CASE], indirect=True)
 def test_tutte_mapping_has_no_edge_crossings(mapping: _Mapping) -> None:
     poly_idx_lists = init_systems.make_poly_idx_lists(mapping.polygons.indices)
     n_crossings = metrics.count_edge_crossings(mapping.mapped, poly_idx_lists)
     assert n_crossings == 0
 
 
-@pytest.mark.parametrize(
-    "mapping", _FEW_CASES + [_FULL_CASE] + _DIP_CASES_FOLDED, indirect=True
-)
+@pytest.mark.parametrize("mapping", _FEW_CASES + [_FULL_CASE], indirect=True)
 def test_tutte_mapping_does_not_fold_cells(mapping: _Mapping) -> None:
     cells = init_systems.get_shapely_polygons(
         mapping.mapped, mapping.polygons.indices

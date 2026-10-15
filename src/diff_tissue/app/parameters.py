@@ -30,7 +30,6 @@ class Params:
                 "wide_trapezoid",
                 "square",
                 "nconv",
-                "complex_nconv",
             ],
             "cli_flag": "shape",
         },
