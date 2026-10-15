@@ -130,9 +130,7 @@ def morph_run(request: pytest.FixtureRequest) -> _MorphRun:
     )
 
     morph_evolution = np.asarray(
-        morphing.iterate(
-            goal_areas, goal_anisotropies, _N_STEPS, polygons, params
-        )
+        morphing.iterate(goal_areas, goal_anisotropies, polygons, params)
     )
     final_metrics = metrics.update_poly_metrics(
         poly_metrics, morph_evolution[-1]

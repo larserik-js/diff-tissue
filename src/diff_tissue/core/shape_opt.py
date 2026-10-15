@@ -251,7 +251,6 @@ def _loss_fn(
     goal_area_bounds,
     target_boundary,
     min_dist_mask,
-    n_morph_steps,
     poly_metrics,
     poly_ids,
     polygons,
@@ -270,7 +269,7 @@ def _loss_fn(
     )
 
     morph_evolution = morphing.iterate(
-        goal_areas, goal_anisotropies, n_morph_steps, polygons, params
+        goal_areas, goal_anisotropies, polygons, params
     )
     final_vertices = morph_evolution[-1]
 
@@ -311,10 +310,7 @@ def _loss_fn(
     return total_loss, aux_data
 
 
-loss_fn = jax.jit(
-    jax.value_and_grad(_loss_fn, has_aux=True, argnums=0),
-    static_argnames=["n_morph_steps"],
-)
+loss_fn = jax.jit(jax.value_and_grad(_loss_fn, has_aux=True, argnums=0))
 
 
 @struct.dataclass
@@ -600,7 +596,6 @@ def _iterate_towards_shape(
             goal_area_bounds,
             target_boundary,
             min_dist_mask,
-            params.n_morph_steps,
             poly_metrics,
             poly_ids,
             polygons,

@@ -124,7 +124,6 @@ def _get_learned_morph_evolution(params, learned_morph_paths):
     morph_evolution = morphing.iterate(
         resulting_areas,
         resulting_anisotropies,
-        params.n_morph_steps,
         polygons,
         params,
     )

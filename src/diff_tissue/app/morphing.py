@@ -61,7 +61,6 @@ def _morph(polygons, params):
     morph_evolution = morphing_core.iterate(
         goal_areas,
         goal_anisotropies,
-        params.n_morph_steps,
         polygons,
         params,
     )

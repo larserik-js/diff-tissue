@@ -145,7 +145,6 @@ def get_best_morph_evolution(sim_states, params, data_path):
         best_morph_evolution = morphing_core.iterate(
             best_state.goal_areas,
             best_state.goal_anisotropies,
-            params.n_morph_steps,
             polygons,
             params,
         )
