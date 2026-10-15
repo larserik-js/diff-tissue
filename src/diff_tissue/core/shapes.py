@@ -238,14 +238,24 @@ class _LongPetal(_Petal):
 class _NonConvexShape(_Shape):
     def __init__(self, polygons):
         super().__init__(polygons)
-
-    @abstractmethod
-    def _get_points_for_spline(self):
-        pass
+        self._height = 1.0
+        self._lower_r = 1.0
 
     @cached_property
     def _points_for_spline(self):
-        return self._get_points_for_spline()
+        non_basal_xs_right = self._lower_r * np.array(
+            [1.0, 0.9, 0.8, 0.55, 0.25, 0.05]
+        )
+        non_basal_xs = np.concatenate(
+            [non_basal_xs_right, np.flip(-non_basal_xs_right)]
+        )
+        non_basal_ys_right = self._height * np.array(
+            [0.0, 0.4, 0.75, 0.85, 0.75, 0.73]
+        )
+        non_basal_ys = np.concatenate(
+            [non_basal_ys_right, np.flip(non_basal_ys_right)]
+        )
+        return non_basal_xs, non_basal_ys
 
     def _make_smooth_curve(self, xs, ys):
         xs = np.asarray(xs)
@@ -275,28 +285,6 @@ class _NonConvexShape(_Shape):
         return smooth_xs, smooth_ys
 
 
-class _SimpleNonConvexShape(_NonConvexShape):
-    def __init__(self, polygons):
-        super().__init__(polygons)
-        self._height = 1.0
-        self._lower_r = 1.0
-
-    def _get_points_for_spline(self):
-        non_basal_xs_right = self._lower_r * np.array(
-            [1.0, 0.9, 0.8, 0.55, 0.25, 0.05]
-        )
-        non_basal_xs = np.concatenate(
-            [non_basal_xs_right, np.flip(-non_basal_xs_right)]
-        )
-        non_basal_ys_right = self._height * np.array(
-            [0.0, 0.4, 0.75, 0.85, 0.75, 0.73]
-        )
-        non_basal_ys = np.concatenate(
-            [non_basal_ys_right, np.flip(non_basal_ys_right)]
-        )
-        return non_basal_xs, non_basal_ys
-
-
 def get_target_boundary(params, polygons):
     shape = params.shape
     match shape:
@@ -313,7 +301,7 @@ def get_target_boundary(params, polygons):
         case "long_petal":
             shape = _LongPetal(polygons)
         case "nconv":
-            shape = _SimpleNonConvexShape(polygons)
+            shape = _NonConvexShape(polygons)
         case _:
             raise ValueError("Invalid target boundary shape!")
     return shape
