@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import optax
 from typing import cast
@@ -556,6 +557,10 @@ def _validate(final_areas, edge_crossings):
     return is_valid
 
 
+def _make_log(quiet: bool) -> Callable[[str], None]:
+    return (lambda _: None) if quiet else print
+
+
 def _iterate_towards_shape(
     logits: _Logits,
     knot_ctx: _KnotCtx | None,
@@ -580,6 +585,8 @@ def _iterate_towards_shape(
     poly_ids = poly_identities.get_poly_identities(params)
 
     running_sim_states = _RunningSimStates()
+
+    log = _make_log(params.quiet)
 
     best_loss = jnp.inf
     steps_since_best_loss = 0
@@ -614,8 +621,7 @@ def _iterate_towards_shape(
             vertices, poly_idx_lists
         )
 
-        if not params.quiet:
-            print(f"{shape_step}: Shape loss = {loss}")
+        log(f"{shape_step}: Shape loss = {loss}")
 
         valid_sim = _validate(poly_metrics.areas, n_edge_crossings)
 
@@ -638,27 +644,20 @@ def _iterate_towards_shape(
             steps_since_best_loss = 0
             best_step = shape_step
 
-            if not params.quiet:
-                print("(New best loss.)\n")
+            log("(New best loss.)\n")
         else:
             steps_since_best_loss += 1
 
         if steps_since_best_loss >= patience:
-            if not params.quiet:
-                print(
-                    f"\nStopped - loss failed to improve for {patience} steps."
-                )
+            log(f"\nStopped - loss failed to improve for {patience} steps.")
             break
-        else:
-            logits = optimizer.update(logits, grads)
+        logits = optimizer.update(logits, grads)
 
-    if not params.quiet:
-        if best_step is not None:
-            print(
-                f"Best loss achieved: {best_loss:.6f} at step {best_step}.\n"
-            )
-        else:
-            print("No valid solution found.\n")
+    log(
+        f"Best loss achieved: {best_loss:.6f} at step {best_step}.\n"
+        if best_step is not None
+        else "No valid solution found.\n"
+    )
 
     sim_states = _finalize_results(running_sim_states)
 
