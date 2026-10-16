@@ -1,86 +1,167 @@
+from collections.abc import Sequence
+
 import numpy as np
+import numpy.typing as npt
+import pytest
 
-from diff_tissue.core import init_systems, metrics
 from diff_tissue.app import parameters
+from diff_tissue.core import init_systems, metrics
 
 
-def _assert(vertices, indices, expected):
+_UNIT_SQUARE = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
+_WIDE_SQUARE = [[0.5, -1.0], [3.5, -1.0], [3.5, 2.0], [0.5, 2.0]]
+_SHIFTED_SQUARE = [[3.0, 0.0], [4.0, 0.0], [4.0, 1.0], [3.0, 1.0]]
+# Two unit squares sharing the edge x = 1 (vertices 1 and 4)
+_SQUARE_PAIR = [
+    [0.0, 0.0],
+    [1.0, 0.0],
+    [2.0, 0.0],
+    [2.0, 1.0],
+    [1.0, 1.0],
+    [0.0, 1.0],
+]
+_SQUARE_PAIR_CELLS = [[0, 1, 4, 5], [1, 2, 3, 4]]
+# A thin rectangle whose top and bottom edges cross x = 1
+_THIN_RECTANGLE = [[0.5, 0.4], [1.5, 0.4], [1.5, 0.6], [0.5, 0.6]]
+# A diamond split into two triangles along its horizontal diagonal. The
+# diagonal and one outer edge of each triangle cross x = 1
+_SPLIT_DIAMOND = [[0.5, 0.5], [0.8, 0.2], [1.5, 0.5], [1.2, 0.8]]
+
+
+def _assert_n_crossings(
+    vertices: npt.NDArray[np.floating],
+    indices: Sequence[npt.ArrayLike],
+    expected: int,
+) -> None:
     n_crossings = metrics.count_edge_crossings(vertices, indices)
     assert n_crossings == expected
 
 
-def _test_touching_triangles():
-    vertices = np.array(
-        [[0.0, 0.0], [1.0, 0.0], [0.5, 1.0], [2.0, 0.0], [1.5, 1.0]]
-    )
-    indices = [[0, 1, 2], [2, 3, 4]]
-    _assert(vertices, indices, expected=0)
+@pytest.mark.parametrize(
+    ("vertices", "indices", "expected"),
+    [
+        pytest.param(
+            [[0.0, 0.0], [1.0, 0.0], [0.5, 1.0], [2.0, 0.0], [1.5, 1.0]],
+            [[0, 1, 2], [2, 3, 4]],
+            0,
+            id="touching_triangles",
+        ),
+        pytest.param(
+            _UNIT_SQUARE + _SHIFTED_SQUARE,
+            [[0, 1, 2, 3], [4, 5, 6, 7]],
+            0,
+            id="non_overlapping_squares",
+        ),
+        pytest.param(
+            _UNIT_SQUARE + _WIDE_SQUARE,
+            [[0, 1, 2, 3], [4, 5, 6, 7]],
+            2,
+            id="two_overlapping_squares",
+        ),
+        pytest.param(
+            [[0.0, 0.0], [1.0, 1.0], [1.0, 0.0], [0.0, 1.0]],
+            [[0, 1, 2, 3]],
+            1,
+            id="bowtie",
+        ),
+        pytest.param(
+            _SQUARE_PAIR + _THIN_RECTANGLE,
+            _SQUARE_PAIR_CELLS + [[6, 7, 8, 9]],
+            2,
+            id="rectangle_across_shared_edge",
+        ),
+        pytest.param(
+            _SQUARE_PAIR + _SPLIT_DIAMOND,
+            _SQUARE_PAIR_CELLS + [[6, 7, 8], [6, 8, 9]],
+            3,
+            id="split_diamond_across_shared_edge",
+        ),
+        pytest.param(
+            _UNIT_SQUARE + _WIDE_SQUARE + _SHIFTED_SQUARE,
+            [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11]],
+            4,
+            id="three_overlapping_squares",
+        ),
+    ],
+)
+def test_count_edge_crossings(
+    vertices: list[list[float]], indices: list[list[int]], expected: int
+) -> None:
+    _assert_n_crossings(np.array(vertices), indices, expected)
 
 
-def _test_non_overlapping_squares():
-    vertices = np.array(
-        [
-            [0.0, 0.0],
-            [1.0, 0.0],
-            [1.0, 1.0],
-            [0.0, 1.0],
-            [3.0, 0.0],
-            [4.0, 0.0],
-            [4.0, 1.0],
-            [3.0, 1.0],
-        ]
-    )
-    indices = [[0, 1, 2, 3], [4, 5, 6, 7]]
-    _assert(vertices, indices, expected=0)
-
-
-def _test_two_overlapping_squares():
-    vertices = np.array(
-        [
-            [0.0, 0.0],
-            [1.0, 0.0],
-            [1.0, 1.0],
-            [0.0, 1.0],
-            [0.5, -1.0],
-            [3.5, -1.0],
-            [3.5, 2.0],
-            [0.5, 2.0],
-        ]
-    )
-    indices = [[0, 1, 2, 3], [4, 5, 6, 7]]
-    _assert(vertices, indices, expected=2)
-
-
-def _test_three_overlapping_squares():
-    vertices = np.array(
-        [
-            [0.0, 0.0],
-            [1.0, 0.0],
-            [1.0, 1.0],
-            [0.0, 1.0],
-            [0.5, -1.0],
-            [3.5, -1.0],
-            [3.5, 2.0],
-            [0.5, 2.0],
-            [3.0, 0.0],
-            [4.0, 0.0],
-            [4.0, 1.0],
-            [3.0, 1.0],
-        ]
-    )
-    indices = [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11]]
-    _assert(vertices, indices, expected=4)
-
-
-def _test_init_mesh():
+def test_count_edge_crossings_init_mesh() -> None:
     polygons = init_systems.get_system(parameters.Params())
     valid_inds = init_systems.make_poly_idx_lists(polygons.indices)
-    _assert(polygons.init_vertices, valid_inds, expected=0)
+    _assert_n_crossings(polygons.init_vertices, valid_inds, expected=0)
 
 
-def test_count_edge_crossings():
-    _test_touching_triangles()
-    _test_non_overlapping_squares()
-    _test_two_overlapping_squares()
-    _test_three_overlapping_squares()
-    _test_init_mesh()
+_PolygonArrays = tuple[
+    npt.NDArray[np.floating], npt.NDArray[np.integer], npt.NDArray[np.bool_]
+]
+
+
+def _make_square_and_triangle() -> _PolygonArrays:
+    vertices = np.array(
+        [
+            [0.0, 0.0],
+            [2.0, 0.0],
+            [2.0, 1.0],
+            [0.0, 1.0],
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ]
+    )
+    # Extended, counter-clockwise polygons, padded with -1
+    indices = np.array([[3, 0, 1, 2, 3, 0], [6, 4, 5, 6, 4, -1]])
+    valid_mask = indices != -1
+    return vertices, indices, valid_mask
+
+
+def test_initialize_poly_metrics() -> None:
+    vertices, indices, valid_mask = _make_square_and_triangle()
+    poly_metrics = metrics.initialize_poly_metrics(
+        vertices, indices, valid_mask
+    )
+
+    np.testing.assert_allclose(poly_metrics.areas, [2.0, 0.5])
+    # Rectangle is wider than tall: x var 1.0, y var 0.25
+    np.testing.assert_allclose(
+        poly_metrics.anisotropies[0], (0.25 - 1.0) / 1.25, rtol=1e-6
+    )
+    np.testing.assert_allclose(
+        poly_metrics.optimal_angles[:, 0], [np.pi / 2, 2 * np.pi / 3]
+    )
+    # Right angles between all consecutive rectangle edges
+    np.testing.assert_allclose(poly_metrics.masked_cosines[0], 0.0, atol=1e-5)
+
+
+def test_update_poly_metrics_scales_areas() -> None:
+    vertices, indices, valid_mask = _make_square_and_triangle()
+    poly_metrics = metrics.initialize_poly_metrics(
+        vertices, indices, valid_mask
+    )
+    updated = metrics.update_poly_metrics(poly_metrics, 2.0 * vertices)
+
+    np.testing.assert_allclose(updated.areas, 4.0 * poly_metrics.areas)
+    np.testing.assert_allclose(
+        updated.anisotropies, poly_metrics.anisotropies, rtol=1e-6
+    )
+
+
+def test_get_tutte_metrics() -> None:
+    params = parameters.Params()
+    tutte_metrics = metrics.get_tutte_metrics(params)
+    polygons = init_systems.get_system(params)
+    n_polygons = len(polygons.indices)
+
+    assert tutte_metrics.vertices.shape == polygons.init_vertices.shape
+    assert tutte_metrics.centroids.shape == (n_polygons, 2)
+    assert tutte_metrics.anisotropies.shape == (n_polygons,)
+    assert np.all(np.abs(tutte_metrics.anisotropies) <= 1.0)
+    # Tutte mapping fills the target shape, which has the mesh area
+    assert np.all(tutte_metrics.areas > 0.0)
+    assert float(np.sum(tutte_metrics.areas)) == pytest.approx(
+        polygons.mesh_area, rel=0.05
+    )

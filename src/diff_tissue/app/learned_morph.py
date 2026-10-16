@@ -79,7 +79,7 @@ def plot(morph_evolution, params, output_dir):
     for t, vertices in enumerate(morph_evolution):
         if t % 10 == 0 or t == len(morph_evolution) - 1:
             figure.update(vertices)
-            fig_path = output_dir / f"step={t:03d}.png"
+            fig_path = output_dir / f"step={t:03d}.pdf"
             io_utils.save_pdf(fig_path, figure.fig, dpi=100)
 
 
@@ -124,7 +124,6 @@ def _get_learned_morph_evolution(params, learned_morph_paths):
     morph_evolution = morphing.iterate(
         resulting_areas,
         resulting_anisotropies,
-        params.n_morph_steps,
         polygons,
         params,
     )

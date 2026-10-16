@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import optax
 from typing import cast
@@ -250,7 +251,6 @@ def _loss_fn(
     goal_area_bounds,
     target_boundary,
     min_dist_mask,
-    n_morph_steps,
     poly_metrics,
     poly_ids,
     polygons,
@@ -269,7 +269,7 @@ def _loss_fn(
     )
 
     morph_evolution = morphing.iterate(
-        goal_areas, goal_anisotropies, n_morph_steps, polygons, params
+        goal_areas, goal_anisotropies, polygons, params
     )
     final_vertices = morph_evolution[-1]
 
@@ -310,10 +310,7 @@ def _loss_fn(
     return total_loss, aux_data
 
 
-loss_fn = jax.jit(
-    jax.value_and_grad(_loss_fn, has_aux=True, argnums=0),
-    static_argnames=["n_morph_steps"],
-)
+loss_fn = jax.jit(jax.value_and_grad(_loss_fn, has_aux=True, argnums=0))
 
 
 @struct.dataclass
@@ -556,6 +553,10 @@ def _validate(final_areas, edge_crossings):
     return is_valid
 
 
+def _make_log(quiet: bool) -> Callable[[str], None]:
+    return (lambda _: None) if quiet else print
+
+
 def _iterate_towards_shape(
     logits: _Logits,
     knot_ctx: _KnotCtx | None,
@@ -581,8 +582,12 @@ def _iterate_towards_shape(
 
     running_sim_states = _RunningSimStates()
 
+    log = _make_log(params.quiet)
+
     best_loss = jnp.inf
     steps_since_best_loss = 0
+    best_step = None
+    patience = 50
 
     for shape_step in range(params.n_shape_steps):
         (loss, aux_data), grads = loss_fn(
@@ -591,7 +596,6 @@ def _iterate_towards_shape(
             goal_area_bounds,
             target_boundary,
             min_dist_mask,
-            params.n_morph_steps,
             poly_metrics,
             poly_ids,
             polygons,
@@ -612,8 +616,7 @@ def _iterate_towards_shape(
             vertices, poly_idx_lists
         )
 
-        if not params.quiet:
-            print(f"{shape_step}: Shape loss = {loss}")
+        log(f"{shape_step}: Shape loss = {loss}")
 
         valid_sim = _validate(poly_metrics.areas, n_edge_crossings)
 
@@ -634,20 +637,22 @@ def _iterate_towards_shape(
         if loss < best_loss and valid_sim:
             best_loss = loss
             steps_since_best_loss = 0
+            best_step = shape_step
 
-            if not params.quiet:
-                print("(New best loss.)")
-                print("")
+            log("(New best loss.)\n")
         else:
             steps_since_best_loss += 1
 
-        if steps_since_best_loss >= 50:
-            if not params.quiet:
-                print("(Stopped - iteration diverged.)")
-                print("")
+        if steps_since_best_loss >= patience:
+            log(f"\nStopped - loss failed to improve for {patience} steps.")
             break
-        else:
-            logits = optimizer.update(logits, grads)
+        logits = optimizer.update(logits, grads)
+
+    log(
+        f"Best loss achieved: {best_loss:.6f} at step {best_step}.\n"
+        if best_step is not None
+        else "No valid solution found.\n"
+    )
 
     sim_states = _finalize_results(running_sim_states)
 

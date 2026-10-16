@@ -13,7 +13,7 @@ def run_morphing(params, paths):
         polygons, params, morphing_paths.data_path
     )
 
-    morphing.save_figs(morph_evolution, params, morphing_paths.output_dir)
+    morphing.plot(morph_evolution, params, morphing_paths.output_dir)
 
 
 def run_shape_opt(params, paths):

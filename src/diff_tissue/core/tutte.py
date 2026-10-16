@@ -4,8 +4,6 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 
-from . import init_systems
-
 
 def _cells_to_edges(polygons):
     edges = set()
@@ -171,13 +169,12 @@ def _map_to_given_shape(
 
 
 def _get_bottom_right_vertex(vertices):
-    close_inds = np.where(
-        np.isclose(
-            vertices[:, 1] - init_systems.Coords.base_origin[1], 0.0, atol=1.0
-        )
-    )
-    close_vertices = vertices[close_inds]
-    bottom_right_vertex = close_vertices[np.argmax(close_vertices[:, 0])]
+    # Only vertices on the lowest row, so a side that bulges out just above
+    # the base corner cannot be picked instead of the corner. The lowest row
+    # is used rather than the base line, as the full mesh lies slightly below it
+    on_base = np.isclose(vertices[:, 1], vertices[:, 1].min())
+    base_vertices = vertices[on_base]
+    bottom_right_vertex = base_vertices[np.argmax(base_vertices[:, 0])]
     return bottom_right_vertex
 
 
@@ -196,11 +193,8 @@ def _align_inds(ccw_vertices, ccw_boundary_inds):
 
 
 def get_mapped_vertices(
-    init_vertices, all_polygon_inds, boundary_inds, target_boundary
+    init_vertices, all_polygon_inds, ccw_boundary_inds, ccw_target_boundary
 ):
-    ccw_boundary_inds = init_systems.get_ccw_boundary_inds(
-        init_vertices, boundary_inds
-    )
     ccw_boundary_vertices = init_vertices[ccw_boundary_inds]
 
     aligned_boundary_inds = _align_inds(
@@ -212,17 +206,10 @@ def get_mapped_vertices(
         polygon = polygon_inds[polygon_inds != -1][:-2]
         polygons.append(polygon.tolist())
 
-    ccw_target_boundary_inds = init_systems.sort_counterclockwise(
-        np.arange(target_boundary.shape[0]), target_boundary
-    )
-
-    ccw_target_boundary_inds = np.array(ccw_target_boundary_inds)
-    ccw_target_boundary = target_boundary[ccw_target_boundary_inds]
-
     aligned_target_boundary_inds = _align_inds(
-        ccw_target_boundary, ccw_target_boundary_inds
+        ccw_target_boundary, np.arange(len(ccw_target_boundary))
     )
-    aligned_target_boundary = target_boundary[aligned_target_boundary_inds]
+    aligned_target_boundary = ccw_target_boundary[aligned_target_boundary_inds]
 
     _, mapped_vertices, _ = _map_to_given_shape(
         init_vertices, polygons, aligned_boundary_inds, aligned_target_boundary

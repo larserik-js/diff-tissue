@@ -31,16 +31,6 @@ def sort_counterclockwise(indices, vertices):
     return sorted_poly_inds
 
 
-def get_ccw_boundary_inds(vertices, boundary_inds):
-    boundary_vertices = vertices[boundary_inds]
-
-    sorted_boundary_inds = sort_counterclockwise(
-        boundary_inds, boundary_vertices
-    )
-    sorted_boundary_inds = np.array(sorted_boundary_inds)
-    return sorted_boundary_inds
-
-
 def get_segments(vertices):
     closed_polygon = np.concatenate([vertices, vertices[:1]], axis=0)
     segments = closed_polygon[1:] - closed_polygon[:-1]
@@ -62,9 +52,8 @@ class _Polygons(ABC):
         self._build()
 
         self._valid_mask = self._find_valid_mask()
-        self._boundary_inds = self._get_boundary_inds()
+        self._boundary_inds = self._get_ccw_boundary_inds()
         self._poly_neighbors = self._calc_poly_neighbors()
-        self._vertex_neighbors = self._calc_vertex_neighbors()
         self._vertex_polygons = self._calc_vertex_polygons()
 
     @abstractmethod
@@ -79,26 +68,28 @@ class _Polygons(ABC):
         valid_mask = self._indices != -1
         return valid_mask
 
-    def _get_boundary_inds(self):
-        all_edges = set()
-        interior_edges = set()
+    def _get_ccw_boundary_inds(self):
+        """Returns the boundary vertex indices in counter-clockwise order."""
+        directed_edges: set[tuple[int, int]] = set()
         for extended_polygon in self._indices:
             unpadded_polygon = extended_polygon[extended_polygon != -1]
-            # Removes the last vertex, which was an extension for efficiency
-            polygon = unpadded_polygon[:-1]
+            # Removes the vertices that were extensions for efficiency
+            polygon = unpadded_polygon[1:-1].tolist()
+            directed_edges.update(zip(polygon, polygon[1:] + polygon[:1]))
 
-            for i in range(len(polygon) - 1):
-                edge = polygon[i : i + 2]
-                sorted_edge = tuple(np.sort(edge))
-                if sorted_edge in all_edges:
-                    interior_edges.add(sorted_edge)
+        # Counter-clockwise polygons traverse interior edges in both
+        # directions, and boundary edges only counter-clockwise
+        next_boundary_vertex = {
+            a: b for a, b in directed_edges if (b, a) not in directed_edges
+        }
+        start = min(next_boundary_vertex)
+        boundary_inds = [start]
+        while (vertex := next_boundary_vertex[boundary_inds[-1]]) != start:
+            boundary_inds.append(vertex)
 
-                all_edges.add(sorted_edge)
-
-        boundary_edges = all_edges - interior_edges
-        boundary_inds = np.array(list(boundary_edges)).flatten()
-        boundary_inds = np.unique(boundary_inds)
-        return boundary_inds
+        if len(boundary_inds) != len(next_boundary_vertex):
+            raise ValueError("Mesh boundary is not a single loop!")
+        return np.array(boundary_inds)
 
     @staticmethod
     def _list_of_lists_of_ints_to_padded_array(all_neighbors):
@@ -136,27 +127,6 @@ class _Polygons(ABC):
         neighbors = self._list_of_lists_of_ints_to_padded_array(neighbors)
         return neighbors
 
-    def _calc_vertex_neighbors(self):
-        vertex_neighbors = defaultdict(set)
-        for polygon in self._indices:
-            for i in range(len(polygon) - 1):
-                vertex_idx, vertex_neighbor_idx = (
-                    int(polygon[i]),
-                    int(polygon[i + 1]),
-                )
-
-                if not vertex_neighbor_idx == -1:
-                    vertex_neighbors[vertex_idx].add(int(vertex_neighbor_idx))
-                    vertex_neighbors[vertex_neighbor_idx].add(int(vertex_idx))
-
-        vertex_neighbors_lists = [
-            list(neighbors_set) for neighbors_set in vertex_neighbors.values()
-        ]
-        padded_vertex_neighbors = self._list_of_lists_of_ints_to_padded_array(
-            vertex_neighbors_lists
-        )
-        return padded_vertex_neighbors
-
     def _calc_vertex_polygons(self):
         vertex_polygons_lists = list()
         for vertex_idx in range(self._init_vertices.shape[0]):
@@ -192,10 +162,6 @@ class _Polygons(ABC):
     @property
     def poly_neighbors(self):
         return self._poly_neighbors
-
-    @property
-    def vertex_neighbors(self):
-        return self._vertex_neighbors
 
     @property
     def vertex_polygons(self):
@@ -656,7 +622,6 @@ class JaxPolygons:
     valid_mask: jnp.ndarray
     boundary_inds: jnp.ndarray
     poly_neighbors: jnp.ndarray
-    vertex_neighbors: jnp.ndarray
     vertex_polygons: jnp.ndarray
     mesh_area: float
 
@@ -670,7 +635,6 @@ def get_jax_polygons(params):
         valid_mask=jnp.array(polygons.valid_mask),
         boundary_inds=jnp.array(polygons.boundary_inds),
         poly_neighbors=jnp.array(polygons.poly_neighbors),
-        vertex_neighbors=jnp.array(polygons.vertex_neighbors),
         vertex_polygons=jnp.array(polygons.vertex_polygons),
         mesh_area=polygons.mesh_area,
     )

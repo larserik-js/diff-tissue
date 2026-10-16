@@ -30,7 +30,6 @@ class Params:
                 "wide_trapezoid",
                 "square",
                 "nconv",
-                "complex_nconv",
             ],
             "cli_flag": "shape",
         },
@@ -67,7 +66,7 @@ class Params:
     )
     n_morph_steps: int = struct.field(
         default=500,
-        pytree_node=True,
+        pytree_node=False,
         metadata={"help": "Number of morph steps.", "cli_flag": "msteps"},
     )
     areas_pot_weight: float = struct.field(
