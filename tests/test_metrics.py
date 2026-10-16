@@ -11,6 +11,21 @@ from diff_tissue.core import init_systems, metrics
 _UNIT_SQUARE = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
 _WIDE_SQUARE = [[0.5, -1.0], [3.5, -1.0], [3.5, 2.0], [0.5, 2.0]]
 _SHIFTED_SQUARE = [[3.0, 0.0], [4.0, 0.0], [4.0, 1.0], [3.0, 1.0]]
+# Two unit squares sharing the edge x = 1 (vertices 1 and 4)
+_SQUARE_PAIR = [
+    [0.0, 0.0],
+    [1.0, 0.0],
+    [2.0, 0.0],
+    [2.0, 1.0],
+    [1.0, 1.0],
+    [0.0, 1.0],
+]
+_SQUARE_PAIR_CELLS = [[0, 1, 4, 5], [1, 2, 3, 4]]
+# A thin rectangle whose top and bottom edges cross x = 1
+_THIN_RECTANGLE = [[0.5, 0.4], [1.5, 0.4], [1.5, 0.6], [0.5, 0.6]]
+# A diamond split into two triangles along its horizontal diagonal. The
+# diagonal and one outer edge of each triangle cross x = 1
+_SPLIT_DIAMOND = [[0.5, 0.5], [0.8, 0.2], [1.5, 0.5], [1.2, 0.8]]
 
 
 def _assert_n_crossings(
@@ -42,6 +57,24 @@ def _assert_n_crossings(
             [[0, 1, 2, 3], [4, 5, 6, 7]],
             2,
             id="two_overlapping_squares",
+        ),
+        pytest.param(
+            [[0.0, 0.0], [1.0, 1.0], [1.0, 0.0], [0.0, 1.0]],
+            [[0, 1, 2, 3]],
+            1,
+            id="bowtie",
+        ),
+        pytest.param(
+            _SQUARE_PAIR + _THIN_RECTANGLE,
+            _SQUARE_PAIR_CELLS + [[6, 7, 8, 9]],
+            2,
+            id="rectangle_across_shared_edge",
+        ),
+        pytest.param(
+            _SQUARE_PAIR + _SPLIT_DIAMOND,
+            _SQUARE_PAIR_CELLS + [[6, 7, 8], [6, 8, 9]],
+            3,
+            id="split_diamond_across_shared_edge",
         ),
         pytest.param(
             _UNIT_SQUARE + _WIDE_SQUARE + _SHIFTED_SQUARE,

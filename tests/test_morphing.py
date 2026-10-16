@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -15,7 +17,78 @@ def test_update_targets_interpolates() -> None:
     )
 
 
-_N_STEPS = 10
+@dataclass
+class _StepTargets:
+    areas: npt.NDArray[np.floating]
+    anisotropies: npt.NDArray[np.floating]
+
+
+_INIT_AREAS = np.array([1.0, 2.0])
+_GOAL_AREAS = np.array([3.0, 1.0])
+_INIT_ANISOTROPIES = np.array([0.0, 0.5])
+_GOAL_ANISOTROPIES = np.array([-0.5, 0.25])
+_N_UNIT_STEPS = 4
+
+
+def _get_step_targets(t: int, monkeypatch: pytest.MonkeyPatch) -> _StepTargets:
+    """Returns the targets that morph step t passes to the solver."""
+    recorded = []
+
+    def recording_solve(
+        vertices: Any,
+        target_areas: Any,
+        target_anisotropies: Any,
+        *_: Any,
+    ) -> Any:
+        recorded.append(_StepTargets(target_areas, target_anisotropies))
+        return vertices
+
+    monkeypatch.setattr(morphing, "_lbfgs_solve", recording_solve)
+    vertices = np.zeros((3, 2))
+    polygons = SimpleNamespace(
+        free_mask=np.ones_like(vertices, dtype=bool), init_vertices=vertices
+    )
+    morphing._update_vertices(
+        vertices,
+        t,
+        _N_UNIT_STEPS,
+        _GOAL_AREAS,
+        _GOAL_ANISOTROPIES,
+        _INIT_AREAS,
+        _INIT_ANISOTROPIES,
+        None,
+        None,
+        polygons,
+    )
+    return recorded[0]
+
+
+def test_update_vertices_first_step_moves_targets_one_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    targets = _get_step_targets(0, monkeypatch)
+    step_frac = 1 / _N_UNIT_STEPS
+    np.testing.assert_allclose(
+        targets.areas, _INIT_AREAS + step_frac * (_GOAL_AREAS - _INIT_AREAS)
+    )
+    np.testing.assert_allclose(
+        targets.anisotropies,
+        _INIT_ANISOTROPIES
+        + step_frac * (_GOAL_ANISOTROPIES - _INIT_ANISOTROPIES),
+    )
+
+
+def test_update_vertices_last_step_targets_goals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    targets = _get_step_targets(_N_UNIT_STEPS - 1, monkeypatch)
+    np.testing.assert_allclose(targets.areas, _GOAL_AREAS)
+    np.testing.assert_allclose(targets.anisotropies, _GOAL_ANISOTROPIES)
+
+
+# The solver does not converge within a step, so the outcome is sensitive to
+# platform-level rounding. Small steps keep it reliably moving to the goals
+_N_STEPS = 50
 
 
 @dataclass
@@ -57,9 +130,7 @@ def morph_run(request: pytest.FixtureRequest) -> _MorphRun:
     )
 
     morph_evolution = np.asarray(
-        morphing.iterate(
-            goal_areas, goal_anisotropies, _N_STEPS, polygons, params
-        )
+        morphing.iterate(goal_areas, goal_anisotropies, polygons, params)
     )
     final_metrics = metrics.update_poly_metrics(
         poly_metrics, morph_evolution[-1]

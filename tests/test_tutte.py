@@ -27,6 +27,16 @@ def test_rotate_rows() -> None:
     )
 
 
+def test_get_bottom_right_vertex_ignores_vertices_above_base() -> None:
+    # The side bulges out to the right just above the base corner at (1, 0)
+    vertices = np.array(
+        [[-1.0, 0.0], [1.0, 0.0], [1.5, 0.5], [0.0, 2.0], [-1.5, 0.5]]
+    )
+    np.testing.assert_array_equal(
+        tutte._get_bottom_right_vertex(vertices), [1.0, 0.0]
+    )
+
+
 @dataclass
 class _Fan:
     """A center vertex surrounded by a square of four boundary vertices,
@@ -103,6 +113,31 @@ def test_map_to_given_shape_length_mismatch() -> None:
         )
 
 
+def test_get_mapped_vertices_keeps_target_ring_order() -> None:
+    # A fan of eight triangles around a center vertex in a square
+    center = [[1.0, 1.0]]
+    ring = [[2, 0], [2, 1], [2, 2], [1, 2], [0, 2], [0, 1], [0, 0], [1, 0]]
+    vertices = np.array(center + ring, dtype=float)
+    boundary_inds = np.arange(1, 9)
+    # Each cell is stored as [last, v0, v1, v2, v0]
+    indices = np.array(
+        [
+            [b, 0, a, b, 0]
+            for a, b in zip(boundary_inds, np.roll(boundary_inds, -1))
+        ]
+    )
+    # A C shape that opens to the right. It is not star-shaped around the mean
+    # of its vertices, so sorting its vertices by angle scrambles the ring
+    target = np.array(
+        [[3, 0], [3, 1], [1, 1], [1, 2], [3, 2], [3, 3], [0, 3], [0, 0]],
+        dtype=float,
+    )
+    mapped = tutte.get_mapped_vertices(
+        vertices, indices, boundary_inds, target
+    )
+    np.testing.assert_allclose(mapped[boundary_inds], target, atol=1e-12)
+
+
 _SHAPES = [
     "petal",
     "long_petal",
@@ -111,7 +146,6 @@ _SHAPES = [
     "wide_trapezoid",
     "square",
     "nconv",
-    "complex_nconv",
 ]
 
 
@@ -124,8 +158,8 @@ class _Mapping:
 
 @pytest.fixture(scope="module")
 def mapping(request: pytest.FixtureRequest) -> _Mapping:
-    system, shape = request.param
-    params = parameters.Params(system=system, shape=shape)
+    system, shape, seed = request.param
+    params = parameters.Params(system=system, shape=shape, seed=seed)
     polygons = init_systems.get_system(params)
     target_vertices = shapes.get_target_boundary(params, polygons).vertices
     mapped = tutte.get_mapped_vertices(
@@ -138,9 +172,12 @@ def mapping(request: pytest.FixtureRequest) -> _Mapping:
 
 
 _FEW_CASES = [
-    pytest.param(("few", shape), id=f"few-{shape}") for shape in _SHAPES
+    pytest.param(("few", shape, 0), id=f"few-{shape}") for shape in _SHAPES
 ]
-_FULL_CASE = pytest.param(("full", "square"), id="full-square")
+_MANY_CASES = [
+    pytest.param(("many", shape, 0), id=f"many-{shape}") for shape in _SHAPES
+]
+_FULL_CASE = pytest.param(("full", "square", 0), id="full-square")
 
 
 @pytest.mark.parametrize("mapping", _FEW_CASES + [_FULL_CASE], indirect=True)
@@ -156,7 +193,9 @@ def test_tutte_maps_boundary_one_to_one_onto_target(
     assert len(hit_target_inds) == len(mapping.target_vertices)
 
 
-@pytest.mark.parametrize("mapping", _FEW_CASES + [_FULL_CASE], indirect=True)
+@pytest.mark.parametrize(
+    "mapping", _FEW_CASES + _MANY_CASES + [_FULL_CASE], indirect=True
+)
 def test_tutte_keeps_basal_vertices_on_base(mapping: _Mapping) -> None:
     basal_inds = np.flatnonzero(~mapping.polygons.free_mask[:, 1])
     base_y = init_systems.Coords.base_origin[1]

@@ -84,7 +84,7 @@ def _update_vertices(
     potential_weights,
     polygons,
 ):
-    t_frac = t / n_morph_steps
+    t_frac = (t + 1) / n_morph_steps
     target_areas = _update_targets(init_areas, goal_areas, t_frac)
     target_anisotropies = _update_targets(
         init_anisotropies, goal_anisotropies, t_frac
@@ -111,7 +111,7 @@ class _PotentialWeights:
     anisotropies: float
 
 
-def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
+def iterate(goal_areas, goal_anisotropies, polygons, params):
     poly_metrics = metrics.initialize_poly_metrics(
         vertices=polygons.init_vertices,
         indices=polygons.indices,
@@ -154,7 +154,7 @@ def iterate(goal_areas, goal_anisotropies, n_steps, polygons, params):
     )
 
     _, morph_evolution = jax.lax.scan(
-        update_step, init_carry, jnp.arange(n_steps)
+        update_step, init_carry, jnp.arange(params.n_morph_steps)
     )
 
     return morph_evolution

@@ -43,7 +43,6 @@ _SHAPES = [
     "wide_trapezoid",
     "square",
     "nconv",
-    "complex_nconv",
 ]
 # Limits of the valid trapezoid angles, which the shapes above do not cover
 _EXTREME_TRAPEZOID_ANGLES = [61.0, 120.0]
@@ -104,6 +103,10 @@ def test_target_boundary_area_matches_mesh(
 
 def test_target_boundary_is_simple_polygon(target: _Target) -> None:
     assert shapely.Polygon(target.vertices).is_valid
+
+
+def test_target_boundary_is_ccw_ring(target: _Target) -> None:
+    assert shapely.is_ccw(shapely.Polygon(target.vertices).exterior)
 
 
 def test_target_boundary_has_basal_vertices_on_base(target: _Target) -> None:

@@ -181,15 +181,18 @@ def get_tutte_metrics(params):
 
 
 def _build_edge_vertex_pairs(vertices, indices):
-    edges = []
-    edge_vertex_pairs = []
+    # An edge shared by two cells is kept once, so each crossing counts once
+    unique_pairs = set()
     for poly in indices:
         m = len(poly)
         for i in range(m):
-            a = poly[i]
-            b = poly[(i + 1) % m]
-            edges.append(LineString([vertices[a], vertices[b]]))
-            edge_vertex_pairs.append((a, b))
+            a = int(poly[i])
+            b = int(poly[(i + 1) % m])
+            unique_pairs.add((min(a, b), max(a, b)))
+    edge_vertex_pairs = sorted(unique_pairs)
+    edges = [
+        LineString([vertices[a], vertices[b]]) for a, b in edge_vertex_pairs
+    ]
     edge_vertex_pairs_arr = np.array(edge_vertex_pairs)
     return edges, edge_vertex_pairs_arr
 
